@@ -910,7 +910,8 @@ async function loadHome() {
 
     document.getElementById('stat-totale').textContent = '€' + totale.toFixed(0);
     document.getElementById('stat-approvato').textContent = '€' + approvato.toFixed(0);
-    document.getElementById('stat-attesa').textContent = attesa;
+    const statAttesa = document.getElementById('stat-attesa');
+    if (statAttesa) statAttesa.textContent = attesa;
     const statPagato = document.getElementById('stat-pagato');
     if (statPagato) statPagato.textContent = '€' + pagato.toFixed(0);
     const statDaPagare = document.getElementById('stat-da-pagare');
