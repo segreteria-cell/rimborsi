@@ -354,11 +354,15 @@
       <div class="hero-stats">
         <div class="hero-stat">
           <div class="hero-stat-num" id="stat-totale">€0</div>
-          <div class="hero-stat-label">Totale richiesto</div>
+          <div class="hero-stat-label">Totale</div>
         </div>
         <div class="hero-stat">
           <div class="hero-stat-num" id="stat-approvato">€0</div>
           <div class="hero-stat-label">Approvato</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-num" id="stat-pagato">€0</div>
+          <div class="hero-stat-label">💰 Pagato</div>
         </div>
         <div class="hero-stat">
           <div class="hero-stat-num" id="stat-attesa">0</div>
@@ -571,10 +575,11 @@
     </div>
   </div>
   <div class="content">
-    <div class="tabs">
+    <div class="tabs" style="flex-wrap:wrap;gap:6px;">
       <button class="tab active" onclick="adminTab('attesa')">In attesa</button>
       <button class="tab" onclick="adminTab('approvate')">Approvate</button>
       <button class="tab" onclick="adminTab('rifiutate')">Rifiutate</button>
+      <button class="tab" onclick="adminTab('pagamenti')">💰 Pagamenti</button>
       <button class="tab" onclick="adminTab('gare')">Gare</button>
       <button class="tab" onclick="adminTab('tariffe')">€/km</button>
     </div>
@@ -750,12 +755,11 @@ function showNuovaRichiesta() {
   document.getElementById('nuova-alert').innerHTML = '';
   document.getElementById('sel-mezzo').value = 'auto_propria';
   document.getElementById('card-percorso').style.display = 'block';
-  const arRadio = document.querySelectorAll('input[name="ar"]');
-  if (arRadio.length) arRadio[0].checked = true;
+  setAR('andata');
   renderSpese();
   aggiornaRiepilogo();
   showScreen('nuova');
-  loadGare(); // sempre ricarica le gare
+  loadGare();
 }
 
 function onMezzoChange() {
@@ -775,17 +779,24 @@ function setAR(val) {
   resetKm();
 }
 
-// Autocomplete indirizzi
+// Autocomplete indirizzi - usa Photon (no CORS)
 let autocompleteTimer = {};
 async function autocomplete(field, query) {
   clearTimeout(autocompleteTimer[field]);
   const el = document.getElementById('suggestions-' + field);
+  if (!el) return;
   if (query.length < 3) { el.innerHTML = ''; return; }
   autocompleteTimer[field] = setTimeout(async () => {
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1&countrycodes=it`, { headers: { 'Accept-Language': 'it' } });
+      const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=it&bbox=6.6,36.6,18.5,47.1`);
       const data = await res.json();
-      el.innerHTML = data.map(r => `<div class="suggestion-item" onclick="selectAddress('${field}','${r.display_name.replace(/'/g,"\\'")}')">📍 ${r.display_name}</div>`).join('');
+      if (!data.features || data.features.length === 0) { el.innerHTML = ''; return; }
+      el.innerHTML = data.features.map(f => {
+        const p = f.properties;
+        const label = [p.name, p.street, p.city || p.town || p.village, p.state].filter(Boolean).join(', ');
+        const safeLabel = label.replace(/'/g, '&apos;').replace(/"/g, '&quot;');
+        return `<div class="suggestion-item" onclick="selectAddress('${field}','${safeLabel}')">📍 ${label}</div>`;
+      }).join('');
     } catch(e) { el.innerHTML = ''; }
   }, 400);
 }
@@ -880,23 +891,29 @@ async function loadHome() {
     return;
   }
 
-  let totale = 0, approvato = 0, attesa = 0;
+  let totale = 0, approvato = 0, pagato = 0, attesa = 0;
   richieste.forEach(r => {
-    const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
+    const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
     totale += tot;
     if (r.stato === 'approvata') approvato += tot;
+    if (r.pagata) pagato += tot;
     if (r.stato === 'in attesa') attesa++;
   });
 
   document.getElementById('stat-totale').textContent = '€' + totale.toFixed(0);
   document.getElementById('stat-approvato').textContent = '€' + approvato.toFixed(0);
   document.getElementById('stat-attesa').textContent = attesa;
+  const statPagato = document.getElementById('stat-pagato');
+  if (statPagato) statPagato.textContent = '€' + pagato.toFixed(0);
 
   document.getElementById('home-richieste').innerHTML = richieste.map(r => {
-    const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
+    const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
     const gara = r.gare || {};
-    const badgeClass = r.stato === 'approvata' ? 'badge-approved' : r.stato === 'rifiutata' ? 'badge-rejected' : 'badge-pending';
-    const badgeText = r.stato === 'approvata' ? '✅ Approvata' : r.stato === 'rifiutata' ? '❌ Rifiutata' : '⏳ In attesa';
+    let badgeClass, badgeText;
+    if (r.pagata) { badgeClass = 'badge-approved'; badgeText = '💰 Pagato'; }
+    else if (r.stato === 'approvata') { badgeClass = 'badge-approved'; badgeText = '✅ Approvata'; }
+    else if (r.stato === 'rifiutata') { badgeClass = 'badge-rejected'; badgeText = '❌ Rifiutata'; }
+    else { badgeClass = 'badge-pending'; badgeText = '⏳ In attesa'; }
     return `<div class="card" onclick="showDettaglio('${r.id}','home')">
       <div class="card-header">
         <div>
@@ -907,7 +924,7 @@ async function loadHome() {
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
         <span style="font-size:13px;color:var(--muted)">🚗 ${r.km} km</span>
-        <span style="font-size:17px;font-weight:700;color:var(--blue)">€ ${tot.toFixed(2)}</span>
+        <span style="font-size:17px;font-weight:700;color:${r.pagata ? 'var(--green)' : 'var(--blue)'}">€ ${tot.toFixed(2)}</span>
       </div>
     </div>`;
   }).join('');
@@ -1340,13 +1357,80 @@ async function aggiornaStato(id, stato) {
 // ===== ADMIN =====
 function adminTab(tab) {
   adminCurrentTab = tab;
-  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ['attesa','approvate','rifiutate','gare','tariffe'][i] === tab));
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', ['attesa','approvate','rifiutate','pagamenti','gare','tariffe'][i] === tab);
+  });
   loadAdminContent(tab);
 }
 
 async function loadAdminContent(tab) {
   const el = document.getElementById('admin-content');
   el.innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
+
+  if (tab === 'pagamenti') {
+    // Carica tutte le richieste approvate raggruppate per allenatore
+    const { data } = await sb.from('richieste')
+      .select('*, gare(nome, data), profili(nome, cognome, email), spese(*)')
+      .eq('stato', 'approvata')
+      .order('creata_il', { ascending: false });
+
+    if (!data || data.length === 0) {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">💰</div><div class="empty-text">Nessuna richiesta approvata</div></div>';
+      return;
+    }
+
+    // Raggruppa per allenatore
+    const perAllenatore = {};
+    data.forEach(r => {
+      const key = r.allenatore_id;
+      if (!perAllenatore[key]) perAllenatore[key] = { profilo: r.profili, richieste: [] };
+      perAllenatore[key].richieste.push(r);
+    });
+
+    el.innerHTML = Object.values(perAllenatore).map(al => {
+      const nonPagate = al.richieste.filter(r => !r.pagata);
+      const pagate = al.richieste.filter(r => r.pagata);
+      const totNonPagato = nonPagate.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
+      const totPagato = pagate.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
+
+      return `<div class="admin-card" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div>
+            <div style="font-size:16px;font-weight:700;">${al.profilo?.nome} ${al.profilo?.cognome}</div>
+            <div style="font-size:12px;color:var(--muted)">${al.profilo?.email}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:18px;font-weight:700;color:var(--blue)">€${totNonPagato.toFixed(2)}</div>
+            <div style="font-size:11px;color:var(--muted)">da pagare</div>
+          </div>
+        </div>
+        ${nonPagate.length > 0 ? `
+        <div style="background:var(--bg);border-radius:10px;padding:10px;margin-bottom:10px;">
+          ${nonPagate.map(r => {
+            const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
+            return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+              <input type="checkbox" class="check-pagamento" data-id="${r.id}" data-importo="${tot}" style="width:20px;height:20px;cursor:pointer;" onchange="updateSelezione()">
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:500;">${r.gare?.nome || '—'}</div>
+                <div style="font-size:11px;color:var(--muted)">${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''}</div>
+              </div>
+              <div style="font-weight:700;color:var(--blue)">€${tot.toFixed(2)}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        ` : ''}
+        ${pagate.length > 0 ? `<div style="font-size:12px;color:var(--green);margin-bottom:8px;">✅ Già pagato: €${totPagato.toFixed(2)}</div>` : ''}
+      </div>`;
+    }).join('') + `
+    <div id="selezione-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--blue);color:white;padding:16px 20px;z-index:300;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:14px;font-weight:600;" id="selezione-count">0 selezionati</div>
+        <div style="font-size:18px;font-weight:700;" id="selezione-totale">€ 0,00</div>
+      </div>
+      <button onclick="segnaComePagati()" style="background:white;color:var(--blue);border:none;border-radius:10px;padding:12px 20px;font-weight:700;font-size:15px;cursor:pointer;">💰 Segna pagati</button>
+    </div>`;
+    return;
+  }
 
   if (tab === 'tariffe') {
     const { data } = await sb.from('tariffe_km').select('*').order('data_inizio', { ascending: false });
@@ -1417,6 +1501,27 @@ async function loadAdminContent(tab) {
 async function toggleGara(id, attiva) {
   await sb.from('gare').update({ attiva }).eq('id', id);
   loadAdminContent('gare');
+}
+
+function updateSelezione() {
+  const checks = document.querySelectorAll('.check-pagamento:checked');
+  const bar = document.getElementById('selezione-bar');
+  const totale = Array.from(checks).reduce((s, c) => s + parseFloat(c.dataset.importo), 0);
+  if (checks.length > 0) {
+    bar.style.display = 'flex';
+    document.getElementById('selezione-count').textContent = checks.length + ' selezionat' + (checks.length === 1 ? 'a' : 'e');
+    document.getElementById('selezione-totale').textContent = '€ ' + totale.toFixed(2);
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+async function segnaComePagati() {
+  const checks = document.querySelectorAll('.check-pagamento:checked');
+  if (checks.length === 0) return;
+  const ids = Array.from(checks).map(c => c.dataset.id);
+  await sb.from('richieste').update({ pagata: true, pagata_il: new Date().toISOString() }).in('id', ids);
+  loadAdminContent('pagamenti');
 }
 
 function openModalTariffa() {
