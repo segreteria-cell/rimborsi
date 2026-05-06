@@ -358,15 +358,15 @@
         </div>
         <div class="hero-stat">
           <div class="hero-stat-num" id="stat-approvato">€0</div>
-          <div class="hero-stat-label">Approvato</div>
+          <div class="hero-stat-label">✅ Approvato</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-num" id="stat-da-pagare">€0</div>
+          <div class="hero-stat-label">⏳ Da pagare</div>
         </div>
         <div class="hero-stat">
           <div class="hero-stat-num" id="stat-pagato">€0</div>
           <div class="hero-stat-label">💰 Pagato</div>
-        </div>
-        <div class="hero-stat">
-          <div class="hero-stat-num" id="stat-attesa">0</div>
-          <div class="hero-stat-label">In attesa</div>
         </div>
       </div>
     </div>
@@ -891,10 +891,11 @@ async function loadHome() {
     return;
   }
 
-  let totale = 0, approvato = 0, pagato = 0, attesa = 0;
+  let totale = 0, approvato = 0, pagato = 0, daPagare = 0, attesa = 0;
   richieste.forEach(r => {
     const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
     totale += tot;
+    if (r.stato === 'approvata' && !r.pagata) daPagare += tot;
     if (r.stato === 'approvata') approvato += tot;
     if (r.pagata) pagato += tot;
     if (r.stato === 'in attesa') attesa++;
@@ -905,6 +906,8 @@ async function loadHome() {
   document.getElementById('stat-attesa').textContent = attesa;
   const statPagato = document.getElementById('stat-pagato');
   if (statPagato) statPagato.textContent = '€' + pagato.toFixed(0);
+  const statDaPagare = document.getElementById('stat-da-pagare');
+  if (statDaPagare) statDaPagare.textContent = '€' + daPagare.toFixed(0);
 
   document.getElementById('home-richieste').innerHTML = richieste.map(r => {
     const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
