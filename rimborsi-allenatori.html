@@ -872,7 +872,9 @@ async function loadProfilo() {
   const { data } = await sb.from('profili').select('*').eq('id', currentUser.id).single();
   currentProfilo = data;
   if (data) {
-    document.getElementById('home-name').textContent = data.nome + ' ' + data.cognome;
+    const nomeCompleto = (data.nome + ' ' + data.cognome).trim();
+    const el = document.getElementById('home-name');
+    if (el) el.textContent = nomeCompleto || data.email;
   }
 }
 
@@ -894,7 +896,9 @@ async function loadHome() {
       document.getElementById('home-richieste').innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Nessuna richiesta ancora.<br>Tocca + per iniziare!</div></div>`;
       document.getElementById('stat-totale').textContent = '€0';
       document.getElementById('stat-approvato').textContent = '€0';
-      document.getElementById('stat-attesa').textContent = '0';
+      const sa = document.getElementById('stat-attesa'); if (sa) sa.textContent = '0';
+      const sp = document.getElementById('stat-pagato'); if (sp) sp.textContent = '€0';
+      const sd = document.getElementById('stat-da-pagare'); if (sd) sd.textContent = '€0';
       return;
     }
 
