@@ -528,6 +528,7 @@
       <button class="tab" onclick="adminTab('approvate')">Approvate</button>
       <button class="tab" onclick="adminTab('rifiutate')">Rifiutate</button>
       <button class="tab" onclick="adminTab('gare')">Gare</button>
+      <button class="tab" onclick="adminTab('tariffe')">€/km</button>
     </div>
     <div id="admin-content">
       <div class="loading"><div class="spinner"></div>Caricamento...</div>
@@ -590,7 +591,21 @@
   </div>
 </div>
 
-<!-- ===== MODAL AGGIUNGI GARA (ADMIN) ===== -->
+<!-- ===== MODAL AGGIUNGI TARIFFA (ADMIN) ===== -->
+<div class="modal-overlay" id="modal-tariffa">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nuova tariffa km</div>
+    <div class="field"><label>Stagione (es. 2026-2027)</label><input type="text" id="tariffa-stagione" placeholder="2026-2027"></div>
+    <div class="field"><label>Data inizio</label><input type="date" id="tariffa-inizio"></div>
+    <div class="field"><label>Data fine</label><input type="date" id="tariffa-fine"></div>
+    <div class="field"><label>Tariffa €/km</label><input type="number" id="tariffa-valore" placeholder="0.25" step="0.01" min="0"></div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-secondary" onclick="closeModalTariffa()">Annulla</button>
+      <button class="btn btn-primary" onclick="addTariffa()">Salva</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-gara">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -804,40 +819,75 @@ async function loadHome() {
 
 // ===== GARE =====
 async function loadGare() {
-  const { data } = await sb.from('gare').select('*').eq('attiva', true).order('data', { ascending: false });
-  const sel = document.getElementById('sel-gara');
-  if (!data || data.length === 0) {
-    sel.innerHTML = '<option value="">Nessuna gara disponibile</option>';
-    return;
+  try {
+    const { data, error } = await sb.from('gare').select('*').eq('attiva', true).order('data', { ascending: true });
+    const sel = document.getElementById('sel-gara');
+    if (error || !data || data.length === 0) {
+      sel.innerHTML = '<option value="">Nessuna gara disponibile</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="">Seleziona una gara...</option>' +
+      data.map(g => `<option value="${g.id}" data-data="${g.data}">${g.nome} — ${new Date(g.data).toLocaleDateString('it-IT')} · ${g.luogo}</option>`).join('');
+  } catch(e) {
+    document.getElementById('sel-gara').innerHTML = '<option value="">Errore caricamento gare</option>';
   }
-  sel.innerHTML = '<option value="">Seleziona una gara...</option>' +
-    data.map(g => `<option value="${g.id}">${g.nome} — ${new Date(g.data).toLocaleDateString('it-IT')} · ${g.luogo}</option>`).join('');
+}
+
+// ===== TARIFFE =====
+async function getTariffaPerData(dataGara) {
+  try {
+    const { data } = await sb.from('tariffe_km')
+      .select('*')
+      .eq('attiva', true)
+      .lte('data_inizio', dataGara)
+      .gte('data_fine', dataGara)
+      .single();
+    return data ? data.tariffa_km : 0.25; // fallback 0.25
+  } catch(e) {
+    return 0.25;
+  }
 }
 
 // ===== KM =====
-function resetKm() { kmCalcolati = 0; document.getElementById('route-result').style.display = 'none'; }
+function resetKm() { kmCalcolati = 0; document.getElementById('route-result').style.display = 'none'; aggiornaRiepilogo(); }
 
 async function calcolaKm() {
   const p = document.getElementById('inp-partenza').value.trim();
   const a = document.getElementById('inp-arrivo').value.trim();
   if (!p || !a) { alert('Inserisci partenza e arrivo'); return; }
   const btn = document.getElementById('btn-calcola-km');
-  btn.textContent = '⏳ Calcolo in corso...';
+  btn.innerHTML = '⏳ Calcolo in corso...';
   btn.disabled = true;
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${await geocode(p)};${await geocode(a)}?overview=false`;
+    const coords1 = await geocode(p);
+    const coords2 = await geocode(a);
+    const url = `https://router.project-osrm.org/route/v1/driving/${coords1};${coords2}?overview=false`;
     const res = await fetch(url);
     const data = await res.json();
     if (data.routes && data.routes[0]) {
       const ar = document.querySelector('input[name="ar"]:checked')?.value || 'andata';
       const base = Math.round(data.routes[0].distance / 1000);
       kmCalcolati = ar === 'ar' ? base * 2 : base;
-      document.getElementById('km-result').textContent = kmCalcolati + ' km' + (ar === 'ar' ? ' (A/R)' : '');
+
+      // Prendi tariffa in base alla data della gara selezionata
+      const sel = document.getElementById('sel-gara');
+      const selectedOption = sel.options[sel.selectedIndex];
+      const dataGara = selectedOption?.dataset?.data || new Date().toISOString().split('T')[0];
+      const tariffa = await getTariffaPerData(dataGara);
+      const rimborsoKm = kmCalcolati * tariffa;
+
+      document.getElementById('km-result').textContent = `${kmCalcolati} km${ar === 'ar' ? ' (A/R)' : ''} × €${tariffa}/km = €${rimborsoKm.toFixed(2)}`;
       document.getElementById('path-result').textContent = p + ' → ' + a;
       document.getElementById('route-result').style.display = 'block';
+
+      // Aggiungi automaticamente spesa chilometrica
+      speseTemp = speseTemp.filter(s => s._km !== true); // rimuovi precedente
+      speseTemp.unshift({ tipo: 'carburante', importo: rimborsoKm, descrizione: `${kmCalcolati} km × €${tariffa}/km`, file: null, allegato_url: null, _km: true });
+      renderSpese();
+      aggiornaRiepilogo();
     } else { alert('Percorso non trovato. Controlla gli indirizzi.'); }
-  } catch(e) { alert('Errore nel calcolo. Riprova.'); }
-  btn.textContent = '📍 Ricalcola km';
+  } catch(e) { alert('Errore nel calcolo. Riprova: ' + e.message); }
+  btn.innerHTML = '📍 Ricalcola km';
   btn.disabled = false;
 }
 
@@ -846,7 +896,7 @@ async function geocode(address) {
     headers: { 'Accept-Language': 'it' }
   });
   const data = await res.json();
-  if (!data[0]) throw new Error('Indirizzo non trovato: ' + address);
+  if (!data || !data[0]) throw new Error('Indirizzo non trovato: ' + address);
   return `${data[0].lon},${data[0].lat}`;
 }
 
@@ -1053,13 +1103,30 @@ async function aggiornaStato(id, stato) {
 // ===== ADMIN =====
 function adminTab(tab) {
   adminCurrentTab = tab;
-  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ['attesa','approvate','rifiutate','gare'][i] === tab));
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ['attesa','approvate','rifiutate','gare','tariffe'][i] === tab));
   loadAdminContent(tab);
 }
 
 async function loadAdminContent(tab) {
   const el = document.getElementById('admin-content');
   el.innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
+
+  if (tab === 'tariffe') {
+    const { data } = await sb.from('tariffe_km').select('*').order('data_inizio', { ascending: false });
+    el.innerHTML = `<button class="btn btn-primary" onclick="openModalTariffa()" style="margin-bottom:16px;">+ Aggiungi stagione</button>` +
+      (data && data.length ? data.map(t => `
+        <div class="admin-card">
+          <div class="admin-card-top">
+            <div>
+              <div class="card-title">Stagione ${t.stagione}</div>
+              <div class="card-sub">📅 ${new Date(t.data_inizio).toLocaleDateString('it-IT')} → ${new Date(t.data_fine).toLocaleDateString('it-IT')}</div>
+            </div>
+            <span style="font-size:20px;font-weight:700;color:var(--blue)">€ ${parseFloat(t.tariffa_km).toFixed(2)}/km</span>
+          </div>
+          <span class="badge ${t.attiva ? 'badge-approved' : 'badge-rejected'}">${t.attiva ? '✅ Attiva' : 'Non attiva'}</span>
+        </div>`).join('') : '<div class="empty"><div class="empty-icon">💰</div><div class="empty-text">Nessuna tariffa</div></div>');
+    return;
+  }
 
   if (tab === 'gare') {
     const { data } = await sb.from('gare').select('*').order('data', { ascending: false });
@@ -1113,6 +1180,26 @@ async function loadAdminContent(tab) {
 async function toggleGara(id, attiva) {
   await sb.from('gare').update({ attiva }).eq('id', id);
   loadAdminContent('gare');
+}
+
+function openModalTariffa() {
+  document.getElementById('tariffa-stagione').value = '';
+  document.getElementById('tariffa-inizio').value = '';
+  document.getElementById('tariffa-fine').value = '';
+  document.getElementById('tariffa-valore').value = '';
+  document.getElementById('modal-tariffa').classList.add('open');
+}
+function closeModalTariffa() { document.getElementById('modal-tariffa').classList.remove('open'); }
+
+async function addTariffa() {
+  const stagione = document.getElementById('tariffa-stagione').value.trim();
+  const inizio = document.getElementById('tariffa-inizio').value;
+  const fine = document.getElementById('tariffa-fine').value;
+  const valore = parseFloat(document.getElementById('tariffa-valore').value);
+  if (!stagione || !inizio || !fine || !valore) { alert('Compila tutti i campi'); return; }
+  await sb.from('tariffe_km').insert({ stagione, data_inizio: inizio, data_fine: fine, tariffa_km: valore, attiva: true });
+  closeModalTariffa();
+  loadAdminContent('tariffe');
 }
 
 function openModalGara() {
