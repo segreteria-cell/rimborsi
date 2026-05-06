@@ -386,16 +386,42 @@
       </div>
     </div>
 
-    <!-- STEP 2: Percorso -->
+    <!-- STEP 2: Mezzo -->
     <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">🚗 Mezzo di trasporto</div>
+      <div class="field">
+        <label>Seleziona mezzo utilizzato</label>
+        <select id="sel-mezzo" onchange="onMezzoChange()">
+          <option value="auto_propria">🚗 Auto propria</option>
+          <option value="mezzi_pubblici">🚌 Mezzi pubblici</option>
+          <option value="treno">🚂 Treno</option>
+          <option value="aereo">✈️ Aereo</option>
+          <option value="altro">📋 Altro</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- STEP 3: Percorso (solo se auto propria) -->
+    <div class="card" id="card-percorso">
       <div class="card-title" style="margin-bottom:12px;">🗺️ Percorso</div>
       <div class="field">
         <label>Indirizzo di partenza</label>
-        <input type="text" id="inp-partenza" placeholder="Via Roma 1, Milano" oninput="resetKm()">
+        <input type="text" id="inp-partenza" placeholder="Via Roma 1, Genova" oninput="resetKm()">
       </div>
       <div class="field">
         <label>Indirizzo di arrivo</label>
         <input type="text" id="inp-arrivo" placeholder="Via Garibaldi 5, Roma" oninput="resetKm()">
+      </div>
+      <div class="field">
+        <label>Andata e ritorno?</label>
+        <div style="display:flex;gap:12px;margin-top:4px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:400;">
+            <input type="radio" name="ar" value="andata" checked onchange="onARChange()"> Solo andata
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:400;">
+            <input type="radio" name="ar" value="ar" onchange="onARChange()"> Andata e ritorno
+          </label>
+        </div>
       </div>
       <button class="maps-btn" onclick="calcolaKm()" id="btn-calcola-km">
         <span>📍</span> Calcola km con Google Maps
@@ -411,7 +437,7 @@
       </div>
     </div>
 
-    <!-- STEP 3: Spese -->
+    <!-- STEP 4: Spese -->
     <div class="card">
       <div class="card-title" style="margin-bottom:12px;">💰 Spese sostenute</div>
       <div id="spese-list"></div>
@@ -422,11 +448,31 @@
       </div>
     </div>
 
-    <!-- STEP 4: Note -->
+    <!-- STEP 5: Acconto -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">💵 Acconto già percepito</div>
+      <div class="field">
+        <label>Hai già ricevuto un acconto? (inserisci 0 se no)</label>
+        <input type="number" id="inp-acconto" placeholder="0.00" step="0.01" min="0" value="0" oninput="aggiornaRiepilogo()">
+      </div>
+    </div>
+
+    <!-- STEP 6: Note -->
     <div class="card">
       <div class="card-title" style="margin-bottom:12px;">📝 Note aggiuntive</div>
       <div class="field">
         <textarea id="inp-note" placeholder="Aggiungi eventuali note o informazioni aggiuntive..."></textarea>
+      </div>
+    </div>
+
+    <!-- RIEPILOGO -->
+    <div class="card" id="card-riepilogo" style="background:var(--blue-light);border:1.5px solid var(--blue);">
+      <div class="card-title" style="margin-bottom:12px;color:var(--blue);">📋 Riepilogo rimborso</div>
+      <div class="detail-row"><div class="detail-label">Totale spese</div><div class="detail-value" id="riepilogo-spese" style="color:var(--blue);font-weight:700;">€ 0,00</div></div>
+      <div class="detail-row"><div class="detail-label">Acconto percepito</div><div class="detail-value" id="riepilogo-acconto" style="color:var(--orange);font-weight:700;">€ 0,00</div></div>
+      <div class="detail-row" style="border-top:2px solid var(--blue);margin-top:4px;padding-top:12px;">
+        <div class="detail-label" style="font-weight:700;font-size:15px;">Da rimborsare</div>
+        <div class="detail-value" id="riepilogo-totale" style="color:var(--blue);font-size:20px;font-weight:700;">€ 0,00</div>
       </div>
     </div>
 
@@ -621,11 +667,36 @@ function showNuovaRichiesta() {
   kmCalcolati = 0;
   document.getElementById('inp-partenza').value = '';
   document.getElementById('inp-arrivo').value = '';
-  document.getElementById('inp-note').value = '';
+  document.getElementById('inp-note').value = '0';
   document.getElementById('route-result').style.display = 'none';
   document.getElementById('nuova-alert').innerHTML = '';
+  document.getElementById('sel-mezzo').value = 'auto_propria';
+  document.getElementById('card-percorso').style.display = 'block';
+  const arRadio = document.querySelectorAll('input[name="ar"]');
+  if (arRadio.length) arRadio[0].checked = true;
   renderSpese();
+  aggiornaRiepilogo();
   showScreen('nuova');
+}
+
+function onMezzoChange() {
+  const mezzo = document.getElementById('sel-mezzo').value;
+  document.getElementById('card-percorso').style.display = mezzo === 'auto_propria' ? 'block' : 'none';
+  if (mezzo !== 'auto_propria') kmCalcolati = 0;
+}
+
+function onARChange() {
+  // km viene ricalcolato al prossimo calcolo, non modifichiamo kmCalcolati qui
+}
+
+function aggiornaRiepilogo() {
+  const totSpese = speseTemp.reduce((s, sp) => s + sp.importo, 0);
+  const acconto = parseFloat(document.getElementById('inp-acconto')?.value || 0) || 0;
+  const daRimborsare = totSpese - acconto;
+  document.getElementById('riepilogo-spese').textContent = '€ ' + totSpese.toFixed(2);
+  document.getElementById('riepilogo-acconto').textContent = '€ ' + acconto.toFixed(2);
+  document.getElementById('riepilogo-totale').textContent = '€ ' + daRimborsare.toFixed(2);
+  document.getElementById('riepilogo-totale').style.color = daRimborsare < 0 ? 'var(--red)' : 'var(--blue)';
 }
 
 function showProfilo() {
@@ -755,8 +826,10 @@ async function calcolaKm() {
     const res = await fetch(url);
     const data = await res.json();
     if (data.routes && data.routes[0]) {
-      kmCalcolati = Math.round(data.routes[0].distance / 1000);
-      document.getElementById('km-result').textContent = kmCalcolati + ' km';
+      const ar = document.querySelector('input[name="ar"]:checked')?.value || 'andata';
+      const base = Math.round(data.routes[0].distance / 1000);
+      kmCalcolati = ar === 'ar' ? base * 2 : base;
+      document.getElementById('km-result').textContent = kmCalcolati + ' km' + (ar === 'ar' ? ' (A/R)' : '');
       document.getElementById('path-result').textContent = p + ' → ' + a;
       document.getElementById('route-result').style.display = 'block';
     } else { alert('Percorso non trovato. Controlla gli indirizzi.'); }
@@ -809,6 +882,7 @@ function addSpesa() {
   speseTemp.push({ tipo, importo, descrizione: desc, file: file || null, allegato_url: null });
   closeModal();
   renderSpese();
+  aggiornaRiepilogo();
 }
 
 function renderSpese() {
@@ -833,18 +907,22 @@ function renderSpese() {
   document.getElementById('totale-spese').textContent = '€ ' + totale.toFixed(2);
 }
 
-function removeSpesa(i) { speseTemp.splice(i, 1); renderSpese(); }
+function removeSpesa(i) { speseTemp.splice(i, 1); renderSpese(); aggiornaRiepilogo(); }
+
+function addSpesaAndUpdate() { addSpesa(); aggiornaRiepilogo(); }
 
 // ===== INVIA RICHIESTA =====
 async function inviaRichiesta() {
   const garaId = document.getElementById('sel-gara').value;
+  const mezzo = document.getElementById('sel-mezzo').value;
   const partenza = document.getElementById('inp-partenza').value.trim();
   const arrivo = document.getElementById('inp-arrivo').value.trim();
   const note = document.getElementById('inp-note').value.trim();
+  const acconto = parseFloat(document.getElementById('inp-acconto').value || 0) || 0;
 
   if (!garaId) { showAlert('nuova-alert', 'Seleziona una gara', 'error'); return; }
-  if (!partenza || !arrivo) { showAlert('nuova-alert', 'Inserisci partenza e arrivo', 'error'); return; }
-  if (kmCalcolati === 0) { showAlert('nuova-alert', 'Calcola i km del percorso', 'error'); return; }
+  if (mezzo === 'auto_propria' && (!partenza || !arrivo)) { showAlert('nuova-alert', 'Inserisci partenza e arrivo', 'error'); return; }
+  if (mezzo === 'auto_propria' && kmCalcolati === 0) { showAlert('nuova-alert', 'Calcola i km del percorso', 'error'); return; }
 
   const btn = document.getElementById('btn-invia');
   btn.disabled = true; btn.textContent = 'Invio in corso...';
@@ -854,7 +932,9 @@ async function inviaRichiesta() {
     const { data: richiesta, error: errR } = await sb.from('richieste').insert({
       allenatore_id: currentUser.id,
       gara_id: garaId,
-      partenza, arrivo, km: kmCalcolati, note, stato: 'in attesa'
+      partenza: partenza || '—', arrivo: arrivo || '—',
+      km: kmCalcolati, note, stato: 'in attesa',
+      mezzo, acconto
     }).select().single();
 
     if (errR) throw errR;
@@ -924,6 +1004,7 @@ async function showDettaglio(id, from) {
     </div>` : ''}
     <div class="card">
       <div class="section-title">Percorso</div>
+      <div class="detail-row"><div class="detail-label">Mezzo</div><div class="detail-value">${r.mezzo || 'auto_propria'}</div></div>
       <div class="detail-row"><div class="detail-label">Partenza</div><div class="detail-value">${r.partenza}</div></div>
       <div class="detail-row"><div class="detail-label">Arrivo</div><div class="detail-value">${r.arrivo}</div></div>
       <div class="detail-row"><div class="detail-label">Km</div><div class="detail-value">🚗 ${r.km} km</div></div>
@@ -942,8 +1023,13 @@ async function showDettaglio(id, from) {
           <div class="spesa-amount">€ ${parseFloat(s.importo).toFixed(2)}</div>
         </div>`).join('')}
       <div class="total-row">
-        <div class="total-label">Totale</div>
+        <div class="total-label">Totale spese</div>
         <div class="total-amount">€ ${totale.toFixed(2)}</div>
+      </div>
+      ${r.acconto > 0 ? `<div class="detail-row"><div class="detail-label">Acconto percepito</div><div class="detail-value" style="color:var(--orange)">- € ${parseFloat(r.acconto).toFixed(2)}</div></div>` : ''}
+      <div class="detail-row" style="border-top:2px solid var(--border);margin-top:4px;">
+        <div class="detail-label" style="font-weight:700">Da rimborsare</div>
+        <div class="detail-value" style="font-size:18px;font-weight:700;color:var(--blue)">€ ${(totale - (r.acconto||0)).toFixed(2)}</div>
       </div>
     </div>
     ${r.note ? `<div class="card"><div class="section-title">Note</div><p style="font-size:14px;line-height:1.6">${r.note}</p></div>` : ''}
