@@ -552,6 +552,21 @@
       <div class="detail-row"><div class="detail-label">Email</div><div class="detail-value" id="profilo-email2">—</div></div>
       <div class="detail-row"><div class="detail-label">Ruolo</div><div class="detail-value" id="profilo-ruolo">—</div></div>
     </div>
+
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">🔒 Cambia password</div>
+      <div id="pwd-alert"></div>
+      <div class="field">
+        <label>Nuova password</label>
+        <input type="password" id="inp-pwd-nuova" placeholder="Minimo 6 caratteri">
+      </div>
+      <div class="field">
+        <label>Conferma password</label>
+        <input type="password" id="inp-pwd-conferma" placeholder="Ripeti la password">
+      </div>
+      <button class="btn btn-primary" onclick="cambiaPassword()">Aggiorna password</button>
+    </div>
+
     <button class="btn btn-danger" onclick="doLogout()">Esci dall'app</button>
   </div>
   <div class="bottom-nav">
@@ -862,6 +877,18 @@ async function doRegister() {
   setTimeout(showLogin, 2000);
 }
 
+async function cambiaPassword() {
+  const nuova = document.getElementById('inp-pwd-nuova').value;
+  const conferma = document.getElementById('inp-pwd-conferma').value;
+  if (!nuova || nuova.length < 6) { showAlert('pwd-alert', 'La password deve avere almeno 6 caratteri', 'error'); return; }
+  if (nuova !== conferma) { showAlert('pwd-alert', 'Le password non coincidono', 'error'); return; }
+  const { error } = await sb.auth.updateUser({ password: nuova });
+  if (error) { showAlert('pwd-alert', 'Errore: ' + error.message, 'error'); return; }
+  showAlert('pwd-alert', '✅ Password aggiornata con successo!', 'success');
+  document.getElementById('inp-pwd-nuova').value = '';
+  document.getElementById('inp-pwd-conferma').value = '';
+}
+
 async function doLogout() {
   await sb.auth.signOut();
   currentUser = null; currentProfilo = null;
@@ -894,8 +921,8 @@ async function loadHome() {
 
     if (!richieste || richieste.length === 0) {
       document.getElementById('home-richieste').innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Nessuna richiesta ancora.<br>Tocca + per iniziare!</div></div>`;
-      document.getElementById('stat-totale').textContent = '€0';
-      document.getElementById('stat-approvato').textContent = '€0';
+      const st = document.getElementById('stat-totale'); if (st) st.textContent = '€0';
+      const sap = document.getElementById('stat-approvato'); if (sap) sap.textContent = '€0';
       const sa = document.getElementById('stat-attesa'); if (sa) sa.textContent = '0';
       const sp = document.getElementById('stat-pagato'); if (sp) sp.textContent = '€0';
       const sd = document.getElementById('stat-da-pagare'); if (sd) sd.textContent = '€0';
@@ -912,8 +939,8 @@ async function loadHome() {
       if (r.stato === 'in attesa') attesa++;
     });
 
-    document.getElementById('stat-totale').textContent = '€' + totale.toFixed(0);
-    document.getElementById('stat-approvato').textContent = '€' + approvato.toFixed(0);
+    const st = document.getElementById('stat-totale'); if (st) st.textContent = '€' + totale.toFixed(0);
+    const sap = document.getElementById('stat-approvato'); if (sap) sap.textContent = '€' + approvato.toFixed(0);
     const statAttesa = document.getElementById('stat-attesa');
     if (statAttesa) statAttesa.textContent = attesa;
     const statPagato = document.getElementById('stat-pagato');
