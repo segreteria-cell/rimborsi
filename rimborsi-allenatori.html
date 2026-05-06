@@ -878,59 +878,69 @@ async function loadProfilo() {
 
 // ===== HOME =====
 async function loadHome() {
-  const { data: richieste } = await sb.from('richieste')
-    .select('*, gare(nome, data, luogo), spese(*)')
-    .eq('allenatore_id', currentUser.id)
-    .order('creata_il', { ascending: false });
+  document.getElementById('home-richieste').innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
+  try {
+    const { data: richieste, error } = await sb.from('richieste')
+      .select('*, gare(nome, data, luogo), spese(*)')
+      .eq('allenatore_id', currentUser.id)
+      .order('creata_il', { ascending: false });
 
-  if (!richieste || richieste.length === 0) {
-    document.getElementById('home-richieste').innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Nessuna richiesta ancora.<br>Tocca + per iniziare!</div></div>`;
-    document.getElementById('stat-totale').textContent = '€0';
-    document.getElementById('stat-approvato').textContent = '€0';
-    document.getElementById('stat-attesa').textContent = '0';
-    return;
-  }
+    if (error) {
+      document.getElementById('home-richieste').innerHTML = `<div class="alert alert-error">Errore: ${error.message}</div>`;
+      return;
+    }
 
-  let totale = 0, approvato = 0, pagato = 0, daPagare = 0, attesa = 0;
-  richieste.forEach(r => {
-    const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
-    totale += tot;
-    if (r.stato === 'approvata' && !r.pagata) daPagare += tot;
-    if (r.stato === 'approvata') approvato += tot;
-    if (r.pagata) pagato += tot;
-    if (r.stato === 'in attesa') attesa++;
-  });
+    if (!richieste || richieste.length === 0) {
+      document.getElementById('home-richieste').innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Nessuna richiesta ancora.<br>Tocca + per iniziare!</div></div>`;
+      document.getElementById('stat-totale').textContent = '€0';
+      document.getElementById('stat-approvato').textContent = '€0';
+      document.getElementById('stat-attesa').textContent = '0';
+      return;
+    }
 
-  document.getElementById('stat-totale').textContent = '€' + totale.toFixed(0);
-  document.getElementById('stat-approvato').textContent = '€' + approvato.toFixed(0);
-  document.getElementById('stat-attesa').textContent = attesa;
-  const statPagato = document.getElementById('stat-pagato');
-  if (statPagato) statPagato.textContent = '€' + pagato.toFixed(0);
-  const statDaPagare = document.getElementById('stat-da-pagare');
-  if (statDaPagare) statDaPagare.textContent = '€' + daPagare.toFixed(0);
+    let totale = 0, approvato = 0, pagato = 0, daPagare = 0, attesa = 0;
+    richieste.forEach(r => {
+      const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
+      totale += tot;
+      if (r.stato === 'approvata' && !r.pagata) daPagare += tot;
+      if (r.stato === 'approvata') approvato += tot;
+      if (r.pagata) pagato += tot;
+      if (r.stato === 'in attesa') attesa++;
+    });
 
-  document.getElementById('home-richieste').innerHTML = richieste.map(r => {
-    const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
-    const gara = r.gare || {};
-    let badgeClass, badgeText;
-    if (r.pagata) { badgeClass = 'badge-approved'; badgeText = '💰 Pagato'; }
-    else if (r.stato === 'approvata') { badgeClass = 'badge-approved'; badgeText = '✅ Approvata'; }
-    else if (r.stato === 'rifiutata') { badgeClass = 'badge-rejected'; badgeText = '❌ Rifiutata'; }
-    else { badgeClass = 'badge-pending'; badgeText = '⏳ In attesa'; }
-    return `<div class="card" onclick="showDettaglio('${r.id}','home')">
-      <div class="card-header">
-        <div>
-          <div class="card-title">${gara.nome || 'Gara'}</div>
-          <div class="card-sub">📍 ${gara.luogo || ''} · ${gara.data ? new Date(gara.data).toLocaleDateString('it-IT') : ''}</div>
+    document.getElementById('stat-totale').textContent = '€' + totale.toFixed(0);
+    document.getElementById('stat-approvato').textContent = '€' + approvato.toFixed(0);
+    document.getElementById('stat-attesa').textContent = attesa;
+    const statPagato = document.getElementById('stat-pagato');
+    if (statPagato) statPagato.textContent = '€' + pagato.toFixed(0);
+    const statDaPagare = document.getElementById('stat-da-pagare');
+    if (statDaPagare) statDaPagare.textContent = '€' + daPagare.toFixed(0);
+
+    document.getElementById('home-richieste').innerHTML = richieste.map(r => {
+      const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
+      const gara = r.gare || {};
+      let badgeClass, badgeText;
+      if (r.pagata) { badgeClass = 'badge-approved'; badgeText = '💰 Pagato'; }
+      else if (r.stato === 'approvata') { badgeClass = 'badge-approved'; badgeText = '✅ Approvata'; }
+      else if (r.stato === 'rifiutata') { badgeClass = 'badge-rejected'; badgeText = '❌ Rifiutata'; }
+      else { badgeClass = 'badge-pending'; badgeText = '⏳ In attesa'; }
+      return `<div class="card" onclick="showDettaglio('${r.id}','home')">
+        <div class="card-header">
+          <div>
+            <div class="card-title">${gara.nome || 'Gara'}</div>
+            <div class="card-sub">📍 ${gara.luogo || ''} · ${gara.data ? new Date(gara.data).toLocaleDateString('it-IT') : ''}</div>
+          </div>
+          <span class="badge ${badgeClass}">${badgeText}</span>
         </div>
-        <span class="badge ${badgeClass}">${badgeText}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-        <span style="font-size:13px;color:var(--muted)">🚗 ${r.km} km</span>
-        <span style="font-size:17px;font-weight:700;color:${r.pagata ? 'var(--green)' : 'var(--blue)'}">€ ${tot.toFixed(2)}</span>
-      </div>
-    </div>`;
-  }).join('');
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+          <span style="font-size:13px;color:var(--muted)">🚗 ${r.km} km</span>
+          <span style="font-size:17px;font-weight:700;color:${r.pagata ? 'var(--green)' : 'var(--blue)'}">€ ${tot.toFixed(2)}</span>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('home-richieste').innerHTML = `<div class="alert alert-error">Errore imprevisto: ${e.message}</div>`;
+  }
 }
 
 // ===== GARE =====
