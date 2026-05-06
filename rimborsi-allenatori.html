@@ -41,6 +41,9 @@
     border-bottom: 1px solid var(--border);
     position: sticky; top: 0; z-index: 100;
   }
+  .topbar-logo {
+    height: 32px; width: auto; margin-right: 10px; flex-shrink: 0;
+  }
   .topbar-title { font-size: 17px; font-weight: 600; }
   .topbar-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .avatar {
@@ -706,6 +709,15 @@ let adminCurrentTab = 'attesa';
 
 // ===== INIT =====
 window.addEventListener('DOMContentLoaded', async () => {
+  // Aggiungi logo a tutte le topbar
+  const LOGO = 'https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/logo_S-removebg-preview%20(2).png';
+  document.querySelectorAll('.topbar').forEach(tb => {
+    const img = document.createElement('img');
+    img.src = LOGO;
+    img.className = 'topbar-logo';
+    tb.insertBefore(img, tb.firstChild);
+  });
+
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     currentUser = session.user;
