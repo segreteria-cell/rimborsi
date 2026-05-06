@@ -666,7 +666,6 @@ function goToApp() {
   } else {
     showScreen('home');
     loadHome();
-    loadGare();
   }
 }
 
@@ -675,7 +674,10 @@ function goBack() {
 }
 
 function showTab(tab) {
-  if (tab === 'home') { showScreen('home'); loadHome(); }
+  if (tab === 'home') {
+    if (currentProfilo?.ruolo === 'admin') { showScreen('admin'); loadAdminContent(adminCurrentTab); }
+    else { showScreen('home'); loadHome(); }
+  }
   else if (tab === 'nuova') { showNuovaRichiesta(); }
   else if (tab === 'profilo') { showProfilo(); }
 }
@@ -685,7 +687,8 @@ function showNuovaRichiesta() {
   kmCalcolati = 0;
   document.getElementById('inp-partenza').value = '';
   document.getElementById('inp-arrivo').value = '';
-  document.getElementById('inp-note').value = '0';
+  document.getElementById('inp-note').value = '';
+  document.getElementById('inp-acconto').value = '0';
   document.getElementById('route-result').style.display = 'none';
   document.getElementById('nuova-alert').innerHTML = '';
   document.getElementById('sel-mezzo').value = 'auto_propria';
@@ -695,6 +698,7 @@ function showNuovaRichiesta() {
   renderSpese();
   aggiornaRiepilogo();
   showScreen('nuova');
+  loadGare(); // sempre ricarica le gare
 }
 
 function onMezzoChange() {
@@ -819,17 +823,24 @@ async function loadHome() {
 
 // ===== GARE =====
 async function loadGare() {
+  const sel = document.getElementById('sel-gara');
+  sel.innerHTML = '<option value="">Caricamento...</option>';
   try {
-    const { data, error } = await sb.from('gare').select('*').eq('attiva', true).order('data', { ascending: true });
-    const sel = document.getElementById('sel-gara');
-    if (error || !data || data.length === 0) {
+    const { data, error } = await sb.from('gare').select('id, nome, data, luogo').eq('attiva', true).order('data', { ascending: true });
+    if (error) {
+      console.error('Errore gare:', error);
+      sel.innerHTML = '<option value="">Errore: ' + error.message + '</option>';
+      return;
+    }
+    if (!data || data.length === 0) {
       sel.innerHTML = '<option value="">Nessuna gara disponibile</option>';
       return;
     }
     sel.innerHTML = '<option value="">Seleziona una gara...</option>' +
       data.map(g => `<option value="${g.id}" data-data="${g.data}">${g.nome} — ${new Date(g.data).toLocaleDateString('it-IT')} · ${g.luogo}</option>`).join('');
   } catch(e) {
-    document.getElementById('sel-gara').innerHTML = '<option value="">Errore caricamento gare</option>';
+    console.error('Eccezione gare:', e);
+    sel.innerHTML = '<option value="">Errore: ' + e.message + '</option>';
   }
 }
 
