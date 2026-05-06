@@ -1312,22 +1312,34 @@ async function loadRiepilogo() {
     el.innerHTML = '<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Nessuna richiesta ancora.</div></div>';
     return;
   }
-  let totApprovato = 0, totAttesa = 0, totTutte = 0;
+  let totApprovato = 0, totAttesa = 0, totTutte = 0, totPagato = 0, totDaPagare = 0;
   richieste.forEach(r => {
     const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
     totTutte += tot;
     if (r.stato === 'approvata') totApprovato += tot;
     if (r.stato === 'in attesa') totAttesa += tot;
+    if (r.pagata) totPagato += tot;
+    if (r.stato === 'approvata' && !r.pagata) totDaPagare += tot;
   });
   el.innerHTML = `
-    <div style="display:flex;gap:10px;margin-bottom:20px;">
+    <div style="display:flex;gap:10px;margin-bottom:12px;">
       <div style="background:var(--blue-light);border-radius:var(--radius-sm);padding:14px;flex:1;text-align:center;">
         <div style="font-size:20px;font-weight:700;color:var(--blue)">€${totApprovato.toFixed(0)}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Approvato</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">✅ Approvato</div>
       </div>
       <div style="background:#FFF4E5;border-radius:var(--radius-sm);padding:14px;flex:1;text-align:center;">
         <div style="font-size:20px;font-weight:700;color:var(--orange)">€${totAttesa.toFixed(0)}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px;">In attesa</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">⏳ In attesa</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:20px;">
+      <div style="background:#E6FBF5;border-radius:var(--radius-sm);padding:14px;flex:1;text-align:center;">
+        <div style="font-size:20px;font-weight:700;color:var(--green)">€${totPagato.toFixed(0)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">💰 Pagato</div>
+      </div>
+      <div style="background:#FFF0F0;border-radius:var(--radius-sm);padding:14px;flex:1;text-align:center;">
+        <div style="font-size:20px;font-weight:700;color:var(--red)">€${totDaPagare.toFixed(0)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">🔜 In pagamento</div>
       </div>
     </div>
     <div class="section-title">Dettaglio per gara</div>
