@@ -331,6 +331,10 @@
 <!-- ===== HOME ALLENATORE ===== -->
 <div id="screen-home" class="screen">
   <div class="content">
+    <div id="admin-back-banner" style="display:none;background:var(--blue);color:white;padding:12px 16px;border-radius:var(--radius-sm);margin-bottom:16px;justify-content:space-between;align-items:center;">
+      <span style="font-size:14px;">👁️ Vista allenatore</span>
+      <button onclick="showScreen('admin');loadAdminContent('attesa')" style="background:white;color:var(--blue);border:none;border-radius:6px;padding:6px 12px;font-weight:600;font-size:13px;cursor:pointer;">← Torna Admin</button>
+    </div>
     <div class="hero-card">
       <div class="hero-greeting">Benvenuto 👋</div>
       <div class="hero-name" id="home-name">Allenatore</div>
@@ -518,7 +522,7 @@
       <div class="topbar-sub">Gestione rimborsi</div>
     </div>
     <div style="display:flex;gap:8px;">
-      <button class="btn btn-sm btn-secondary" onclick="showTab('home')">🏊 Vista allenatore</button>
+      <button class="btn btn-sm btn-secondary" onclick="switchToAllenatoreView()">🏊 Vista allenatore</button>
       <button class="btn btn-sm btn-danger" onclick="doLogout()">Esci</button>
     </div>
   </div>
@@ -680,6 +684,14 @@ function showTab(tab) {
   }
   else if (tab === 'nuova') { showNuovaRichiesta(); }
   else if (tab === 'profilo') { showProfilo(); }
+}
+
+function switchToAllenatoreView() {
+  showScreen('home');
+  loadHome();
+  // Mostra banner "torna ad admin" se sei admin
+  const banner = document.getElementById('admin-back-banner');
+  if (banner && currentProfilo?.ruolo === 'admin') banner.style.display = 'flex';
 }
 
 function showNuovaRichiesta() {
