@@ -281,6 +281,19 @@
   }
 
   input[type="file"] { display: none; }
+
+  /* SUGGESTIONS */
+  .suggestions {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 500;
+    background: white; border: 1.5px solid var(--border); border-top: none;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-height: 200px; overflow-y: auto;
+  }
+  .suggestion-item {
+    padding: 12px 14px; font-size: 14px; cursor: pointer; border-bottom: 1px solid var(--border);
+  }
+  .suggestion-item:last-child { border-bottom: none; }
+  .suggestion-item:active { background: var(--blue-light); }
 </style>
 </head>
 <body>
@@ -363,6 +376,26 @@
   <div class="bottom-nav">
     <button class="nav-item active" onclick="showTab('home')"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></button>
     <button class="nav-item" onclick="showTab('nuova')"><div class="nav-icon">➕</div><div class="nav-label">Nuova</div></button>
+    <button class="nav-item" onclick="showTab('riepilogo')"><div class="nav-icon">📊</div><div class="nav-label">Riepilogo</div></button>
+    <button class="nav-item" onclick="showTab('profilo')"><div class="nav-icon">👤</div><div class="nav-label">Profilo</div></button>
+  </div>
+</div>
+
+<!-- ===== RIEPILOGO ALLENATORE ===== -->
+<div id="screen-riepilogo" class="screen">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">Il mio riepilogo</div>
+      <div class="topbar-sub">Storico rimborsi</div>
+    </div>
+  </div>
+  <div class="content" id="riepilogo-content">
+    <div class="loading"><div class="spinner"></div>Caricamento...</div>
+  </div>
+  <div class="bottom-nav">
+    <button class="nav-item" onclick="showTab('home')"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></button>
+    <button class="nav-item" onclick="showTab('nuova')"><div class="nav-icon">➕</div><div class="nav-label">Nuova</div></button>
+    <button class="nav-item active" onclick="showTab('riepilogo')"><div class="nav-icon">📊</div><div class="nav-label">Riepilogo</div></button>
     <button class="nav-item" onclick="showTab('profilo')"><div class="nav-icon">👤</div><div class="nav-label">Profilo</div></button>
   </div>
 </div>
@@ -410,25 +443,34 @@
       <div class="card-title" style="margin-bottom:12px;">🗺️ Percorso</div>
       <div class="field">
         <label>Indirizzo di partenza</label>
-        <input type="text" id="inp-partenza" placeholder="Via Roma 1, Genova" oninput="resetKm()">
+        <div style="position:relative">
+          <input type="text" id="inp-partenza" placeholder="Es: Via Roma 1, Genova" oninput="resetKm();autocomplete('partenza',this.value)" autocomplete="off">
+          <div id="suggestions-partenza" class="suggestions"></div>
+        </div>
       </div>
       <div class="field">
         <label>Indirizzo di arrivo</label>
-        <input type="text" id="inp-arrivo" placeholder="Via Garibaldi 5, Roma" oninput="resetKm()">
-      </div>
-      <div class="field">
-        <label>Andata e ritorno?</label>
-        <div style="display:flex;gap:12px;margin-top:4px;">
-          <label style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:400;">
-            <input type="radio" name="ar" value="andata" checked onchange="onARChange()"> Solo andata
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:400;">
-            <input type="radio" name="ar" value="ar" onchange="onARChange()"> Andata e ritorno
-          </label>
+        <div style="position:relative">
+          <input type="text" id="inp-arrivo" placeholder="Es: Via Garibaldi 5, Roma" oninput="resetKm();autocomplete('arrivo',this.value)" autocomplete="off">
+          <div id="suggestions-arrivo" class="suggestions"></div>
         </div>
       </div>
+      <div class="field">
+        <label>Tipo di viaggio</label>
+        <div style="display:flex;gap:10px;margin-top:6px;">
+          <button type="button" id="btn-andata" onclick="setAR('andata')"
+            style="flex:1;padding:12px;border-radius:10px;border:2px solid var(--blue);background:var(--blue);color:white;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">
+            ➡️ Solo andata
+          </button>
+          <button type="button" id="btn-ar" onclick="setAR('ar')"
+            style="flex:1;padding:12px;border-radius:10px;border:2px solid var(--border);background:white;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">
+            🔄 A/R
+          </button>
+        </div>
+        <input type="hidden" id="inp-ar" value="andata">
+      </div>
       <button class="maps-btn" onclick="calcolaKm()" id="btn-calcola-km">
-        <span>📍</span> Calcola km con Google Maps
+        <span>📍</span> Calcola km
       </button>
       <div id="route-result" style="display:none;margin-top:12px;">
         <div class="route-display">
@@ -485,6 +527,7 @@
   <div class="bottom-nav">
     <button class="nav-item" onclick="showTab('home')"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></button>
     <button class="nav-item active" onclick="showTab('nuova')"><div class="nav-icon">➕</div><div class="nav-label">Nuova</div></button>
+    <button class="nav-item" onclick="showTab('riepilogo')"><div class="nav-icon">📊</div><div class="nav-label">Riepilogo</div></button>
     <button class="nav-item" onclick="showTab('profilo')"><div class="nav-icon">👤</div><div class="nav-label">Profilo</div></button>
   </div>
 </div>
@@ -510,6 +553,7 @@
   <div class="bottom-nav">
     <button class="nav-item" onclick="showTab('home')"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></button>
     <button class="nav-item" onclick="showTab('nuova')"><div class="nav-icon">➕</div><div class="nav-label">Nuova</div></button>
+    <button class="nav-item" onclick="showTab('riepilogo')"><div class="nav-icon">📊</div><div class="nav-label">Riepilogo</div></button>
     <button class="nav-item active" onclick="showTab('profilo')"><div class="nav-icon">👤</div><div class="nav-label">Profilo</div></button>
   </div>
 </div>
@@ -683,6 +727,7 @@ function showTab(tab) {
     else { showScreen('home'); loadHome(); }
   }
   else if (tab === 'nuova') { showNuovaRichiesta(); }
+  else if (tab === 'riepilogo') { showScreen('riepilogo'); loadRiepilogo(); }
   else if (tab === 'profilo') { showProfilo(); }
 }
 
@@ -719,9 +764,44 @@ function onMezzoChange() {
   if (mezzo !== 'auto_propria') kmCalcolati = 0;
 }
 
-function onARChange() {
-  // km viene ricalcolato al prossimo calcolo, non modifichiamo kmCalcolati qui
+function setAR(val) {
+  document.getElementById('inp-ar').value = val;
+  document.getElementById('btn-andata').style.background = val === 'andata' ? 'var(--blue)' : 'white';
+  document.getElementById('btn-andata').style.color = val === 'andata' ? 'white' : 'var(--muted)';
+  document.getElementById('btn-andata').style.borderColor = val === 'andata' ? 'var(--blue)' : 'var(--border)';
+  document.getElementById('btn-ar').style.background = val === 'ar' ? 'var(--blue)' : 'white';
+  document.getElementById('btn-ar').style.color = val === 'ar' ? 'white' : 'var(--muted)';
+  document.getElementById('btn-ar').style.borderColor = val === 'ar' ? 'var(--blue)' : 'var(--border)';
+  resetKm();
 }
+
+// Autocomplete indirizzi
+let autocompleteTimer = {};
+async function autocomplete(field, query) {
+  clearTimeout(autocompleteTimer[field]);
+  const el = document.getElementById('suggestions-' + field);
+  if (query.length < 3) { el.innerHTML = ''; return; }
+  autocompleteTimer[field] = setTimeout(async () => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1&countrycodes=it`, { headers: { 'Accept-Language': 'it' } });
+      const data = await res.json();
+      el.innerHTML = data.map(r => `<div class="suggestion-item" onclick="selectAddress('${field}','${r.display_name.replace(/'/g,"\\'")}')">📍 ${r.display_name}</div>`).join('');
+    } catch(e) { el.innerHTML = ''; }
+  }, 400);
+}
+
+function selectAddress(field, address) {
+  document.getElementById('inp-' + field).value = address;
+  document.getElementById('suggestions-' + field).innerHTML = '';
+  resetKm();
+}
+
+// Chiudi suggestions cliccando fuori
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.field')) {
+    document.querySelectorAll('.suggestions').forEach(s => s.innerHTML = '');
+  }
+});
 
 function aggiornaRiepilogo() {
   const totSpese = speseTemp.reduce((s, sp) => s + sp.importo, 0);
@@ -888,7 +968,7 @@ async function calcolaKm() {
     const res = await fetch(url);
     const data = await res.json();
     if (data.routes && data.routes[0]) {
-      const ar = document.querySelector('input[name="ar"]:checked')?.value || 'andata';
+      const ar = document.getElementById('inp-ar')?.value || 'andata';
       const base = Math.round(data.routes[0].distance / 1000);
       kmCalcolati = ar === 'ar' ? base * 2 : base;
 
@@ -1114,7 +1194,141 @@ async function showDettaglio(id, from) {
       <button class="btn btn-danger" onclick="aggiornaStato('${id}','rifiutata')">❌ Rifiuta</button>
       <button class="btn btn-green" onclick="aggiornaStato('${id}','approvata')">✅ Approva</button>
     </div>` : ''}
+    ${isAdmin && r.stato === 'approvata' ? `
+    <div style="margin-top:8px;">
+      <button class="btn btn-danger" onclick="aggiornaStato('${id}','in attesa')">↩️ Annulla approvazione</button>
+    </div>` : ''}
+    ${isAdmin && r.stato === 'rifiutata' ? `
+    <div style="margin-top:8px;">
+      <button class="btn btn-secondary" onclick="aggiornaStato('${id}','in attesa')">↩️ Rimetti in attesa</button>
+    </div>` : ''}
+    <div style="margin-top:10px;">
+      <button class="btn btn-secondary" onclick="stampaPDF('${id}')">🖨️ Stampa / Salva PDF</button>
+    </div>
   `;
+}
+
+async function stampaPDF(id) {
+  const { data: r } = await sb.from('richieste')
+    .select('*, gare(*), profili(*), spese(*)')
+    .eq('id', id).single();
+  if (!r) return;
+  const totale = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
+  const daRimborsare = totale - (r.acconto || 0);
+  const statoLabel = r.stato === 'approvata' ? '✅ Approvata' : r.stato === 'rifiutata' ? '❌ Rifiutata' : '⏳ In attesa';
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Rimborso — ${r.profili?.nome} ${r.profili?.cognome}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 40px; max-width: 700px; margin: 0 auto; color: #1a1a2e; }
+    h1 { color: #0066FF; font-size: 22px; margin-bottom: 4px; }
+    .sub { color: #888; font-size: 14px; margin-bottom: 30px; }
+    .section { margin-bottom: 20px; }
+    .section h2 { font-size: 13px; text-transform: uppercase; color: #888; letter-spacing: 1px; border-bottom: 1px solid #eee; padding-bottom: 6px; margin-bottom: 10px; }
+    .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
+    .row:last-child { border-bottom: none; }
+    .label { color: #666; }
+    .total-box { background: #EBF2FF; border-radius: 10px; padding: 16px; margin-top: 20px; display: flex; justify-content: space-between; align-items: center; }
+    .total-label { font-size: 15px; font-weight: 600; }
+    .total-val { font-size: 24px; font-weight: 700; color: #0066FF; }
+    .stato { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; background: #E6FBF5; color: #00C48C; margin-bottom: 20px; }
+    @media print { button { display: none; } }
+  </style></head><body>
+  <h1>🏊 Superbanuoto — Rimborso Spese</h1>
+  <div class="sub">Richiesta del ${new Date(r.creata_il).toLocaleDateString('it-IT')}</div>
+  <div class="stato">${statoLabel}</div>
+  <div class="section"><h2>Allenatore</h2>
+    <div class="row"><span class="label">Nome</span><span>${r.profili?.nome} ${r.profili?.cognome}</span></div>
+    <div class="row"><span class="label">Email</span><span>${r.profili?.email}</span></div>
+  </div>
+  <div class="section"><h2>Gara</h2>
+    <div class="row"><span class="label">Nome</span><span>${r.gare?.nome}</span></div>
+    <div class="row"><span class="label">Data</span><span>${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : '—'}</span></div>
+    <div class="row"><span class="label">Luogo</span><span>${r.gare?.luogo}</span></div>
+  </div>
+  <div class="section"><h2>Percorso</h2>
+    <div class="row"><span class="label">Mezzo</span><span>${r.mezzo || 'Auto propria'}</span></div>
+    <div class="row"><span class="label">Partenza</span><span>${r.partenza}</span></div>
+    <div class="row"><span class="label">Arrivo</span><span>${r.arrivo}</span></div>
+    <div class="row"><span class="label">Km percorsi</span><span>${r.km} km</span></div>
+  </div>
+  <div class="section"><h2>Spese</h2>
+    ${(r.spese || []).map(s => `<div class="row"><span class="label">${s.tipo} ${s.descrizione ? '— '+s.descrizione : ''}</span><span>€ ${parseFloat(s.importo).toFixed(2)}</span></div>`).join('')}
+    <div class="row"><span class="label">Totale spese</span><span><strong>€ ${totale.toFixed(2)}</strong></span></div>
+    ${r.acconto > 0 ? `<div class="row"><span class="label">Acconto percepito</span><span>- € ${parseFloat(r.acconto).toFixed(2)}</span></div>` : ''}
+  </div>
+  ${r.note ? `<div class="section"><h2>Note</h2><p style="font-size:14px">${r.note}</p></div>` : ''}
+  <div class="total-box">
+    <span class="total-label">Totale da rimborsare</span>
+    <span class="total-val">€ ${daRimborsare.toFixed(2)}</span>
+  </div>
+  <div style="margin-top:30px;display:flex;gap:10px;">
+    <button onclick="window.print()" style="padding:12px 24px;background:#0066FF;color:white;border:none;border-radius:8px;font-size:15px;cursor:pointer;">🖨️ Stampa / Salva PDF</button>
+    <button onclick="window.close()" style="padding:12px 24px;background:#eee;border:none;border-radius:8px;font-size:15px;cursor:pointer;">Chiudi</button>
+  </div>
+  </body></html>`);
+  w.document.close();
+}
+
+async function loadRiepilogo() {
+  const el = document.getElementById('riepilogo-content');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
+  const { data: richieste } = await sb.from('richieste')
+    .select('*, gare(nome, data, luogo), spese(*)')
+    .eq('allenatore_id', currentUser.id)
+    .order('creata_il', { ascending: false });
+  if (!richieste || richieste.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Nessuna richiesta ancora.</div></div>';
+    return;
+  }
+  let totApprovato = 0, totAttesa = 0, totTutte = 0;
+  richieste.forEach(r => {
+    const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
+    totTutte += tot;
+    if (r.stato === 'approvata') totApprovato += tot;
+    if (r.stato === 'in attesa') totAttesa += tot;
+  });
+  el.innerHTML = `
+    <div style="display:flex;gap:10px;margin-bottom:20px;">
+      <div style="background:var(--blue-light);border-radius:var(--radius-sm);padding:14px;flex:1;text-align:center;">
+        <div style="font-size:20px;font-weight:700;color:var(--blue)">€${totApprovato.toFixed(0)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Approvato</div>
+      </div>
+      <div style="background:#FFF4E5;border-radius:var(--radius-sm);padding:14px;flex:1;text-align:center;">
+        <div style="font-size:20px;font-weight:700;color:var(--orange)">€${totAttesa.toFixed(0)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">In attesa</div>
+      </div>
+    </div>
+    <div class="section-title">Dettaglio per gara</div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead><tr style="background:var(--bg);">
+          <th style="padding:10px 14px;text-align:left;font-size:12px;color:var(--muted);font-weight:600;">GARA</th>
+          <th style="padding:10px 14px;text-align:right;font-size:12px;color:var(--muted);font-weight:600;">€</th>
+          <th style="padding:10px 14px;text-align:center;font-size:12px;color:var(--muted);font-weight:600;">STATO</th>
+        </tr></thead>
+        <tbody>
+          ${richieste.map(r => {
+            const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
+            const badgeClass = r.stato === 'approvata' ? 'badge-approved' : r.stato === 'rifiutata' ? 'badge-rejected' : 'badge-pending';
+            const emoji = r.stato === 'approvata' ? '✅' : r.stato === 'rifiutata' ? '❌' : '⏳';
+            return `<tr style="border-top:1px solid var(--border);cursor:pointer" onclick="showDettaglio('${r.id}','riepilogo')">
+              <td style="padding:10px 14px;">
+                <div style="font-weight:500;font-size:13px;">${r.gare?.nome || '—'}</div>
+                <div style="font-size:11px;color:var(--muted)">${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''}</div>
+              </td>
+              <td style="padding:10px 14px;text-align:right;font-weight:700;color:var(--blue)">€${tot.toFixed(2)}</td>
+              <td style="padding:10px 14px;text-align:center;"><span class="badge ${badgeClass}">${emoji}</span></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot><tr style="border-top:2px solid var(--border);background:var(--bg);">
+          <td style="padding:12px 14px;font-weight:700;">TOTALE</td>
+          <td style="padding:12px 14px;text-align:right;font-weight:700;font-size:16px;color:var(--blue)">€${totTutte.toFixed(2)}</td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+    </div>`;
 }
 
 async function aggiornaStato(id, stato) {
