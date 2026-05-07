@@ -119,6 +119,7 @@
   .badge-pending { background: #FFF4E5; color: var(--orange); }
   .badge-approved { background: #E6FBF5; color: var(--green); }
   .badge-rejected { background: #FFF0F0; color: var(--red); }
+  .badge-paying { background: var(--blue-light); color: var(--blue); }
 
   /* BOTTOM NAV */
   .bottom-nav {
@@ -1402,8 +1403,8 @@ async function loadRiepilogo() {
         <tbody>
           ${richieste.map(r => {
             const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
-            const badgeClass = r.stato === 'approvata' ? 'badge-approved' : r.stato === 'rifiutata' ? 'badge-rejected' : 'badge-pending';
-            const emoji = r.stato === 'approvata' ? '✅' : r.stato === 'rifiutata' ? '❌' : '⏳';
+            const badgeClass = r.pagata ? 'badge-approved' : r.stato === 'approvata' ? 'badge-paying' : r.stato === 'rifiutata' ? 'badge-rejected' : 'badge-pending';
+            const emoji = r.pagata ? '💰 Pagato' : r.stato === 'approvata' ? '🔜 Da pagare' : r.stato === 'rifiutata' ? '❌ Rifiutata' : '⏳ In attesa';
             return `<tr style="border-top:1px solid var(--border);cursor:pointer" onclick="showDettaglio('${r.id}','riepilogo')">
               <td style="padding:10px 14px;">
                 <div style="font-weight:500;font-size:13px;">${r.gare?.nome || '—'}</div>
