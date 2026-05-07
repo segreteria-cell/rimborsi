@@ -1392,9 +1392,7 @@ async function showDettaglio(id, from) {
               ${s.allegato_url ? `
                 <div style="margin-top:6px;">
                   ${s.allegato_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ?
-                    `<a href="${s.allegato_url}" target="_blank">
-                      <img src="${s.allegato_url}" style="max-width:120px;max-height:80px;border-radius:6px;border:1px solid var(--border);cursor:pointer;">
-                    </a>` :
+                    `<img src="${s.allegato_url}" onclick="window.open('${s.allegato_url}','_blank')" style="max-width:120px;max-height:80px;border-radius:6px;border:1px solid var(--border);cursor:pointer;display:block;">` :
                     `<a href="${s.allegato_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--blue);background:var(--blue-light);padding:6px 10px;border-radius:8px;text-decoration:none;">
                       📎 Vedi allegato
                     </a>`
@@ -1423,7 +1421,7 @@ async function showDettaglio(id, from) {
         </div>
       </div>
     </div>` : ''}
-    ${r.note ? `<div class="card"><div class="section-title">Note</div><p style="font-size:14px;line-height:1.6">${r.note}</p></div>` : ''} : ''}
+    ${r.note ? `<div class="card"><div class="section-title">Note</div><p style="font-size:14px;line-height:1.6">${r.note}</p></div>` : ''}
     ${isAdmin && r.stato === 'in attesa' ? `
     <div style="display:flex;gap:10px;margin-top:8px;">
       <button class="btn btn-danger" onclick="aggiornaStato('${id}','rifiutata')">❌ Rifiuta</button>
@@ -1488,19 +1486,32 @@ async function stampaPDF(id) {
     <div class="row"><span class="label">Km percorsi</span><span>${r.km} km</span></div>
   </div>
   <div class="section"><h2>Spese</h2>
-    ${(r.spese || []).map(s => `<div class="row">
-    <span class="label">${s.tipo} ${s.descrizione ? '— '+s.descrizione : ''}</span>
-    <span style="display:flex;align-items:center;gap:12px;">
-      <span>€ ${parseFloat(s.importo).toFixed(2)}</span>
-      ${s.allegato_url ? (s.allegato_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ?
-        `<img src="${s.allegato_url}" style="height:40px;border-radius:4px;border:1px solid #eee;">` :
-        `<a href="${s.allegato_url}" target="_blank" style="font-size:12px;color:#0066FF;">📎 allegato</a>`) : ''}
-    </span>
-  </div>`).join('')}
+    ${(r.spese || []).map(s => `
+    <div class="row" style="align-items:flex-start;">
+      <span class="label">${s.tipo}${s.descrizione ? ' — '+s.descrizione : ''}</span>
+      <div style="text-align:right;">
+        <div>€ ${parseFloat(s.importo).toFixed(2)}</div>
+        ${s.allegato_url ? (s.allegato_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ?
+          `<a href="${s.allegato_url}" target="_blank"><img src="${s.allegato_url}" style="margin-top:4px;max-width:100px;max-height:70px;border-radius:4px;border:1px solid #eee;display:block;"></a>` :
+          `<a href="${s.allegato_url}" target="_blank" style="font-size:11px;color:#0066FF;text-decoration:none;">📎 Vedi allegato PDF</a>`) : ''}
+      </div>
+    </div>`).join('')}
     <div class="row"><span class="label">Totale spese</span><span><strong>€ ${totale.toFixed(2)}</strong></span></div>
     ${r.acconto > 0 ? `<div class="row"><span class="label">Acconto percepito</span><span>- € ${parseFloat(r.acconto).toFixed(2)}</span></div>` : ''}
   </div>
   ${r.note ? `<div class="section"><h2>Note</h2><p style="font-size:14px">${r.note}</p></div>` : ''}
+  ${(r.spese||[]).some(s => s.allegato_url) ? `
+  <div class="section"><h2>Allegati</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;">
+      ${(r.spese||[]).filter(s => s.allegato_url).map(s => `
+        <div style="border:1px solid #eee;border-radius:8px;padding:8px;text-align:center;max-width:140px;">
+          ${s.allegato_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ?
+            `<a href="${s.allegato_url}" target="_blank"><img src="${s.allegato_url}" style="max-width:120px;max-height:100px;border-radius:4px;display:block;"></a>` :
+            `<a href="${s.allegato_url}" target="_blank" style="font-size:12px;color:#0066FF;text-decoration:none;">📎 ${s.tipo}</a>`}
+          <div style="font-size:11px;color:#888;margin-top:4px;">${s.tipo}${s.descrizione?' — '+s.descrizione:''}</div>
+        </div>`).join('')}
+    </div>
+  </div>` : ''}
   <div class="total-box">
     <span class="total-label">Totale da rimborsare</span>
     <span class="total-val">€ ${daRimborsare.toFixed(2)}</span>
