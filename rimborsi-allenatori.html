@@ -451,23 +451,29 @@
       </div>
     </div>
 
-    <!-- STEP 2: Mezzi -->
+    <!-- STEP 2: Auto privata -->
     <div class="card">
-      <div class="card-title" style="margin-bottom:12px;">🚗 Mezzi di trasporto</div>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Puoi selezionare più mezzi se hai usato combinazioni diverse</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;" id="mezzi-buttons">
-        <button type="button" class="mezzo-btn active" data-mezzo="auto_propria" onclick="toggleMezzo(this)">🚗 Auto propria</button>
-        <button type="button" class="mezzo-btn" data-mezzo="treno" onclick="toggleMezzo(this)">🚂 Treno</button>
-        <button type="button" class="mezzo-btn" data-mezzo="aereo" onclick="toggleMezzo(this)">✈️ Aereo</button>
-        <button type="button" class="mezzo-btn" data-mezzo="mezzi_pubblici" onclick="toggleMezzo(this)">🚌 Bus/Metro</button>
-        <button type="button" class="mezzo-btn" data-mezzo="nave" onclick="toggleMezzo(this)">⛴️ Nave/Traghetto</button>
-        <button type="button" class="mezzo-btn" data-mezzo="altro" onclick="toggleMezzo(this)">📋 Altro</button>
+      <div class="card-title" style="margin-bottom:12px;">🚗 Utilizzo auto privata</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:15px;">Hai utilizzato l'auto privata?</span>
+        <div style="display:flex;gap:8px;">
+          <button type="button" id="btn-auto-si" onclick="setAutoPrivata(true)"
+            style="padding:10px 20px;border-radius:10px;border:2px solid var(--blue);background:var(--blue);color:white;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">
+            Sì
+          </button>
+          <button type="button" id="btn-auto-no" onclick="setAutoPrivata(false)"
+            style="padding:10px 20px;border-radius:10px;border:2px solid var(--border);background:white;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">
+            No
+          </button>
+        </div>
       </div>
+      <input type="hidden" id="inp-auto-privata" value="si">
     </div>
 
-    <!-- STEP 3: Percorso auto (solo se auto propria selezionata) -->
+    <!-- STEP 3: Percorso auto (solo se auto privata) -->
     <div class="card" id="card-percorso">
-      <div class="card-title" style="margin-bottom:12px;">🗺️ Percorso auto</div>
+      <div class="card-title" style="margin-bottom:4px;">🗺️ Percorso principale</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Inserisci il percorso casa → sede gara</div>
       <div class="field">
         <label>Indirizzo di partenza</label>
         <div style="position:relative">
@@ -510,10 +516,10 @@
       </div>
       <!-- Km extra -->
       <div id="card-km-extra" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-        <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:8px;">KM EXTRA (spostamenti aggiuntivi)</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Es: hotel → piscina, spostamenti in loco</div>
+        <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:4px;">🔁 PERCORSI AGGIUNTIVI</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">I km aggiuntivi si sommano al percorso principale per il rimborso totale</div>
         <div id="km-extra-list"></div>
-        <button class="btn btn-secondary" onclick="addKmExtra()" style="margin-top:8px;font-size:13px;padding:10px;">+ Aggiungi km extra</button>
+        <button class="btn btn-secondary" onclick="addKmExtra()" style="margin-top:8px;font-size:13px;padding:10px;">+ Aggiungi percorso</button>
         <div id="km-extra-totale" style="margin-top:10px;font-size:14px;color:var(--blue);font-weight:600;display:none;"></div>
       </div>
     </div>
@@ -814,10 +820,7 @@ function showNuovaRichiesta() {
   document.getElementById('km-extra-totale').style.display = 'none';
   document.getElementById('nuova-alert').innerHTML = '';
   document.getElementById('card-percorso').style.display = 'block';
-  // Reset mezzo buttons
-  document.querySelectorAll('.mezzo-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.mezzo === 'auto_propria');
-  });
+  setAutoPrivata(true);
   setAR('andata');
   renderSpese();
   aggiornaRiepilogo();
@@ -825,25 +828,16 @@ function showNuovaRichiesta() {
   loadGare();
 }
 
-let mezziSelezionati = ['auto_propria'];
-let kmExtraList = [];
-
-function toggleMezzo(btn) {
-  const mezzo = btn.dataset.mezzo;
-  if (btn.classList.contains('active')) {
-    // Deseleziona solo se non è l'unico attivo
-    const attivi = document.querySelectorAll('.mezzo-btn.active');
-    if (attivi.length <= 1) return;
-    btn.classList.remove('active');
-    mezziSelezionati = mezziSelezionati.filter(m => m !== mezzo);
-  } else {
-    btn.classList.add('active');
-    mezziSelezionati.push(mezzo);
-  }
-  // Mostra/nascondi sezione percorso auto
-  const hasAuto = mezziSelezionati.includes('auto_propria');
-  document.getElementById('card-percorso').style.display = hasAuto ? 'block' : 'none';
-  if (!hasAuto) { kmCalcolati = 0; kmExtraList = []; }
+function setAutoPrivata(val) {
+  document.getElementById('inp-auto-privata').value = val ? 'si' : 'no';
+  document.getElementById('btn-auto-si').style.background = val ? 'var(--blue)' : 'white';
+  document.getElementById('btn-auto-si').style.color = val ? 'white' : 'var(--muted)';
+  document.getElementById('btn-auto-si').style.borderColor = val ? 'var(--blue)' : 'var(--border)';
+  document.getElementById('btn-auto-no').style.background = !val ? 'var(--blue)' : 'white';
+  document.getElementById('btn-auto-no').style.color = !val ? 'white' : 'var(--muted)';
+  document.getElementById('btn-auto-no').style.borderColor = !val ? 'var(--blue)' : 'var(--border)';
+  document.getElementById('card-percorso').style.display = val ? 'block' : 'none';
+  if (!val) { kmCalcolati = 0; kmExtraList = []; }
 }
 
 function addKmExtra() {
@@ -872,12 +866,24 @@ function renderKmExtra() {
     </div>`).join('');
 }
 
-function aggiornaKmExtraTotale() {
+async function aggiornaKmExtraTotale() {
   const totExtra = kmExtraList.reduce((s, e) => s + (e.km || 0), 0);
   const el = document.getElementById('km-extra-totale');
-  if (totExtra > 0) {
+  if (totExtra > 0 && kmCalcolati > 0) {
+    const kmTotali = kmCalcolati + totExtra;
+    const sel = document.getElementById('sel-gara');
+    const dataGara = sel.options[sel.selectedIndex]?.dataset?.data || new Date().toISOString().split('T')[0];
+    const tariffa = await getTariffaPerData(dataGara);
+    const rimborsoTotale = kmTotali * tariffa;
     el.style.display = 'block';
-    el.textContent = `Totale km extra: ${totExtra} km`;
+    el.innerHTML = `Km principale: ${kmCalcolati} + extra: ${totExtra} = <strong>${kmTotali} km totali</strong> → rimborso: <strong>€${rimborsoTotale.toFixed(2)}</strong>`;
+    // Aggiorna spesa km
+    speseTemp = speseTemp.filter(s => s._km !== true);
+    speseTemp.unshift({ tipo: 'carburante', importo: rimborsoTotale, descrizione: `${kmTotali} km × €${tariffa}/km`, file: null, allegato_url: null, _km: true });
+    renderSpese();
+  } else if (totExtra > 0) {
+    el.style.display = 'block';
+    el.textContent = `Km extra aggiuntivi: ${totExtra} km`;
   } else {
     el.style.display = 'none';
   }
@@ -1245,8 +1251,8 @@ function addSpesaAndUpdate() { addSpesa(); aggiornaRiepilogo(); }
 // ===== INVIA RICHIESTA =====
 async function inviaRichiesta() {
   const garaId = document.getElementById('sel-gara').value;
-  const mezzo = mezziSelezionati.join(', ');
-  const hasAuto = mezziSelezionati.includes('auto_propria');
+  const autoPrivata = document.getElementById('inp-auto-privata').value === 'si';
+  const mezzo = autoPrivata ? 'auto_propria' : 'altri_mezzi';
   const partenza = document.getElementById('inp-partenza').value.trim();
   const arrivo = document.getElementById('inp-arrivo').value.trim();
   const note = document.getElementById('inp-note').value.trim();
@@ -1255,8 +1261,8 @@ async function inviaRichiesta() {
   const kmTotali = kmCalcolati + kmTotExtra;
 
   if (!garaId) { showAlert('nuova-alert', 'Seleziona una gara', 'error'); return; }
-  if (hasAuto && (!partenza || !arrivo)) { showAlert('nuova-alert', 'Inserisci partenza e arrivo', 'error'); return; }
-  if (hasAuto && kmCalcolati === 0) { showAlert('nuova-alert', 'Calcola i km del percorso', 'error'); return; }
+  if (autoPrivata && (!partenza || !arrivo)) { showAlert('nuova-alert', 'Inserisci partenza e arrivo', 'error'); return; }
+  if (autoPrivata && kmCalcolati === 0) { showAlert('nuova-alert', 'Calcola i km del percorso', 'error'); return; }
 
   const btn = document.getElementById('btn-invia');
   btn.disabled = true; btn.textContent = 'Invio in corso...';
