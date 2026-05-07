@@ -1658,23 +1658,71 @@ async function loadAdminContent(tab) {
     return;
   }
 
-  el.innerHTML = data.map(r => {
-    const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
-    return `<div class="admin-card" onclick="showDettaglio('${r.id}','admin')">
-      <div class="admin-card-top">
-        <div>
-          <div class="card-title">${r.profili?.nome} ${r.profili?.cognome}</div>
-          <div class="card-sub">${r.gare?.nome} · ${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''}</div>
+  el.innerHTML = (() => {
+    if (tab !== 'approvate') {
+      // Vista normale per attesa e rifiutate
+      return data.map(r => {
+        const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
+        return `<div class="admin-card" onclick="showDettaglio('${r.id}','admin')">
+          <div class="admin-card-top">
+            <div>
+              <div class="card-title">${r.profili?.nome} ${r.profili?.cognome}</div>
+              <div class="card-sub">${r.gare?.nome} · ${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''}</div>
+            </div>
+            <div style="font-size:18px;font-weight:700;color:var(--blue)">€ ${tot.toFixed(2)}</div>
+          </div>
+          <div style="font-size:13px;color:var(--muted)">🚗 ${r.km} km · ${new Date(r.creata_il).toLocaleDateString('it-IT')}</div>
+          ${tab === 'attesa' ? `<div class="admin-actions">
+            <button class="btn btn-danger" onclick="event.stopPropagation();aggiornaStato('${r.id}','rifiutata')">❌ Rifiuta</button>
+            <button class="btn btn-green" onclick="event.stopPropagation();aggiornaStato('${r.id}','approvata')">✅ Approva</button>
+          </div>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    // Vista APPROVATE raggruppata per allenatore
+    const perAllenatore = {};
+    data.forEach(r => {
+      const key = r.allenatore_id || r.allenatore_nome || 'sconosciuto';
+      if (!perAllenatore[key]) perAllenatore[key] = { profilo: r.profili, nome: r.allenatore_nome, richieste: [] };
+      perAllenatore[key].richieste.push(r);
+    });
+
+    return Object.values(perAllenatore).map(al => {
+      const nomeAl = al.profilo ? `${al.profilo.nome} ${al.profilo.cognome}` : (al.nome || 'Sconosciuto');
+      const totAl = al.richieste.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
+      const pagate = al.richieste.filter(r => r.pagata).length;
+      const nonPagate = al.richieste.filter(r => !r.pagata).length;
+
+      return `<div class="admin-card" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div>
+            <div style="font-size:17px;font-weight:700;">👤 ${nomeAl}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px;">${al.richieste.length} richieste · ${nonPagate > 0 ? `<span style="color:var(--orange)">${nonPagate} da pagare</span>` : ''} ${pagate > 0 ? `<span style="color:var(--green)">${pagate} pagate</span>` : ''}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:20px;font-weight:700;color:var(--blue)">€${totAl.toFixed(2)}</div>
+            <div style="font-size:11px;color:var(--muted)">totale</div>
+          </div>
         </div>
-        <div style="font-size:18px;font-weight:700;color:var(--blue)">€ ${tot.toFixed(2)}</div>
-      </div>
-      <div style="font-size:13px;color:var(--muted)">🚗 ${r.km} km · ${new Date(r.creata_il).toLocaleDateString('it-IT')}</div>
-      ${tab === 'attesa' ? `<div class="admin-actions">
-        <button class="btn btn-danger" onclick="event.stopPropagation();aggiornaStato('${r.id}','rifiutata')">❌ Rifiuta</button>
-        <button class="btn btn-green" onclick="event.stopPropagation();aggiornaStato('${r.id}','approvata')">✅ Approva</button>
-      </div>` : ''}
-    </div>`;
-  }).join('');
+        <div style="border-top:1px solid var(--border);padding-top:10px;">
+          ${al.richieste.map(r => {
+            const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
+            return `<div onclick="showDettaglio('${r.id}','admin')" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+              <div>
+                <div style="font-size:13px;font-weight:500;">${r.gare?.nome || '—'}</div>
+                <div style="font-size:11px;color:var(--muted)">${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''} · 🚗 ${r.km} km</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-weight:700;color:${r.pagata ? 'var(--green)' : 'var(--blue)'}">€${tot.toFixed(2)}</span>
+                <span style="font-size:16px;">${r.pagata ? '💰' : '🔜'}</span>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('');
+  })();
 }
 
 async function toggleGara(id, attiva) {
