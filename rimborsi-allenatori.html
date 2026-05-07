@@ -1865,9 +1865,14 @@ async function loadAdminContent(tab) {
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
             <span class="badge ${t.attiva ? 'badge-approved' : 'badge-rejected'}">${t.attiva ? '✅ Attiva' : 'Non attiva'}</span>
-            <button class="btn btn-sm btn-secondary" onclick="openModalModificaTariffa('${t.id}','${t.stagione}','${t.data_inizio}','${t.data_fine}',${t.tariffa_km},${t.attiva})">
-              ✏️ Modifica
-            </button>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm btn-secondary" onclick="openModalModificaTariffa('${t.id}','${t.stagione}','${t.data_inizio}','${t.data_fine}',${t.tariffa_km},${t.attiva})">
+                ✏️ Modifica
+              </button>
+              <button class="btn btn-sm btn-danger" onclick="eliminaTariffa('${t.id}','${t.stagione}')">
+                🗑️ Elimina
+              </button>
+            </div>
           </div>
         </div>`).join('') : '<div class="empty"><div class="empty-icon">💰</div><div class="empty-text">Nessuna tariffa</div></div>');
     return;
@@ -1893,6 +1898,9 @@ async function loadAdminContent(tab) {
           <div style="display:flex;gap:8px;margin-top:8px;">
             <button class="btn btn-sm btn-secondary" onclick="openModalModificaGara('${g.id}','${g.nome.replace(/'/g,"\\'")}','${g.data}','${g.luogo.replace(/'/g,"\\'")}','${g.categoria||'nuoto'}')">
               ✏️ Modifica
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="eliminaGara('${g.id}','${g.nome.replace(/'/g,"\\'")}')">
+              🗑️ Elimina
             </button>
             <button class="btn btn-sm ${g.attiva ? 'btn-danger' : 'btn-green'}" onclick="toggleGara('${g.id}', ${!g.attiva})">
               ${g.attiva ? 'Disattiva' : 'Riattiva'}
@@ -2307,6 +2315,18 @@ async function segnaComePagati() {
     pagata_il: new Date(dataISO).toISOString()
   }).in('id', ids);
   loadAdminContent('pagamenti');
+}
+
+async function eliminaGara(id, nome) {
+  if (!confirm(`Eliminare definitivamente la gara "${nome}"?\nAttenzione: le richieste collegate perderanno il riferimento alla gara.`)) return;
+  await sb.from('gare').delete().eq('id', id);
+  loadAdminContent('gare');
+}
+
+async function eliminaTariffa(id, stagione) {
+  if (!confirm(`Eliminare definitivamente la stagione "${stagione}"?`)) return;
+  await sb.from('tariffe_km').delete().eq('id', id);
+  loadAdminContent('tariffe');
 }
 
 function openModalModificaGara(id, nome, data, luogo, categoria) {
