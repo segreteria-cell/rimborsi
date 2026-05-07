@@ -718,6 +718,30 @@
     </div>
   </div>
 </div>
+
+<!-- ===== MODAL MODIFICA TARIFFA ===== -->
+<div class="modal-overlay" id="modal-modifica-tariffa">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">✏️ Modifica tariffa km</div>
+    <input type="hidden" id="modifica-tariffa-id">
+    <div class="field"><label>Stagione</label><input type="text" id="modifica-tariffa-stagione"></div>
+    <div class="field"><label>Data inizio</label><input type="date" id="modifica-tariffa-inizio"></div>
+    <div class="field"><label>Data fine</label><input type="date" id="modifica-tariffa-fine"></div>
+    <div class="field"><label>Tariffa €/km</label><input type="number" id="modifica-tariffa-valore" step="0.01" min="0"></div>
+    <div class="field">
+      <label>Stato</label>
+      <select id="modifica-tariffa-attiva">
+        <option value="true">✅ Attiva</option>
+        <option value="false">Non attiva</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-modifica-tariffa').classList.remove('open')">Annulla</button>
+      <button class="btn btn-primary" onclick="salvaModificaTariffa()">Salva modifiche</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-gara">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -735,6 +759,29 @@
     <div style="display:flex;gap:10px;margin-top:8px;">
       <button class="btn btn-secondary" onclick="closeModalGara()">Annulla</button>
       <button class="btn btn-primary" onclick="addGara()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL MODIFICA GARA ===== -->
+<div class="modal-overlay" id="modal-modifica-gara">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">✏️ Modifica gara</div>
+    <input type="hidden" id="modifica-gara-id">
+    <div class="field"><label>Nome gara</label><input type="text" id="modifica-gara-nome"></div>
+    <div class="field"><label>Data</label><input type="date" id="modifica-gara-data"></div>
+    <div class="field"><label>Luogo</label><input type="text" id="modifica-gara-luogo"></div>
+    <div class="field"><label>Categoria</label>
+      <select id="modifica-gara-categoria">
+        <option value="nuoto">🏊 Nuoto</option>
+        <option value="salvamento">🛟 Salvamento</option>
+        <option value="altro">📋 Altro</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-modifica-gara').classList.remove('open')">Annulla</button>
+      <button class="btn btn-primary" onclick="salvaModificaGara()">Salva modifiche</button>
     </div>
   </div>
 </div>
@@ -1816,7 +1863,12 @@ async function loadAdminContent(tab) {
             </div>
             <span style="font-size:20px;font-weight:700;color:var(--blue)">€ ${parseFloat(t.tariffa_km).toFixed(2)}/km</span>
           </div>
-          <span class="badge ${t.attiva ? 'badge-approved' : 'badge-rejected'}">${t.attiva ? '✅ Attiva' : 'Non attiva'}</span>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+            <span class="badge ${t.attiva ? 'badge-approved' : 'badge-rejected'}">${t.attiva ? '✅ Attiva' : 'Non attiva'}</span>
+            <button class="btn btn-sm btn-secondary" onclick="openModalModificaTariffa('${t.id}','${t.stagione}','${t.data_inizio}','${t.data_fine}',${t.tariffa_km},${t.attiva})">
+              ✏️ Modifica
+            </button>
+          </div>
         </div>`).join('') : '<div class="empty"><div class="empty-icon">💰</div><div class="empty-text">Nessuna tariffa</div></div>');
     return;
   }
@@ -1838,9 +1890,14 @@ async function loadAdminContent(tab) {
             </div>
             <span class="badge ${g.attiva ? 'badge-approved' : 'badge-rejected'}">${g.attiva ? 'Attiva' : 'Disattiva'}</span>
           </div>
-          <button class="btn btn-sm ${g.attiva ? 'btn-danger' : 'btn-green'}" onclick="toggleGara('${g.id}', ${!g.attiva})">
-            ${g.attiva ? 'Disattiva' : 'Riattiva'}
-          </button>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="btn btn-sm btn-secondary" onclick="openModalModificaGara('${g.id}','${g.nome.replace(/'/g,"\\'")}','${g.data}','${g.luogo.replace(/'/g,"\\'")}','${g.categoria||'nuoto'}')">
+              ✏️ Modifica
+            </button>
+            <button class="btn btn-sm ${g.attiva ? 'btn-danger' : 'btn-green'}" onclick="toggleGara('${g.id}', ${!g.attiva})">
+              ${g.attiva ? 'Disattiva' : 'Riattiva'}
+            </button>
+          </div>
         </div>`).join('');
     };
 
@@ -2250,6 +2307,50 @@ async function segnaComePagati() {
     pagata_il: new Date(dataISO).toISOString()
   }).in('id', ids);
   loadAdminContent('pagamenti');
+}
+
+function openModalModificaGara(id, nome, data, luogo, categoria) {
+  document.getElementById('modifica-gara-id').value = id;
+  document.getElementById('modifica-gara-nome').value = nome;
+  document.getElementById('modifica-gara-data').value = data;
+  document.getElementById('modifica-gara-luogo').value = luogo;
+  document.getElementById('modifica-gara-categoria').value = categoria || 'nuoto';
+  document.getElementById('modal-modifica-gara').classList.add('open');
+}
+
+async function salvaModificaGara() {
+  const id = document.getElementById('modifica-gara-id').value;
+  const nome = document.getElementById('modifica-gara-nome').value.trim();
+  const data = document.getElementById('modifica-gara-data').value;
+  const luogo = document.getElementById('modifica-gara-luogo').value.trim();
+  const categoria = document.getElementById('modifica-gara-categoria').value;
+  if (!nome || !data || !luogo) { alert('Compila tutti i campi'); return; }
+  await sb.from('gare').update({ nome, data, luogo, categoria }).eq('id', id);
+  document.getElementById('modal-modifica-gara').classList.remove('open');
+  loadAdminContent('gare');
+}
+
+function openModalModificaTariffa(id, stagione, inizio, fine, valore, attiva) {
+  document.getElementById('modifica-tariffa-id').value = id;
+  document.getElementById('modifica-tariffa-stagione').value = stagione;
+  document.getElementById('modifica-tariffa-inizio').value = inizio;
+  document.getElementById('modifica-tariffa-fine').value = fine;
+  document.getElementById('modifica-tariffa-valore').value = valore;
+  document.getElementById('modifica-tariffa-attiva').value = attiva ? 'true' : 'false';
+  document.getElementById('modal-modifica-tariffa').classList.add('open');
+}
+
+async function salvaModificaTariffa() {
+  const id = document.getElementById('modifica-tariffa-id').value;
+  const stagione = document.getElementById('modifica-tariffa-stagione').value.trim();
+  const inizio = document.getElementById('modifica-tariffa-inizio').value;
+  const fine = document.getElementById('modifica-tariffa-fine').value;
+  const valore = parseFloat(document.getElementById('modifica-tariffa-valore').value);
+  const attiva = document.getElementById('modifica-tariffa-attiva').value === 'true';
+  if (!stagione || !inizio || !fine || !valore) { alert('Compila tutti i campi'); return; }
+  await sb.from('tariffe_km').update({ stagione, data_inizio: inizio, data_fine: fine, tariffa_km: valore, attiva }).eq('id', id);
+  document.getElementById('modal-modifica-tariffa').classList.remove('open');
+  loadAdminContent('tariffe');
 }
 
 function openModalTariffa() {
