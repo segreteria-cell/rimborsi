@@ -718,6 +718,13 @@
     <div class="field"><label>Nome gara</label><input type="text" id="gara-nome" placeholder="Es: Campionato Regionale"></div>
     <div class="field"><label>Data</label><input type="date" id="gara-data"></div>
     <div class="field"><label>Luogo</label><input type="text" id="gara-luogo" placeholder="Es: Piscina comunale, Roma"></div>
+    <div class="field"><label>Categoria</label>
+      <select id="gara-categoria">
+        <option value="nuoto">🏊 Nuoto</option>
+        <option value="salvamento">🛟 Salvamento</option>
+        <option value="altro">📋 Altro</option>
+      </select>
+    </div>
     <div style="display:flex;gap:10px;margin-top:8px;">
       <button class="btn btn-secondary" onclick="closeModalGara()">Annulla</button>
       <button class="btn btn-primary" onclick="addGara()">Salva</button>
@@ -1095,20 +1102,34 @@ async function loadGare() {
   const sel = document.getElementById('sel-gara');
   sel.innerHTML = '<option value="">Caricamento...</option>';
   try {
-    const { data, error } = await sb.from('gare').select('id, nome, data, luogo').eq('attiva', true).order('data', { ascending: true });
-    if (error) {
-      console.error('Errore gare:', error);
-      sel.innerHTML = '<option value="">Errore: ' + error.message + '</option>';
-      return;
-    }
-    if (!data || data.length === 0) {
+    const { data, error } = await sb.from('gare').select('id, nome, data, luogo, categoria').eq('attiva', true).order('data', { ascending: true });
+    if (error || !data || data.length === 0) {
       sel.innerHTML = '<option value="">Nessuna gara disponibile</option>';
       return;
     }
-    sel.innerHTML = '<option value="">Seleziona una gara...</option>' +
-      data.map(g => `<option value="${g.id}" data-data="${g.data}">${g.nome} — ${new Date(g.data).toLocaleDateString('it-IT')} · ${g.luogo}</option>`).join('');
+    // Raggruppa per categoria
+    const nuoto = data.filter(g => !g.categoria || g.categoria === 'nuoto');
+    const salvamento = data.filter(g => g.categoria === 'salvamento');
+    const altro = data.filter(g => g.categoria && g.categoria !== 'nuoto' && g.categoria !== 'salvamento');
+
+    let html = '<option value="">Seleziona una gara...</option>';
+    if (nuoto.length) {
+      html += '<optgroup label="🏊 Nuoto">';
+      html += nuoto.map(g => `<option value="${g.id}" data-data="${g.data}">${g.nome} — ${new Date(g.data).toLocaleDateString('it-IT')} · ${g.luogo}</option>`).join('');
+      html += '</optgroup>';
+    }
+    if (salvamento.length) {
+      html += '<optgroup label="🛟 Salvamento">';
+      html += salvamento.map(g => `<option value="${g.id}" data-data="${g.data}">${g.nome} — ${new Date(g.data).toLocaleDateString('it-IT')} · ${g.luogo}</option>`).join('');
+      html += '</optgroup>';
+    }
+    if (altro.length) {
+      html += '<optgroup label="📋 Altro">';
+      html += altro.map(g => `<option value="${g.id}" data-data="${g.data}">${g.nome} — ${new Date(g.data).toLocaleDateString('it-IT')} · ${g.luogo}</option>`).join('');
+      html += '</optgroup>';
+    }
+    sel.innerHTML = html;
   } catch(e) {
-    console.error('Eccezione gare:', e);
     sel.innerHTML = '<option value="">Errore: ' + e.message + '</option>';
   }
 }
@@ -1629,9 +1650,14 @@ async function loadAdminContent(tab) {
   }
 
   if (tab === 'gare') {
-    const { data } = await sb.from('gare').select('*').order('data', { ascending: false });
-    el.innerHTML = `<button class="btn btn-primary" onclick="openModalGara()" style="margin-bottom:16px;">+ Aggiungi gara</button>` +
-      (data && data.length ? data.map(g => `
+    const { data } = await sb.from('gare').select('*').order('data', { ascending: true });
+    const nuoto = (data||[]).filter(g => !g.categoria || g.categoria === 'nuoto');
+    const salvamento = (data||[]).filter(g => g.categoria === 'salvamento');
+
+    const renderGare = (list, titolo, emoji) => {
+      if (!list.length) return '';
+      return `<div class="section-title" style="margin-top:16px;">${emoji} ${titolo}</div>` +
+        list.map(g => `
         <div class="admin-card">
           <div class="admin-card-top">
             <div>
@@ -1643,7 +1669,13 @@ async function loadAdminContent(tab) {
           <button class="btn btn-sm ${g.attiva ? 'btn-danger' : 'btn-green'}" onclick="toggleGara('${g.id}', ${!g.attiva})">
             ${g.attiva ? 'Disattiva' : 'Riattiva'}
           </button>
-        </div>`).join('') : '<div class="empty"><div class="empty-icon">🏆</div><div class="empty-text">Nessuna gara</div></div>');
+        </div>`).join('');
+    };
+
+    el.innerHTML = `<button class="btn btn-primary" onclick="openModalGara()" style="margin-bottom:16px;">+ Aggiungi gara</button>` +
+      renderGare(nuoto, 'Nuoto', '🏊') +
+      renderGare(salvamento, 'Salvamento', '🛟') +
+      (!data || !data.length ? '<div class="empty"><div class="empty-icon">🏆</div><div class="empty-text">Nessuna gara</div></div>' : '');
     return;
   }
 
@@ -1798,8 +1830,9 @@ async function addGara() {
   const nome = document.getElementById('gara-nome').value.trim();
   const data = document.getElementById('gara-data').value;
   const luogo = document.getElementById('gara-luogo').value.trim();
+  const categoria = document.getElementById('gara-categoria').value;
   if (!nome || !data || !luogo) { alert('Compila tutti i campi'); return; }
-  await sb.from('gare').insert({ nome, data, luogo, attiva: true });
+  await sb.from('gare').insert({ nome, data, luogo, attiva: true, categoria });
   closeModalGara();
   loadAdminContent('gare');
 }
