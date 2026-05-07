@@ -1760,37 +1760,34 @@ async function loadAdminContent(tab) {
     return;
   }
 
-  el.innerHTML = (() => {
-    if (tab !== 'approvate') {
-      // Pulsante elimina tutto per rifiutate
-      const btnElimina = tab === 'rifiutate' ? `
-        <button class="btn btn-danger" onclick="eliminaTutte('rifiutata')" style="margin-bottom:16px;">
-          🗑️ Elimina tutte le rifiutate
-        </button>` : '';
-
-      return btnElimina + data.map(r => {
-        const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
-        const nomeAl = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || '—');
-        return `<div class="admin-card" onclick="showDettaglio('${r.id}','admin')">
-          <div class="admin-card-top">
-            <div>
-              <div class="card-title">${nomeAl}</div>
-              <div class="card-sub">${r.gare?.nome} · ${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''}</div>
-            </div>
-            <div style="font-size:18px;font-weight:700;color:var(--blue)">€ ${tot.toFixed(2)}</div>
+  let htmlContent = '';
+  if (tab !== 'approvate') {
+    const btnElimina = tab === 'rifiutate' ? `
+      <button class="btn btn-danger" onclick="eliminaTutte('rifiutata')" style="margin-bottom:16px;">
+        🗑️ Elimina tutte le rifiutate
+      </button>` : '';
+    htmlContent = btnElimina + data.map(r => {
+      const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
+      const nomeAl = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || '—');
+      return `<div class="admin-card" onclick="showDettaglio('${r.id}','admin')">
+        <div class="admin-card-top">
+          <div>
+            <div class="card-title">${nomeAl}</div>
+            <div class="card-sub">${r.gare?.nome} · ${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''}</div>
           </div>
-          <div style="font-size:13px;color:var(--muted)">🚗 ${r.km} km · ${new Date(r.creata_il).toLocaleDateString('it-IT')}</div>
-          ${tab === 'attesa' ? `<div class="admin-actions">
-            <button class="btn btn-danger" onclick="event.stopPropagation();aggiornaStato('${r.id}','rifiutata')">❌ Rifiuta</button>
-            <button class="btn btn-green" onclick="event.stopPropagation();aggiornaStato('${r.id}','approvata')">✅ Approva</button>
-          </div>` : ''}
-          ${tab === 'rifiutate' ? `<div style="margin-top:8px;">
-            <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();eliminaRichiesta('${r.id}')">🗑️ Elimina</button>
-          </div>` : ''}
-        </div>`;
-      }).join('');
-    }
-
+          <div style="font-size:18px;font-weight:700;color:var(--blue)">€ ${tot.toFixed(2)}</div>
+        </div>
+        <div style="font-size:13px;color:var(--muted)">🚗 ${r.km} km · ${new Date(r.creata_il).toLocaleDateString('it-IT')}</div>
+        ${tab === 'attesa' ? `<div class="admin-actions">
+          <button class="btn btn-danger" onclick="event.stopPropagation();aggiornaStato('${r.id}','rifiutata')">❌ Rifiuta</button>
+          <button class="btn btn-green" onclick="event.stopPropagation();aggiornaStato('${r.id}','approvata')">✅ Approva</button>
+        </div>` : ''}
+        ${tab === 'rifiutate' ? `<div style="margin-top:8px;">
+          <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();eliminaRichiesta('${r.id}')">🗑️ Elimina</button>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+  } else {
     // Vista APPROVATE raggruppata per allenatore
     const perAllenatore = {};
     data.forEach(r => {
@@ -1799,17 +1796,13 @@ async function loadAdminContent(tab) {
       if (!perAllenatore[key]) perAllenatore[key] = { profilo: r.profili, nome: nomeDisplay, richieste: [] };
       perAllenatore[key].richieste.push(r);
     });
-
-    // Ordina alfabeticamente per nome allenatore
     const sortedAl = Object.values(perAllenatore).sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
-
-    return sortedAl.map((al, idx) => {
+    htmlContent = sortedAl.map((al, idx) => {
       const nomeAl = al.nome;
       const totAl = al.richieste.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
       const pagate = al.richieste.filter(r => r.pagata).length;
       const nonPagate = al.richieste.filter(r => !r.pagata).length;
       const colId = `al-detail-${idx}`;
-
       return `<div class="admin-card" style="margin-bottom:12px;cursor:pointer;" onclick="toggleCollapse('${colId}', this)">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div>
@@ -1821,9 +1814,7 @@ async function loadAdminContent(tab) {
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:12px;">
-            <div style="text-align:right;">
-              <div style="font-size:18px;font-weight:700;color:var(--blue)">€${totAl.toFixed(2)}</div>
-            </div>
+            <div style="font-size:18px;font-weight:700;color:var(--blue)">€${totAl.toFixed(2)}</div>
             <span id="arrow-${colId}" style="font-size:18px;transition:transform 0.2s;">▼</span>
           </div>
         </div>
@@ -1844,7 +1835,8 @@ async function loadAdminContent(tab) {
         </div>
       </div>`;
     }).join('');
-  })();
+  }
+  el.innerHTML = htmlContent;
 }
 
 async function generaReport() {
