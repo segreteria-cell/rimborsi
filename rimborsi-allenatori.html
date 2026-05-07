@@ -682,7 +682,7 @@
       <input type="text" id="spesa-desc" placeholder="Es: Pranzo autogrill A1">
     </div>
     <div class="field">
-      <label>Allega documento / foto ricevuta</label>
+      <label>Allega documenti / foto ricevuta</label>
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <button type="button" class="btn btn-secondary" style="flex:1;font-size:13px;padding:10px;" onclick="document.getElementById('spesa-file-camera').click()">
           📸 Fotocamera
@@ -691,9 +691,10 @@
           📁 Scegli file
         </button>
       </div>
-      <input type="file" id="spesa-file-camera" accept="image/*" capture="environment" onchange="previewFile(this,'camera')">
-      <input type="file" id="spesa-file-gallery" accept="image/*,application/pdf" onchange="previewFile(this,'gallery')">
-      <div class="photo-preview" id="file-preview"></div>
+      <input type="file" id="spesa-file-camera" accept="image/*" capture="environment" onchange="addAllegato(this)">
+      <input type="file" id="spesa-file-gallery" accept="image/*,application/pdf" multiple onchange="addAllegato(this)">
+      <div id="allegati-preview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div>
+      <div id="allegati-count" style="font-size:12px;color:var(--muted);margin-top:4px;"></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:8px;">
       <button class="btn btn-secondary" onclick="closeModal()">Annulla</button>
@@ -1217,37 +1218,71 @@ const spesaLabels = { carburante:'Rimborso auto', pedaggi:'Pedaggi', parcheggio:
 function openAddSpesa() {
   document.getElementById('spesa-importo').value = '';
   document.getElementById('spesa-desc').value = '';
-  document.getElementById('file-preview').innerHTML = '';
+  document.getElementById('allegati-preview').innerHTML = '';
+  document.getElementById('allegati-count').textContent = '';
   document.getElementById('spesa-file-camera').value = '';
   document.getElementById('spesa-file-gallery').value = '';
-  window._selectedSpesaFile = null;
+  window._selectedSpesaFiles = [];
   document.getElementById('modal-spesa').classList.add('open');
 }
 
 function closeModal() { document.getElementById('modal-spesa').classList.remove('open'); }
 
-function previewFile(input, source) {
-  const file = input.files[0];
-  if (!file) return;
-  // Store selected file in a shared variable
-  window._selectedSpesaFile = file;
-  const preview = document.getElementById('file-preview');
-  if (file.type.startsWith('image/')) {
-    const reader = new FileReader();
-    reader.onload = e => { preview.innerHTML = `<img src="${e.target.result}" class="photo-thumb">`; };
-    reader.readAsDataURL(file);
-  } else {
-    preview.innerHTML = `<div style="font-size:13px;color:var(--blue);padding:8px;background:var(--blue-light);border-radius:8px;">📎 ${file.name}</div>`;
+function addAllegato(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  if (!window._selectedSpesaFiles) window._selectedSpesaFiles = [];
+  files.forEach(file => {
+    window._selectedSpesaFiles.push(file);
+    const preview = document.getElementById('allegati-preview');
+    const idx = window._selectedSpesaFiles.length - 1;
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const div = document.createElement('div');
+        div.style.cssText = 'position:relative;display:inline-block;';
+        div.innerHTML = `<img src="${e.target.result}" class="photo-thumb">
+          <button onclick="removeAllegato(${idx})" style="position:absolute;top:-6px;right:-6px;background:var(--red);color:white;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1;">✕</button>`;
+        preview.appendChild(div);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      const div = document.createElement('div');
+      div.style.cssText = 'position:relative;display:inline-block;';
+      div.innerHTML = `<div style="font-size:12px;color:var(--blue);padding:6px 10px;background:var(--blue-light);border-radius:8px;">📎 ${file.name.slice(0,20)}</div>
+        <button onclick="removeAllegato(${idx})" style="position:absolute;top:-6px;right:-6px;background:var(--red);color:white;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1;">✕</button>`;
+      preview.appendChild(div);
+    }
+  });
+  updateAllegatiCount();
+  input.value = '';
+}
+
+function removeAllegato(idx) {
+  if (window._selectedSpesaFiles) {
+    window._selectedSpesaFiles[idx] = null;
+    document.getElementById('allegati-preview').children[idx]?.remove();
+    updateAllegatiCount();
   }
+}
+
+function updateAllegatiCount() {
+  const count = (window._selectedSpesaFiles || []).filter(f => f !== null).length;
+  const el = document.getElementById('allegati-count');
+  if (el) el.textContent = count > 0 ? `${count} file selezionat${count === 1 ? 'o' : 'i'}` : '';
+}
+
+function previewFile(input, source) {
+  addAllegato(input);
 }
 
 function addSpesa() {
   const tipo = document.getElementById('spesa-tipo').value;
   const importo = parseFloat(document.getElementById('spesa-importo').value);
   const desc = document.getElementById('spesa-desc').value.trim();
-  const file = window._selectedSpesaFile || null;
+  const files = (window._selectedSpesaFiles || []).filter(f => f !== null);
   if (!importo || importo <= 0) { alert('Inserisci un importo valido'); return; }
-  speseTemp.push({ tipo, importo, descrizione: desc, file: file, allegato_url: null });
+  speseTemp.push({ tipo, importo, descrizione: desc, files: files, allegato_url: null });
   closeModal();
   renderSpese();
   aggiornaRiepilogo();
@@ -1313,21 +1348,41 @@ async function inviaRichiesta() {
     // Upload allegati e crea spese
     for (const spesa of speseTemp) {
       let allegato_url = null;
-      if (spesa.file) {
+      let allegati_urls = [];
+
+      // Gestisci files multipli (nuovo sistema)
+      if (spesa.files && spesa.files.length > 0) {
+        for (const file of spesa.files) {
+          if (!file) continue;
+          const ext = file.name.split('.').pop();
+          const path = `${currentUser.id}/${richiesta.id}/${Date.now()}_${Math.random().toString(36).slice(2,6)}.${ext}`;
+          const { error: errU } = await sb.storage.from('allegati').upload(path, file);
+          if (!errU) {
+            const { data: urlData } = sb.storage.from('allegati').getPublicUrl(path);
+            allegati_urls.push(urlData.publicUrl);
+          }
+        }
+        if (allegati_urls.length > 0) allegato_url = allegati_urls[0];
+      }
+      // Retrocompatibilità con vecchio sistema (file singolo)
+      else if (spesa.file) {
         const ext = spesa.file.name.split('.').pop();
         const path = `${currentUser.id}/${richiesta.id}/${Date.now()}.${ext}`;
         const { error: errU } = await sb.storage.from('allegati').upload(path, spesa.file);
         if (!errU) {
           const { data: urlData } = sb.storage.from('allegati').getPublicUrl(path);
           allegato_url = urlData.publicUrl;
+          allegati_urls = [allegato_url];
         }
       }
+
       await sb.from('spese').insert({
         richiesta_id: richiesta.id,
         tipo: spesa.tipo,
         importo: spesa.importo,
         descrizione: spesa.descrizione,
-        allegato_url
+        allegato_url,
+        allegati_urls: allegati_urls.length > 0 ? allegati_urls : null
       });
     }
 
@@ -1389,15 +1444,16 @@ async function showDettaglio(id, from) {
             <div>
               <div class="spesa-name">${spesaLabels[s.tipo] || s.tipo}</div>
               ${s.descrizione ? `<div class="spesa-desc">${s.descrizione}</div>` : ''}
-              ${s.allegato_url ? `
-                <div style="margin-top:6px;">
-                  ${s.allegato_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ?
-                    `<img src="${s.allegato_url}" onclick="window.open('${s.allegato_url}','_blank')" style="max-width:120px;max-height:80px;border-radius:6px;border:1px solid var(--border);cursor:pointer;display:block;">` :
-                    `<a href="${s.allegato_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--blue);background:var(--blue-light);padding:6px 10px;border-radius:8px;text-decoration:none;">
-                      📎 Vedi allegato
-                    </a>`
-                  }
-                </div>` : ''}
+              ${(() => {
+                const urls = s.allegati_urls || (s.allegato_url ? [s.allegato_url] : []);
+                if (!urls.length) return '';
+                return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">
+                  ${urls.map((url, i) => url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ?
+                    `<img src="${url}" onclick="window.open('${url}','_blank')" style="max-width:80px;max-height:60px;border-radius:6px;border:1px solid var(--border);cursor:pointer;">` :
+                    `<a href="${url}" target="_blank" style="font-size:12px;color:var(--blue);background:var(--blue-light);padding:4px 8px;border-radius:6px;text-decoration:none;">📎 Allegato ${i+1}</a>`
+                  ).join('')}
+                </div>`;
+              })()}
             </div>
           </div>
           <div class="spesa-amount">€ ${parseFloat(s.importo).toFixed(2)}</div>
@@ -1486,31 +1542,36 @@ async function stampaPDF(id) {
     <div class="row"><span class="label">Km percorsi</span><span>${r.km} km</span></div>
   </div>
   <div class="section"><h2>Spese</h2>
-    ${(r.spese || []).map(s => `
-    <div class="row" style="align-items:flex-start;">
+    ${(r.spese || []).map(s => {
+    const urls = s.allegati_urls || (s.allegato_url ? [s.allegato_url] : []);
+    return `<div class="row" style="align-items:flex-start;">
       <span class="label">${s.tipo}${s.descrizione ? ' — '+s.descrizione : ''}</span>
       <div style="text-align:right;">
         <div>€ ${parseFloat(s.importo).toFixed(2)}</div>
-        ${s.allegato_url ? (s.allegato_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ?
-          `<a href="${s.allegato_url}" target="_blank"><img src="${s.allegato_url}" style="margin-top:4px;max-width:100px;max-height:70px;border-radius:4px;border:1px solid #eee;display:block;"></a>` :
-          `<a href="${s.allegato_url}" target="_blank" style="font-size:11px;color:#0066FF;text-decoration:none;">📎 Vedi allegato PDF</a>`) : ''}
+        ${urls.length > 0 ? urls.map((url, i) =>
+          `<a href="${url}" target="_blank" style="display:block;font-size:11px;color:#0066FF;text-decoration:none;margin-top:3px;">📎 Allegato ${i+1}</a>`
+        ).join('') : ''}
       </div>
-    </div>`).join('')}
+    </div>`;
+  }).join('')}
     <div class="row"><span class="label">Totale spese</span><span><strong>€ ${totale.toFixed(2)}</strong></span></div>
     ${r.acconto > 0 ? `<div class="row"><span class="label">Acconto percepito</span><span>- € ${parseFloat(r.acconto).toFixed(2)}</span></div>` : ''}
   </div>
   ${r.note ? `<div class="section"><h2>Note</h2><p style="font-size:14px">${r.note}</p></div>` : ''}
-  ${(r.spese||[]).some(s => s.allegato_url) ? `
+  ${(r.spese||[]).some(s => (s.allegati_urls||[s.allegato_url]).filter(Boolean).length > 0) ? `
   <div class="section"><h2>Allegati</h2>
-    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;">
-      ${(r.spese||[]).filter(s => s.allegato_url).map(s => `
-        <div style="border:1px solid #eee;border-radius:8px;padding:8px;text-align:center;max-width:140px;">
-          ${s.allegato_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ?
-            `<a href="${s.allegato_url}" target="_blank"><img src="${s.allegato_url}" style="max-width:120px;max-height:100px;border-radius:4px;display:block;"></a>` :
-            `<a href="${s.allegato_url}" target="_blank" style="font-size:12px;color:#0066FF;text-decoration:none;">📎 ${s.tipo}</a>`}
-          <div style="font-size:11px;color:#888;margin-top:4px;">${s.tipo}${s.descrizione?' — '+s.descrizione:''}</div>
-        </div>`).join('')}
-    </div>
+    <table style="width:100%;font-size:13px;border-collapse:collapse;">
+      ${(r.spese||[]).filter(s => (s.allegati_urls||[s.allegato_url]).filter(Boolean).length > 0).map(s => {
+        const urls = s.allegati_urls || (s.allegato_url ? [s.allegato_url] : []);
+        return urls.map((url, i) => `
+          <tr style="border-bottom:1px solid #f0f0f0;">
+            <td style="padding:6px 0;color:#666;">${s.tipo}${s.descrizione?' — '+s.descrizione:''}</td>
+            <td style="padding:6px 0;text-align:right;">
+              <a href="${url}" target="_blank" style="color:#0066FF;text-decoration:none;">📎 Allegato ${urls.length > 1 ? i+1 : ''}</a>
+            </td>
+          </tr>`).join('');
+      }).join('')}
+    </table>
   </div>` : ''}
   <div class="total-box">
     <span class="total-label">Totale da rimborsare</span>
