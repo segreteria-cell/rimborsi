@@ -683,11 +683,16 @@
     </div>
     <div class="field">
       <label>Allega documento / foto ricevuta</label>
-      <div class="upload-area" onclick="document.getElementById('spesa-file').click()">
-        <div class="upload-icon">📸</div>
-        <div class="upload-text">Tocca per fotografare o scegliere file</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button type="button" class="btn btn-secondary" style="flex:1;font-size:13px;padding:10px;" onclick="document.getElementById('spesa-file-camera').click()">
+          📸 Fotocamera
+        </button>
+        <button type="button" class="btn btn-secondary" style="flex:1;font-size:13px;padding:10px;" onclick="document.getElementById('spesa-file-gallery').click()">
+          📁 Scegli file
+        </button>
       </div>
-      <input type="file" id="spesa-file" accept="image/*,application/pdf" capture="environment" onchange="previewFile(this)">
+      <input type="file" id="spesa-file-camera" accept="image/*" capture="environment" onchange="previewFile(this,'camera')">
+      <input type="file" id="spesa-file-gallery" accept="image/*,application/pdf" onchange="previewFile(this,'gallery')">
       <div class="photo-preview" id="file-preview"></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:8px;">
@@ -1213,22 +1218,26 @@ function openAddSpesa() {
   document.getElementById('spesa-importo').value = '';
   document.getElementById('spesa-desc').value = '';
   document.getElementById('file-preview').innerHTML = '';
-  document.getElementById('spesa-file').value = '';
+  document.getElementById('spesa-file-camera').value = '';
+  document.getElementById('spesa-file-gallery').value = '';
+  window._selectedSpesaFile = null;
   document.getElementById('modal-spesa').classList.add('open');
 }
 
 function closeModal() { document.getElementById('modal-spesa').classList.remove('open'); }
 
-function previewFile(input) {
+function previewFile(input, source) {
   const file = input.files[0];
   if (!file) return;
+  // Store selected file in a shared variable
+  window._selectedSpesaFile = file;
   const preview = document.getElementById('file-preview');
   if (file.type.startsWith('image/')) {
     const reader = new FileReader();
     reader.onload = e => { preview.innerHTML = `<img src="${e.target.result}" class="photo-thumb">`; };
     reader.readAsDataURL(file);
   } else {
-    preview.innerHTML = `<div style="font-size:13px;color:var(--blue);padding:8px;">📎 ${file.name}</div>`;
+    preview.innerHTML = `<div style="font-size:13px;color:var(--blue);padding:8px;background:var(--blue-light);border-radius:8px;">📎 ${file.name}</div>`;
   }
 }
 
@@ -1236,9 +1245,9 @@ function addSpesa() {
   const tipo = document.getElementById('spesa-tipo').value;
   const importo = parseFloat(document.getElementById('spesa-importo').value);
   const desc = document.getElementById('spesa-desc').value.trim();
-  const file = document.getElementById('spesa-file').files[0];
+  const file = window._selectedSpesaFile || null;
   if (!importo || importo <= 0) { alert('Inserisci un importo valido'); return; }
-  speseTemp.push({ tipo, importo, descrizione: desc, file: file || null, allegato_url: null });
+  speseTemp.push({ tipo, importo, descrizione: desc, file: file, allegato_url: null });
   closeModal();
   renderSpese();
   aggiornaRiepilogo();
@@ -1377,9 +1386,20 @@ async function showDettaglio(id, from) {
         <div class="spesa-item">
           <div class="spesa-left">
             <div class="spesa-icon">${spesaIcons[s.tipo] || '📋'}</div>
-            <div><div class="spesa-name">${spesaLabels[s.tipo] || s.tipo.charAt(0).toUpperCase()+s.tipo.slice(1)}</div>
-            ${s.descrizione ? `<div class="spesa-desc">${s.descrizione}</div>` : ''}
-            ${s.allegato_url ? `<a href="${s.allegato_url}" target="_blank" style="font-size:12px;color:var(--blue)">📎 Vedi allegato</a>` : ''}
+            <div>
+              <div class="spesa-name">${spesaLabels[s.tipo] || s.tipo}</div>
+              ${s.descrizione ? `<div class="spesa-desc">${s.descrizione}</div>` : ''}
+              ${s.allegato_url ? `
+                <div style="margin-top:6px;">
+                  ${s.allegato_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ?
+                    `<a href="${s.allegato_url}" target="_blank">
+                      <img src="${s.allegato_url}" style="max-width:120px;max-height:80px;border-radius:6px;border:1px solid var(--border);cursor:pointer;">
+                    </a>` :
+                    `<a href="${s.allegato_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--blue);background:var(--blue-light);padding:6px 10px;border-radius:8px;text-decoration:none;">
+                      📎 Vedi allegato
+                    </a>`
+                  }
+                </div>` : ''}
             </div>
           </div>
           <div class="spesa-amount">€ ${parseFloat(s.importo).toFixed(2)}</div>
@@ -1468,7 +1488,15 @@ async function stampaPDF(id) {
     <div class="row"><span class="label">Km percorsi</span><span>${r.km} km</span></div>
   </div>
   <div class="section"><h2>Spese</h2>
-    ${(r.spese || []).map(s => `<div class="row"><span class="label">${s.tipo} ${s.descrizione ? '— '+s.descrizione : ''}</span><span>€ ${parseFloat(s.importo).toFixed(2)}</span></div>`).join('')}
+    ${(r.spese || []).map(s => `<div class="row">
+    <span class="label">${s.tipo} ${s.descrizione ? '— '+s.descrizione : ''}</span>
+    <span style="display:flex;align-items:center;gap:12px;">
+      <span>€ ${parseFloat(s.importo).toFixed(2)}</span>
+      ${s.allegato_url ? (s.allegato_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ?
+        `<img src="${s.allegato_url}" style="height:40px;border-radius:4px;border:1px solid #eee;">` :
+        `<a href="${s.allegato_url}" target="_blank" style="font-size:12px;color:#0066FF;">📎 allegato</a>`) : ''}
+    </span>
+  </div>`).join('')}
     <div class="row"><span class="label">Totale spese</span><span><strong>€ ${totale.toFixed(2)}</strong></span></div>
     ${r.acconto > 0 ? `<div class="row"><span class="label">Acconto percepito</span><span>- € ${parseFloat(r.acconto).toFixed(2)}</span></div>` : ''}
   </div>
