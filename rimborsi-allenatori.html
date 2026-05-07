@@ -1548,6 +1548,24 @@ async function loadRiepilogo() {
     </div>`;
 }
 
+async function eliminaRichiesta(id) {
+  if (!confirm('Sei sicuro di voler eliminare definitivamente questa richiesta?')) return;
+  await sb.from('spese').delete().eq('richiesta_id', id);
+  await sb.from('richieste').delete().eq('id', id);
+  loadAdminContent('rifiutate');
+}
+
+async function eliminaTutte(stato) {
+  if (!confirm('Sei sicuro di voler eliminare TUTTE le richieste rifiutate? Questa azione è irreversibile.')) return;
+  const { data } = await sb.from('richieste').select('id').eq('stato', stato);
+  if (data && data.length > 0) {
+    const ids = data.map(r => r.id);
+    await sb.from('spese').delete().in('richiesta_id', ids);
+    await sb.from('richieste').delete().eq('stato', stato);
+  }
+  loadAdminContent('rifiutate');
+}
+
 async function aggiornaStato(id, stato) {
   await sb.from('richieste').update({ stato }).eq('id', id);
   goBack();
@@ -1568,7 +1586,6 @@ async function loadAdminContent(tab) {
   el.innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
 
   if (tab === 'pagamenti') {
-    // Carica tutte le richieste approvate raggruppate per allenatore
     const { data } = await sb.from('richieste')
       .select('*, gare(nome, data), profili(nome, cognome, email), spese(*)')
       .eq('stato', 'approvata')
@@ -1579,15 +1596,20 @@ async function loadAdminContent(tab) {
       return;
     }
 
-    // Raggruppa per allenatore
+    // Raggruppa per allenatore (usa allenatore_nome come fallback per storici)
     const perAllenatore = {};
     data.forEach(r => {
-      const key = r.allenatore_id;
-      if (!perAllenatore[key]) perAllenatore[key] = { profilo: r.profili, richieste: [] };
+      const key = r.allenatore_id || r.allenatore_nome || 'sconosciuto';
+      const nomeDisplay = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || 'Sconosciuto');
+      const emailDisplay = r.profili?.email || '—';
+      if (!perAllenatore[key]) perAllenatore[key] = { nome: nomeDisplay, email: emailDisplay, richieste: [] };
       perAllenatore[key].richieste.push(r);
     });
 
-    el.innerHTML = Object.values(perAllenatore).map(al => {
+    // Ordina per nome allenatore
+    const sorted = Object.values(perAllenatore).sort((a, b) => a.nome.localeCompare(b.nome));
+
+    el.innerHTML = sorted.map(al => {
       const nonPagate = al.richieste.filter(r => !r.pagata);
       const pagate = al.richieste.filter(r => r.pagata);
       const totNonPagato = nonPagate.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
@@ -1596,38 +1618,52 @@ async function loadAdminContent(tab) {
       return `<div class="admin-card" style="margin-bottom:16px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <div>
-            <div style="font-size:16px;font-weight:700;">${al.profilo?.nome} ${al.profilo?.cognome}</div>
-            <div style="font-size:12px;color:var(--muted)">${al.profilo?.email}</div>
+            <div style="font-size:16px;font-weight:700;">👤 ${al.nome}</div>
+            <div style="font-size:12px;color:var(--muted)">${al.email}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px;">${al.richieste.length} richieste totali</div>
           </div>
           <div style="text-align:right;">
-            <div style="font-size:18px;font-weight:700;color:var(--blue)">€${totNonPagato.toFixed(2)}</div>
-            <div style="font-size:11px;color:var(--muted)">da pagare</div>
+            ${totNonPagato > 0 ? `<div style="font-size:18px;font-weight:700;color:var(--blue)">€${totNonPagato.toFixed(2)}</div><div style="font-size:11px;color:var(--muted)">da pagare</div>` : ''}
+            ${totPagato > 0 ? `<div style="font-size:13px;color:var(--green);margin-top:4px;">✅ €${totPagato.toFixed(2)} pagato</div>` : ''}
           </div>
         </div>
         ${nonPagate.length > 0 ? `
         <div style="background:var(--bg);border-radius:10px;padding:10px;margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;">Da pagare</div>
           ${nonPagate.map(r => {
             const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
             return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
-              <input type="checkbox" class="check-pagamento" data-id="${r.id}" data-importo="${tot}" style="width:20px;height:20px;cursor:pointer;" onchange="updateSelezione()">
+              <input type="checkbox" class="check-pagamento" data-id="${r.id}" data-importo="${tot}" data-allenatore="${al.nome}" style="width:20px;height:20px;cursor:pointer;" onchange="updateSelezione()">
               <div style="flex:1;">
                 <div style="font-size:13px;font-weight:500;">${r.gare?.nome || '—'}</div>
-                <div style="font-size:11px;color:var(--muted)">${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''}</div>
+                <div style="font-size:11px;color:var(--muted)">${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''} · 🚗 ${r.km} km</div>
               </div>
               <div style="font-weight:700;color:var(--blue)">€${tot.toFixed(2)}</div>
             </div>`;
           }).join('')}
-        </div>
-        ` : ''}
-        ${pagate.length > 0 ? `<div style="font-size:12px;color:var(--green);margin-bottom:8px;">✅ Già pagato: €${totPagato.toFixed(2)}</div>` : ''}
+        </div>` : '<div style="font-size:13px;color:var(--green);margin-bottom:8px;">✅ Tutto pagato</div>'}
+        ${pagate.length > 0 ? `
+        <div style="background:#F0FBF7;border-radius:8px;padding:8px 10px;">
+          <div style="font-size:11px;font-weight:600;color:var(--green);margin-bottom:4px;">PAGATO</div>
+          ${pagate.map(r => {
+            const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
+            return `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;color:var(--muted);">
+              <span>${r.gare?.nome || '—'}</span>
+              <span style="color:var(--green);font-weight:600;">€${tot.toFixed(2)}</span>
+            </div>`;
+          }).join('')}
+        </div>` : ''}
       </div>`;
     }).join('') + `
-    <div id="selezione-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--blue);color:white;padding:16px 20px;z-index:300;display:flex;justify-content:space-between;align-items:center;">
-      <div>
-        <div style="font-size:14px;font-weight:600;" id="selezione-count">0 selezionati</div>
-        <div style="font-size:18px;font-weight:700;" id="selezione-totale">€ 0,00</div>
+    <div id="selezione-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--blue);color:white;padding:16px 20px;z-index:300;flex-direction:column;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:14px;font-weight:600;" id="selezione-count">0 selezionati</div>
+          <div style="font-size:18px;font-weight:700;" id="selezione-totale">€ 0,00</div>
+        </div>
+        <button onclick="segnaComePagati()" style="background:white;color:var(--blue);border:none;border-radius:10px;padding:12px 20px;font-weight:700;font-size:15px;cursor:pointer;">💰 Segna pagati</button>
       </div>
-      <button onclick="segnaComePagati()" style="background:white;color:var(--blue);border:none;border-radius:10px;padding:12px 20px;font-weight:700;font-size:15px;cursor:pointer;">💰 Segna pagati</button>
+      <div id="selezione-dettaglio" style="font-size:12px;opacity:0.85;margin-top:6px;"></div>
     </div>`;
     return;
   }
@@ -1692,13 +1728,19 @@ async function loadAdminContent(tab) {
 
   el.innerHTML = (() => {
     if (tab !== 'approvate') {
-      // Vista normale per attesa e rifiutate
-      return data.map(r => {
+      // Pulsante elimina tutto per rifiutate
+      const btnElimina = tab === 'rifiutate' ? `
+        <button class="btn btn-danger" onclick="eliminaTutte('rifiutata')" style="margin-bottom:16px;">
+          🗑️ Elimina tutte le rifiutate
+        </button>` : '';
+
+      return btnElimina + data.map(r => {
         const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
+        const nomeAl = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || '—');
         return `<div class="admin-card" onclick="showDettaglio('${r.id}','admin')">
           <div class="admin-card-top">
             <div>
-              <div class="card-title">${r.profili?.nome} ${r.profili?.cognome}</div>
+              <div class="card-title">${nomeAl}</div>
               <div class="card-sub">${r.gare?.nome} · ${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''}</div>
             </div>
             <div style="font-size:18px;font-weight:700;color:var(--blue)">€ ${tot.toFixed(2)}</div>
@@ -1707,6 +1749,9 @@ async function loadAdminContent(tab) {
           ${tab === 'attesa' ? `<div class="admin-actions">
             <button class="btn btn-danger" onclick="event.stopPropagation();aggiornaStato('${r.id}','rifiutata')">❌ Rifiuta</button>
             <button class="btn btn-green" onclick="event.stopPropagation();aggiornaStato('${r.id}','approvata')">✅ Approva</button>
+          </div>` : ''}
+          ${tab === 'rifiutate' ? `<div style="margin-top:8px;">
+            <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();eliminaRichiesta('${r.id}')">🗑️ Elimina</button>
           </div>` : ''}
         </div>`;
       }).join('');
@@ -1785,6 +1830,10 @@ function updateSelezione() {
     bar.style.display = 'flex';
     document.getElementById('selezione-count').textContent = checks.length + ' selezionat' + (checks.length === 1 ? 'a' : 'e');
     document.getElementById('selezione-totale').textContent = '€ ' + totale.toFixed(2);
+    // Mostra dettaglio allenatori selezionati
+    const allenatori = [...new Set(Array.from(checks).map(c => c.dataset.allenatore))].filter(Boolean);
+    const det = document.getElementById('selezione-dettaglio');
+    if (det) det.textContent = allenatori.length > 0 ? '👤 ' + allenatori.join(', ') : '';
   } else {
     bar.style.display = 'none';
   }
