@@ -286,7 +286,21 @@
 
   input[type="file"] { display: none; }
 
-  /* SUGGESTIONS */
+  /* MEZZO BUTTONS */
+  .mezzo-btn {
+    padding: 10px 14px; border-radius: 20px; border: 2px solid var(--border);
+    background: white; color: var(--muted); font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  }
+  .mezzo-btn.active {
+    background: var(--blue); color: white; border-color: var(--blue);
+  }
+
+  /* KM EXTRA */
+  .km-extra-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  .km-extra-row input { flex: 1; }
   .suggestions {
     position: absolute; top: 100%; left: 0; right: 0; z-index: 500;
     background: white; border: 1.5px solid var(--border); border-top: none;
@@ -437,24 +451,23 @@
       </div>
     </div>
 
-    <!-- STEP 2: Mezzo -->
+    <!-- STEP 2: Mezzi -->
     <div class="card">
-      <div class="card-title" style="margin-bottom:12px;">🚗 Mezzo di trasporto</div>
-      <div class="field">
-        <label>Seleziona mezzo utilizzato</label>
-        <select id="sel-mezzo" onchange="onMezzoChange()">
-          <option value="auto_propria">🚗 Auto propria</option>
-          <option value="mezzi_pubblici">🚌 Mezzi pubblici</option>
-          <option value="treno">🚂 Treno</option>
-          <option value="aereo">✈️ Aereo</option>
-          <option value="altro">📋 Altro</option>
-        </select>
+      <div class="card-title" style="margin-bottom:12px;">🚗 Mezzi di trasporto</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Puoi selezionare più mezzi se hai usato combinazioni diverse</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;" id="mezzi-buttons">
+        <button type="button" class="mezzo-btn active" data-mezzo="auto_propria" onclick="toggleMezzo(this)">🚗 Auto propria</button>
+        <button type="button" class="mezzo-btn" data-mezzo="treno" onclick="toggleMezzo(this)">🚂 Treno</button>
+        <button type="button" class="mezzo-btn" data-mezzo="aereo" onclick="toggleMezzo(this)">✈️ Aereo</button>
+        <button type="button" class="mezzo-btn" data-mezzo="mezzi_pubblici" onclick="toggleMezzo(this)">🚌 Bus/Metro</button>
+        <button type="button" class="mezzo-btn" data-mezzo="nave" onclick="toggleMezzo(this)">⛴️ Nave/Traghetto</button>
+        <button type="button" class="mezzo-btn" data-mezzo="altro" onclick="toggleMezzo(this)">📋 Altro</button>
       </div>
     </div>
 
-    <!-- STEP 3: Percorso (solo se auto propria) -->
+    <!-- STEP 3: Percorso auto (solo se auto propria selezionata) -->
     <div class="card" id="card-percorso">
-      <div class="card-title" style="margin-bottom:12px;">🗺️ Percorso</div>
+      <div class="card-title" style="margin-bottom:12px;">🗺️ Percorso auto</div>
       <div class="field">
         <label>Indirizzo di partenza</label>
         <div style="position:relative">
@@ -494,6 +507,14 @@
             <div class="route-path" id="path-result"></div>
           </div>
         </div>
+      </div>
+      <!-- Km extra -->
+      <div id="card-km-extra" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+        <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:8px;">KM EXTRA (spostamenti aggiuntivi)</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Es: hotel → piscina, spostamenti in loco</div>
+        <div id="km-extra-list"></div>
+        <button class="btn btn-secondary" onclick="addKmExtra()" style="margin-top:8px;font-size:13px;padding:10px;">+ Aggiungi km extra</button>
+        <div id="km-extra-totale" style="margin-top:10px;font-size:14px;color:var(--blue);font-weight:600;display:none;"></div>
       </div>
     </div>
 
@@ -636,7 +657,7 @@
     <div class="field">
       <label>Tipo di spesa</label>
       <select id="spesa-tipo">
-        <option value="carburante">⛽ Carburante</option>
+        <option value="carburante">🚗 Rimborso auto</option>
         <option value="pedaggi">🛣️ Pedaggi / Autostrada</option>
         <option value="parcheggio">🅿️ Parcheggio</option>
         <option value="vitto">🍽️ Vitto / Pasti</option>
@@ -781,14 +802,22 @@ function switchToAllenatoreView() {
 function showNuovaRichiesta() {
   speseTemp = [];
   kmCalcolati = 0;
+  kmExtraList = [];
+  mezziSelezionati = ['auto_propria'];
   document.getElementById('inp-partenza').value = '';
   document.getElementById('inp-arrivo').value = '';
   document.getElementById('inp-note').value = '';
   document.getElementById('inp-acconto').value = '0';
   document.getElementById('route-result').style.display = 'none';
+  document.getElementById('card-km-extra').style.display = 'none';
+  document.getElementById('km-extra-list').innerHTML = '';
+  document.getElementById('km-extra-totale').style.display = 'none';
   document.getElementById('nuova-alert').innerHTML = '';
-  document.getElementById('sel-mezzo').value = 'auto_propria';
   document.getElementById('card-percorso').style.display = 'block';
+  // Reset mezzo buttons
+  document.querySelectorAll('.mezzo-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mezzo === 'auto_propria');
+  });
   setAR('andata');
   renderSpese();
   aggiornaRiepilogo();
@@ -796,10 +825,63 @@ function showNuovaRichiesta() {
   loadGare();
 }
 
-function onMezzoChange() {
-  const mezzo = document.getElementById('sel-mezzo').value;
-  document.getElementById('card-percorso').style.display = mezzo === 'auto_propria' ? 'block' : 'none';
-  if (mezzo !== 'auto_propria') kmCalcolati = 0;
+let mezziSelezionati = ['auto_propria'];
+let kmExtraList = [];
+
+function toggleMezzo(btn) {
+  const mezzo = btn.dataset.mezzo;
+  if (btn.classList.contains('active')) {
+    // Deseleziona solo se non è l'unico attivo
+    const attivi = document.querySelectorAll('.mezzo-btn.active');
+    if (attivi.length <= 1) return;
+    btn.classList.remove('active');
+    mezziSelezionati = mezziSelezionati.filter(m => m !== mezzo);
+  } else {
+    btn.classList.add('active');
+    mezziSelezionati.push(mezzo);
+  }
+  // Mostra/nascondi sezione percorso auto
+  const hasAuto = mezziSelezionati.includes('auto_propria');
+  document.getElementById('card-percorso').style.display = hasAuto ? 'block' : 'none';
+  if (!hasAuto) { kmCalcolati = 0; kmExtraList = []; }
+}
+
+function addKmExtra() {
+  const idx = kmExtraList.length;
+  kmExtraList.push({ descrizione: '', km: 0 });
+  renderKmExtra();
+}
+
+function removeKmExtra(idx) {
+  kmExtraList.splice(idx, 1);
+  renderKmExtra();
+  aggiornaKmExtraTotale();
+}
+
+function renderKmExtra() {
+  const list = document.getElementById('km-extra-list');
+  list.innerHTML = kmExtraList.map((e, i) => `
+    <div class="km-extra-row">
+      <input type="text" placeholder="Es: Hotel → Piscina" value="${e.descrizione}"
+        oninput="kmExtraList[${i}].descrizione=this.value"
+        style="padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;">
+      <input type="number" placeholder="km" value="${e.km || ''}" min="0"
+        oninput="kmExtraList[${i}].km=parseFloat(this.value)||0;aggiornaKmExtraTotale()"
+        style="width:70px;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;text-align:center;">
+      <button onclick="removeKmExtra(${i})" style="background:none;border:none;font-size:20px;color:var(--red);cursor:pointer;">✕</button>
+    </div>`).join('');
+}
+
+function aggiornaKmExtraTotale() {
+  const totExtra = kmExtraList.reduce((s, e) => s + (e.km || 0), 0);
+  const el = document.getElementById('km-extra-totale');
+  if (totExtra > 0) {
+    el.style.display = 'block';
+    el.textContent = `Totale km extra: ${totExtra} km`;
+  } else {
+    el.style.display = 'none';
+  }
+  aggiornaRiepilogo();
 }
 
 function setAR(val) {
@@ -1071,10 +1153,14 @@ async function calcolaKm() {
       document.getElementById('km-result').textContent = `${kmCalcolati} km${ar === 'ar' ? ' (A/R)' : ''} × €${tariffa}/km = €${rimborsoKm.toFixed(2)}`;
       document.getElementById('path-result').textContent = p + ' → ' + a;
       document.getElementById('route-result').style.display = 'block';
+      document.getElementById('card-km-extra').style.display = 'block';
 
-      // Aggiungi automaticamente spesa chilometrica
-      speseTemp = speseTemp.filter(s => s._km !== true); // rimuovi precedente
-      speseTemp.unshift({ tipo: 'carburante', importo: rimborsoKm, descrizione: `${kmCalcolati} km × €${tariffa}/km`, file: null, allegato_url: null, _km: true });
+      // Aggiungi automaticamente spesa rimborso auto
+      const kmTotExtra = kmExtraList.reduce((s, e) => s + (e.km || 0), 0);
+      const kmTotali = kmCalcolati + kmTotExtra;
+      const rimborsoKm = kmTotali * tariffa;
+      speseTemp = speseTemp.filter(s => s._km !== true);
+      speseTemp.unshift({ tipo: 'carburante', importo: rimborsoKm, descrizione: `${kmTotali} km × €${tariffa}/km`, file: null, allegato_url: null, _km: true });
       renderSpese();
       aggiornaRiepilogo();
     } else { alert('Percorso non trovato. Controlla gli indirizzi.'); }
@@ -1093,7 +1179,8 @@ async function geocode(address) {
 }
 
 // ===== SPESE =====
-const spesaIcons = { carburante:'⛽', pedaggi:'🛣️', parcheggio:'🅿️', vitto:'🍽️', alloggio:'🏨', treno:'🚂', altro:'📋' };
+const spesaIcons = { carburante:'🚗', pedaggi:'🛣️', parcheggio:'🅿️', vitto:'🍽️', alloggio:'🏨', treno:'🚂', altro:'📋' };
+const spesaLabels = { carburante:'Rimborso auto', pedaggi:'Pedaggi', parcheggio:'Parcheggio', vitto:'Vitto', alloggio:'Alloggio', treno:'Treno', altro:'Altro' };
 
 function openAddSpesa() {
   document.getElementById('spesa-importo').value = '';
@@ -1139,7 +1226,7 @@ function renderSpese() {
       <div class="spesa-item">
         <div class="spesa-left">
           <div class="spesa-icon">${spesaIcons[s.tipo] || '📋'}</div>
-          <div><div class="spesa-name">${s.tipo.charAt(0).toUpperCase()+s.tipo.slice(1)}</div>
+          <div><div class="spesa-name">${spesaLabels[s.tipo] || s.tipo.charAt(0).toUpperCase()+s.tipo.slice(1)}</div>
           <div class="spesa-desc">${s.descrizione || (s.file ? '📎 allegato' : '')}</div></div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
@@ -1159,15 +1246,18 @@ function addSpesaAndUpdate() { addSpesa(); aggiornaRiepilogo(); }
 // ===== INVIA RICHIESTA =====
 async function inviaRichiesta() {
   const garaId = document.getElementById('sel-gara').value;
-  const mezzo = document.getElementById('sel-mezzo').value;
+  const mezzo = mezziSelezionati.join(', ');
+  const hasAuto = mezziSelezionati.includes('auto_propria');
   const partenza = document.getElementById('inp-partenza').value.trim();
   const arrivo = document.getElementById('inp-arrivo').value.trim();
   const note = document.getElementById('inp-note').value.trim();
   const acconto = parseFloat(document.getElementById('inp-acconto').value || 0) || 0;
+  const kmTotExtra = kmExtraList.reduce((s, e) => s + (e.km || 0), 0);
+  const kmTotali = kmCalcolati + kmTotExtra;
 
   if (!garaId) { showAlert('nuova-alert', 'Seleziona una gara', 'error'); return; }
-  if (mezzo === 'auto_propria' && (!partenza || !arrivo)) { showAlert('nuova-alert', 'Inserisci partenza e arrivo', 'error'); return; }
-  if (mezzo === 'auto_propria' && kmCalcolati === 0) { showAlert('nuova-alert', 'Calcola i km del percorso', 'error'); return; }
+  if (hasAuto && (!partenza || !arrivo)) { showAlert('nuova-alert', 'Inserisci partenza e arrivo', 'error'); return; }
+  if (hasAuto && kmCalcolati === 0) { showAlert('nuova-alert', 'Calcola i km del percorso', 'error'); return; }
 
   const btn = document.getElementById('btn-invia');
   btn.disabled = true; btn.textContent = 'Invio in corso...';
@@ -1178,7 +1268,7 @@ async function inviaRichiesta() {
       allenatore_id: currentUser.id,
       gara_id: garaId,
       partenza: partenza || '—', arrivo: arrivo || '—',
-      km: kmCalcolati, note, stato: 'in attesa',
+      km: kmTotali, note, stato: 'in attesa',
       mezzo, acconto
     }).select().single();
 
@@ -1260,7 +1350,7 @@ async function showDettaglio(id, from) {
         <div class="spesa-item">
           <div class="spesa-left">
             <div class="spesa-icon">${spesaIcons[s.tipo] || '📋'}</div>
-            <div><div class="spesa-name">${s.tipo.charAt(0).toUpperCase()+s.tipo.slice(1)}</div>
+            <div><div class="spesa-name">${spesaLabels[s.tipo] || s.tipo.charAt(0).toUpperCase()+s.tipo.slice(1)}</div>
             ${s.descrizione ? `<div class="spesa-desc">${s.descrizione}</div>` : ''}
             ${s.allegato_url ? `<a href="${s.allegato_url}" target="_blank" style="font-size:12px;color:var(--blue)">📎 Vedi allegato</a>` : ''}
             </div>
