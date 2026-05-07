@@ -892,8 +892,16 @@ async function doRegister() {
   if (password.length < 6) { showAlert('register-alert', 'La password deve avere almeno 6 caratteri', 'error'); return; }
   const { data, error } = await sb.auth.signUp({ email, password, options: { data: { nome, cognome } } });
   if (error) { showAlert('register-alert', error.message, 'error'); return; }
-  showAlert('register-alert', 'Account creato! Controlla la tua email per confermare.', 'success');
-  setTimeout(showLogin, 2000);
+  
+  // Prova a collegare subito le richieste storiche
+  const nomeCompleto = cognome + ' ' + nome;
+  await sb.from('richieste')
+    .update({ allenatore_id: data.user?.id })
+    .ilike('allenatore_nome', nomeCompleto)
+    .is('allenatore_id', null);
+
+  showAlert('register-alert', '✅ Account creato! Puoi ora accedere.', 'success');
+  setTimeout(showLogin, 1500);
 }
 
 async function cambiaPassword() {
