@@ -1393,7 +1393,16 @@ async function showDettaglio(id, from) {
         <div class="detail-value" style="font-size:18px;font-weight:700;color:var(--blue)">€ ${(totale - (r.acconto||0)).toFixed(2)}</div>
       </div>
     </div>
-    ${r.note ? `<div class="card"><div class="section-title">Note</div><p style="font-size:14px;line-height:1.6">${r.note}</p></div>` : ''}
+    ${r.pagata && r.pagata_il ? `<div class="card">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:24px;">💰</span>
+        <div>
+          <div style="font-weight:600;color:var(--green)">Rimborso pagato</div>
+          <div style="font-size:13px;color:var(--muted)">Data pagamento: ${new Date(r.pagata_il).toLocaleDateString('it-IT')}</div>
+        </div>
+      </div>
+    </div>` : ''}
+    ${r.note ? `<div class="card"><div class="section-title">Note</div><p style="font-size:14px;line-height:1.6">${r.note}</p></div>` : ''} : ''}
     ${isAdmin && r.stato === 'in attesa' ? `
     <div style="display:flex;gap:10px;margin-top:8px;">
       <button class="btn btn-danger" onclick="aggiornaStato('${id}','rifiutata')">❌ Rifiuta</button>
@@ -1769,12 +1778,16 @@ async function loadAdminContent(tab) {
     const perAllenatore = {};
     data.forEach(r => {
       const key = r.allenatore_id || r.allenatore_nome || 'sconosciuto';
-      if (!perAllenatore[key]) perAllenatore[key] = { profilo: r.profili, nome: r.allenatore_nome, richieste: [] };
+      const nomeDisplay = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || 'Sconosciuto');
+      if (!perAllenatore[key]) perAllenatore[key] = { profilo: r.profili, nome: nomeDisplay, richieste: [] };
       perAllenatore[key].richieste.push(r);
     });
 
-    return Object.values(perAllenatore).map((al, idx) => {
-      const nomeAl = al.profilo ? `${al.profilo.nome} ${al.profilo.cognome}` : (al.nome || 'Sconosciuto');
+    // Ordina alfabeticamente per nome allenatore
+    const sortedAl = Object.values(perAllenatore).sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+
+    return sortedAl.map((al, idx) => {
+      const nomeAl = al.nome;
       const totAl = al.richieste.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
       const pagate = al.richieste.filter(r => r.pagata).length;
       const nonPagate = al.richieste.filter(r => !r.pagata).length;
@@ -1850,8 +1863,26 @@ function updateSelezione() {
 async function segnaComePagati() {
   const checks = document.querySelectorAll('.check-pagamento:checked');
   if (checks.length === 0) return;
+
+  // Chiedi la data di pagamento
+  const dataPagamento = prompt('Inserisci la data di pagamento (gg/mm/aaaa):', new Date().toLocaleDateString('it-IT'));
+  if (!dataPagamento) return;
+
+  // Converti da gg/mm/aaaa a ISO
+  const parts = dataPagamento.split('/');
+  let dataISO;
+  if (parts.length === 3) {
+    dataISO = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+  } else {
+    alert('Formato data non valido. Usa gg/mm/aaaa');
+    return;
+  }
+
   const ids = Array.from(checks).map(c => c.dataset.id);
-  await sb.from('richieste').update({ pagata: true, pagata_il: new Date().toISOString() }).in('id', ids);
+  await sb.from('richieste').update({
+    pagata: true,
+    pagata_il: new Date(dataISO).toISOString()
+  }).in('id', ids);
   loadAdminContent('pagamenti');
 }
 
