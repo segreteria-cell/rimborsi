@@ -116,10 +116,10 @@
     padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
     white-space: nowrap;
   }
-  .badge-pending { background: #FFF4E5; color: var(--orange); }
-  .badge-approved { background: #E6FBF5; color: var(--green); }
-  .badge-rejected { background: #FFF0F0; color: var(--red); }
-  .badge-paying { background: var(--blue-light); color: var(--blue); }
+  .badge-pending { background: #FFF4E5; color: var(--orange); }   /* In attesa = arancione */
+  .badge-approved { background: #E6FBF5; color: var(--green); }   /* Pagato = verde */
+  .badge-rejected { background: #FFF0F0; color: var(--red); }     /* Rifiutata / Da pagare = rosso */
+  .badge-paying { background: var(--blue-light); color: var(--blue); } /* Approvato = blu */
 
   /* BOTTOM NAV */
   .bottom-nav {
@@ -972,7 +972,7 @@ async function loadHome() {
       const gara = r.gare || {};
       let badgeClass, badgeText;
       if (r.pagata) { badgeClass = 'badge-approved'; badgeText = '💰 Pagato'; }
-      else if (r.stato === 'approvata') { badgeClass = 'badge-approved'; badgeText = '✅ Approvata'; }
+      else if (r.stato === 'approvata') { badgeClass = 'badge-paying'; badgeText = '✅ Approvata'; }
       else if (r.stato === 'rifiutata') { badgeClass = 'badge-rejected'; badgeText = '❌ Rifiutata'; }
       else { badgeClass = 'badge-pending'; badgeText = '⏳ In attesa'; }
       return `<div class="card" onclick="showDettaglio('${r.id}','home')">
@@ -1220,8 +1220,8 @@ async function showDettaglio(id, from) {
 
   if (!r) return;
 
-  const badgeClass = r.stato === 'approvata' ? 'badge-approved' : r.stato === 'rifiutata' ? 'badge-rejected' : 'badge-pending';
-  const badgeText = r.stato === 'approvata' ? '✅ Approvata' : r.stato === 'rifiutata' ? '❌ Rifiutata' : '⏳ In attesa';
+  const badgeClass = r.stato === 'approvata' ? 'badge-paying' : r.stato === 'rifiutata' ? 'badge-rejected' : 'badge-pending';
+  const badgeText = r.pagata ? '💰 Pagato' : r.stato === 'approvata' ? '✅ Approvata' : r.stato === 'rifiutata' ? '❌ Rifiutata' : '⏳ In attesa';
   document.getElementById('dettaglio-badge').innerHTML = `<span class="badge ${badgeClass}">${badgeText}</span>`;
 
   const totale = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
@@ -1403,7 +1403,7 @@ async function loadRiepilogo() {
         <tbody>
           ${richieste.map(r => {
             const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
-            const badgeClass = r.pagata ? 'badge-approved' : r.stato === 'approvata' ? 'badge-paying' : r.stato === 'rifiutata' ? 'badge-rejected' : 'badge-pending';
+            const badgeClass = r.pagata ? 'badge-approved' : r.stato === 'approvata' ? 'badge-rejected' : r.stato === 'rifiutata' ? 'badge-rejected' : 'badge-pending';
             const emoji = r.pagata ? '💰 Pagato' : r.stato === 'approvata' ? '🔜 Da pagare' : r.stato === 'rifiutata' ? '❌ Rifiutata' : '⏳ In attesa';
             return `<tr style="border-top:1px solid var(--border);cursor:pointer" onclick="showDettaglio('${r.id}','riepilogo')">
               <td style="padding:10px 14px;">
