@@ -1703,6 +1703,8 @@ async function loadAdminContent(tab) {
       <div id="report-output"></div>`;
     return;
   }
+
+  if (tab === 'tariffe') {
     const { data } = await sb.from('tariffe_km').select('*').order('data_inizio', { ascending: false });
     el.innerHTML = `<button class="btn btn-primary" onclick="openModalTariffa()" style="margin-bottom:16px;">+ Aggiungi stagione</button>` +
       (data && data.length ? data.map(t => `
