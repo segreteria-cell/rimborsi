@@ -632,6 +632,7 @@
       <button class="tab" onclick="adminTab('approvate')">Approvate</button>
       <button class="tab" onclick="adminTab('rifiutate')">Rifiutate</button>
       <button class="tab" onclick="adminTab('pagamenti')">💰 Pagamenti</button>
+      <button class="tab" onclick="adminTab('report')">📊 Report</button>
       <button class="tab" onclick="adminTab('gare')">Gare</button>
       <button class="tab" onclick="adminTab('tariffe')">€/km</button>
     </div>
@@ -1585,7 +1586,7 @@ async function aggiornaStato(id, stato) {
 function adminTab(tab) {
   adminCurrentTab = tab;
   document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['attesa','approvate','rifiutate','pagamenti','gare','tariffe'][i] === tab);
+    t.classList.toggle('active', ['attesa','approvate','rifiutate','pagamenti','report','gare','tariffe'][i] === tab);
   });
   loadAdminContent(tab);
 }
@@ -1685,7 +1686,23 @@ async function loadAdminContent(tab) {
     return;
   }
 
-  if (tab === 'tariffe') {
+  if (tab === 'report') {
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px;">📊 Report rimborsi</div>
+        <div class="field">
+          <label>Dal</label>
+          <input type="date" id="report-dal" value="${new Date(new Date().getFullYear()-1, 9, 1).toISOString().split('T')[0]}">
+        </div>
+        <div class="field">
+          <label>Al</label>
+          <input type="date" id="report-al" value="${new Date().toISOString().split('T')[0]}">
+        </div>
+        <button class="btn btn-primary" onclick="generaReport()">Genera report</button>
+      </div>
+      <div id="report-output"></div>`;
+    return;
+  }
     const { data } = await sb.from('tariffe_km').select('*').order('data_inizio', { ascending: false });
     el.innerHTML = `<button class="btn btn-primary" onclick="openModalTariffa()" style="margin-bottom:16px;">+ Aggiungi stagione</button>` +
       (data && data.length ? data.map(t => `
@@ -1830,7 +1847,260 @@ async function loadAdminContent(tab) {
   })();
 }
 
-function toggleCollapse(id, card) {
+async function generaReport() {
+  const dal = document.getElementById('report-dal').value;
+  const al = document.getElementById('report-al').value;
+  if (!dal || !al) { alert('Inserisci le date'); return; }
+
+  const out = document.getElementById('report-output');
+  out.innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
+
+  const { data } = await sb.from('richieste')
+    .select('*, gare(nome, data), profili(nome, cognome), spese(*)')
+    .eq('stato', 'approvata')
+    .gte('creata_il', dal)
+    .lte('creata_il', al + 'T23:59:59')
+    .order('pagata_il', { ascending: true });
+
+  if (!data || data.length === 0) {
+    out.innerHTML = '<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Nessuna richiesta nel periodo selezionato</div></div>';
+    return;
+  }
+
+  // Separa pagate e da pagare
+  const daPagare = data.filter(r => !r.pagata);
+  const pagate = data.filter(r => r.pagata);
+
+  // Totali generali
+  const totDaPagare = daPagare.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
+  const totPagato = pagate.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
+  const totTot = totDaPagare + totPagato;
+
+  // Raggruppa DA PAGARE per allenatore
+  const perAlDaPagare = {};
+  daPagare.forEach(r => {
+    const key = r.allenatore_id || r.allenatore_nome || 'sconosciuto';
+    const nome = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || 'Sconosciuto');
+    if (!perAlDaPagare[key]) perAlDaPagare[key] = { nome, richieste: [] };
+    perAlDaPagare[key].richieste.push(r);
+  });
+  const sortedDaPagare = Object.values(perAlDaPagare).sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+
+  // Raggruppa PAGATE per data di pagamento poi per allenatore
+  const perData = {};
+  pagate.forEach(r => {
+    const dataPag = r.pagata_il ? new Date(r.pagata_il).toLocaleDateString('it-IT') : 'Data non specificata';
+    const key = r.allenatore_id || r.allenatore_nome || 'sconosciuto';
+    const nome = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || 'Sconosciuto');
+    if (!perData[dataPag]) perData[dataPag] = {};
+    if (!perData[dataPag][key]) perData[dataPag][key] = { nome, richieste: [] };
+    perData[dataPag][key].richieste.push(r);
+  });
+  const sortedDate = Object.keys(perData).sort((a, b) => new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-')));
+
+  const renderRichieste = (richieste) => richieste.map(r => {
+    const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
+    return `<tr>
+      <td style="padding:6px 8px;font-size:13px;">${r.gare?.nome || '—'}</td>
+      <td style="padding:6px 8px;font-size:13px;color:var(--muted)">${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : '—'}</td>
+      <td style="padding:6px 8px;font-size:13px;text-align:right;color:var(--muted)">${r.km}</td>
+      <td style="padding:6px 8px;font-size:13px;text-align:right;font-weight:600">€${tot.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+
+  const renderAllenatore = (al, color, idx, prefix) => {
+    const tot = al.richieste.reduce((s,r) => s+(r.spese||[]).reduce((ss,sp) => ss+sp.importo,0)-(r.acconto||0), 0);
+    const initials = al.nome.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase();
+    const colId = `${prefix}-${idx}`;
+    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;overflow:hidden;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer;background:var(--white);" onclick="toggleCollapse('${colId}',this)">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:32px;height:32px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;">${initials}</div>
+          <div>
+            <div style="font-size:14px;font-weight:600;">${al.nome}</div>
+            <div style="font-size:11px;color:var(--muted)">${al.richieste.length} richieste</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:15px;font-weight:700;color:${color}">€${tot.toFixed(2)}</span>
+          <span id="arrow-${colId}" style="transition:transform 0.2s;">▼</span>
+        </div>
+      </div>
+      <div id="${colId}" style="display:none;border-top:1px solid var(--border);">
+        <table style="width:100%;border-collapse:collapse;background:var(--bg);">
+          <thead><tr style="font-size:11px;color:var(--muted);">
+            <th style="padding:6px 8px;text-align:left;font-weight:600;">GARA</th>
+            <th style="padding:6px 8px;text-align:left;font-weight:600;">DATA</th>
+            <th style="padding:6px 8px;text-align:right;font-weight:600;">KM</th>
+            <th style="padding:6px 8px;text-align:right;font-weight:600;">IMPORTO</th>
+          </tr></thead>
+          <tbody>${renderRichieste(al.richieste)}</tbody>
+          <tfoot><tr style="border-top:1px solid var(--border);background:var(--white);">
+            <td colspan="3" style="padding:6px 8px;font-weight:700;font-size:13px;">Totale</td>
+            <td style="padding:6px 8px;text-align:right;font-weight:700;font-size:13px;color:${color}">€${tot.toFixed(2)}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>`;
+  };
+
+  out.innerHTML = `
+    <!-- TOTALI -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">
+      <div class="card" style="text-align:center;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Totale periodo</div>
+        <div style="font-size:20px;font-weight:700;color:var(--blue)">€${totTot.toFixed(2)}</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Da pagare</div>
+        <div style="font-size:20px;font-weight:700;color:var(--orange)">€${totDaPagare.toFixed(2)}</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Pagato</div>
+        <div style="font-size:20px;font-weight:700;color:var(--green)">€${totPagato.toFixed(2)}</div>
+      </div>
+    </div>
+
+    <button class="btn btn-secondary" onclick="stampaPDFReport('${dal}','${al}')" style="margin-bottom:20px;">
+      🖨️ Stampa / Salva PDF
+    </button>
+
+    <!-- DA PAGARE -->
+    ${sortedDaPagare.length > 0 ? `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <div style="width:12px;height:12px;border-radius:50%;background:var(--orange)"></div>
+      <div style="font-size:15px;font-weight:700;">Da pagare</div>
+      <div style="font-size:13px;color:var(--muted)">(${sortedDaPagare.length} allenatori)</div>
+    </div>
+    ${sortedDaPagare.map((al, i) => renderAllenatore(al, 'var(--orange)', i, 'dp')).join('')}
+    ` : '<div class="alert alert-success">✅ Nessun rimborso da pagare nel periodo</div>'}
+
+    <!-- PAGATI per data -->
+    ${sortedDate.length > 0 ? `
+    <div style="display:flex;align-items:center;gap:8px;margin:20px 0 12px;">
+      <div style="width:12px;height:12px;border-radius:50%;background:var(--green)"></div>
+      <div style="font-size:15px;font-weight:700;">Pagati</div>
+    </div>
+    ${sortedDate.map(data => {
+      const allenatori = Object.values(perData[data]).sort((a,b) => a.nome.localeCompare(b.nome,'it'));
+      const totData = allenatori.reduce((s,al) => s + al.richieste.reduce((ss,r) => ss+(r.spese||[]).reduce((sss,sp) => sss+sp.importo,0)-(r.acconto||0),0), 0);
+      return `<div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--blue-light);border-radius:var(--radius-sm) var(--radius-sm) 0 0;border:1px solid var(--border);">
+          <div style="font-size:14px;font-weight:700;color:var(--blue)">📅 Pagamento del ${data}</div>
+          <div style="font-size:15px;font-weight:700;color:var(--green)">€${totData.toFixed(2)}</div>
+        </div>
+        <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius-sm) var(--radius-sm);padding:10px;">
+          ${allenatori.map((al, i) => renderAllenatore(al, 'var(--green)', i, 'pag-' + data.replace(/\//g,''))).join('')}
+        </div>
+      </div>`;
+    }).join('')}
+    ` : ''}`;
+}
+
+async function stampaPDFReport(dal, al) {
+  const { data } = await sb.from('richieste')
+    .select('*, gare(nome, data), profili(nome, cognome), spese(*)')
+    .eq('stato', 'approvata')
+    .gte('creata_il', dal)
+    .lte('creata_il', al + 'T23:59:59')
+    .order('pagata_il', { ascending: true });
+
+  if (!data) return;
+
+  const daPagare = data.filter(r => !r.pagata);
+  const pagate = data.filter(r => r.pagata);
+  const totDaPagare = daPagare.reduce((s,r) => s+(r.spese||[]).reduce((ss,sp) => ss+sp.importo,0)-(r.acconto||0),0);
+  const totPagato = pagate.reduce((s,r) => s+(r.spese||[]).reduce((ss,sp) => ss+sp.importo,0)-(r.acconto||0),0);
+
+  const perAlDaPagare = {};
+  daPagare.forEach(r => {
+    const key = r.allenatore_id || r.allenatore_nome;
+    const nome = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || '—');
+    if (!perAlDaPagare[key]) perAlDaPagare[key] = { nome, richieste: [] };
+    perAlDaPagare[key].richieste.push(r);
+  });
+
+  const perData = {};
+  pagate.forEach(r => {
+    const dataPag = r.pagata_il ? new Date(r.pagata_il).toLocaleDateString('it-IT') : 'Data non specificata';
+    const key = r.allenatore_id || r.allenatore_nome;
+    const nome = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || '—');
+    if (!perData[dataPag]) perData[dataPag] = {};
+    if (!perData[dataPag][key]) perData[dataPag][key] = { nome, richieste: [] };
+    perData[dataPag][key].richieste.push(r);
+  });
+  const sortedDate = Object.keys(perData).sort((a,b) => new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-')));
+
+  const righeAl = (al) => al.richieste.map(r => {
+    const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo,0)-(r.acconto||0);
+    return `<tr><td>${r.gare?.nome||'—'}</td><td>${r.gare?.data?new Date(r.gare.data).toLocaleDateString('it-IT'):'—'}</td><td style="text-align:right">${r.km} km</td><td style="text-align:right">€${tot.toFixed(2)}</td></tr>`;
+  }).join('');
+
+  const bloccoAl = (al, color) => {
+    const tot = al.richieste.reduce((s,r) => s+(r.spese||[]).reduce((ss,sp) => ss+sp.importo,0)-(r.acconto||0),0);
+    return `<div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;background:#f5f5f5;padding:8px 12px;border-radius:6px 6px 0 0;">
+        <strong>${al.nome}</strong><strong style="color:${color}">€${tot.toFixed(2)}</strong>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:#fafafa;color:#666;font-size:11px;">
+          <th style="padding:6px 12px;text-align:left;">Gara</th><th style="padding:6px 12px;text-align:left;">Data</th>
+          <th style="padding:6px 12px;text-align:right;">Km</th><th style="padding:6px 12px;text-align:right;">Importo</th>
+        </tr></thead>
+        <tbody>${righeAl(al)}</tbody>
+      </table>
+    </div>`;
+  };
+
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Report Rimborsi — Superbanuoto</title>
+  <style>
+    body{font-family:Arial,sans-serif;padding:30px;color:#1a1a2e;max-width:800px;margin:0 auto;font-size:14px}
+    h1{color:#0066FF;font-size:22px;margin-bottom:4px}
+    .sub{color:#888;font-size:13px;margin-bottom:24px}
+    .totali{display:flex;gap:16px;margin-bottom:24px}
+    .tot-box{flex:1;border:1px solid #e2e6f0;border-radius:10px;padding:12px;text-align:center}
+    .tot-label{font-size:11px;color:#888;margin-bottom:4px}
+    .tot-val{font-size:20px;font-weight:700}
+    .section-title{font-size:15px;font-weight:700;margin:20px 0 12px;padding:8px 12px;border-radius:8px}
+    .data-title{display:flex;justify-content:space-between;background:#EBF2FF;padding:10px 14px;border-radius:8px 8px 0 0;font-weight:700;color:#0066FF;margin-top:16px}
+    .data-body{border:1px solid #e2e6f0;border-top:none;border-radius:0 0 8px 8px;padding:12px;margin-bottom:8px}
+    table{width:100%;border-collapse:collapse}
+    tr{border-bottom:1px solid #f0f0f0}
+    th{text-align:left;color:#888;font-size:11px;padding:4px 8px;font-weight:600}
+    td{padding:6px 8px}
+    @media print{button{display:none!important}}
+  </style></head><body>
+  <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png" style="height:40px;margin-bottom:12px">
+  <h1>Report Rimborsi Spese</h1>
+  <div class="sub">Periodo: ${new Date(dal).toLocaleDateString('it-IT')} — ${new Date(al).toLocaleDateString('it-IT')} · Generato il ${new Date().toLocaleDateString('it-IT')}</div>
+  <div class="totali">
+    <div class="tot-box"><div class="tot-label">Totale periodo</div><div class="tot-val" style="color:#0066FF">€${(totDaPagare+totPagato).toFixed(2)}</div></div>
+    <div class="tot-box"><div class="tot-label">Da pagare</div><div class="tot-val" style="color:#FF8C00">€${totDaPagare.toFixed(2)}</div></div>
+    <div class="tot-box"><div class="tot-label">Pagato</div><div class="tot-val" style="color:#00C48C">€${totPagato.toFixed(2)}</div></div>
+  </div>
+
+  ${daPagare.length > 0 ? `
+  <div class="section-title" style="background:#FFF4E5;color:#FF8C00">⏳ Rimborsi da pagare</div>
+  ${Object.values(perAlDaPagare).sort((a,b)=>a.nome.localeCompare(b.nome,'it')).map(al => bloccoAl(al,'#FF8C00')).join('')}` : ''}
+
+  ${sortedDate.length > 0 ? `
+  <div class="section-title" style="background:#E6FBF5;color:#00C48C">✅ Rimborsi pagati</div>
+  ${sortedDate.map(data => {
+    const allenatori = Object.values(perData[data]).sort((a,b)=>a.nome.localeCompare(b.nome,'it'));
+    const totData = allenatori.reduce((s,al)=>s+al.richieste.reduce((ss,r)=>ss+(r.spese||[]).reduce((sss,sp)=>sss+sp.importo,0)-(r.acconto||0),0),0);
+    return `<div class="data-title"><span>📅 Pagamento del ${data}</span><span>€${totData.toFixed(2)}</span></div>
+    <div class="data-body">${allenatori.map(al=>bloccoAl(al,'#00C48C')).join('')}</div>`;
+  }).join('')}` : ''}
+
+  <div style="margin-top:24px;display:flex;gap:10px;">
+    <button onclick="window.print()" style="padding:10px 24px;background:#0066FF;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer">🖨️ Stampa / Salva PDF</button>
+    <button onclick="window.close()" style="padding:10px 24px;background:#eee;border:none;border-radius:8px;font-size:14px;cursor:pointer">Chiudi</button>
+  </div>
+  </body></html>`);
+  w.document.close();
+}
   const el = document.getElementById(id);
   const arrow = document.getElementById('arrow-' + id);
   const isOpen = el.style.display !== 'none';
