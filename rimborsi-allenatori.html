@@ -1609,50 +1609,58 @@ async function loadAdminContent(tab) {
     // Ordina per nome allenatore
     const sorted = Object.values(perAllenatore).sort((a, b) => a.nome.localeCompare(b.nome));
 
-    el.innerHTML = sorted.map(al => {
+    el.innerHTML = sorted.map((al, idx) => {
       const nonPagate = al.richieste.filter(r => !r.pagata);
       const pagate = al.richieste.filter(r => r.pagata);
       const totNonPagato = nonPagate.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
       const totPagato = pagate.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
+      const colId = `pag-detail-${idx}`;
 
-      return `<div class="admin-card" style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      return `<div class="admin-card" style="margin-bottom:12px;cursor:pointer;" onclick="toggleCollapse('${colId}', this)">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
           <div>
             <div style="font-size:16px;font-weight:700;">👤 ${al.nome}</div>
-            <div style="font-size:12px;color:var(--muted)">${al.email}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px;">${al.richieste.length} richieste totali</div>
+            <div style="font-size:12px;color:var(--muted)">${al.richieste.length} richieste
+              ${nonPagate.length > 0 ? `· <span style="color:var(--orange)">${nonPagate.length} da pagare</span>` : ''}
+              ${pagate.length > 0 ? `· <span style="color:var(--green)">${pagate.length} pagate</span>` : ''}
+            </div>
           </div>
-          <div style="text-align:right;">
-            ${totNonPagato > 0 ? `<div style="font-size:18px;font-weight:700;color:var(--blue)">€${totNonPagato.toFixed(2)}</div><div style="font-size:11px;color:var(--muted)">da pagare</div>` : ''}
-            ${totPagato > 0 ? `<div style="font-size:13px;color:var(--green);margin-top:4px;">✅ €${totPagato.toFixed(2)} pagato</div>` : ''}
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="text-align:right;">
+              ${totNonPagato > 0 ? `<div style="font-size:17px;font-weight:700;color:var(--blue)">€${totNonPagato.toFixed(2)}</div>` : ''}
+              ${totPagato > 0 ? `<div style="font-size:12px;color:var(--green)">✅ €${totPagato.toFixed(2)}</div>` : ''}
+            </div>
+            <span id="arrow-${colId}" style="font-size:18px;transition:transform 0.2s;">▼</span>
           </div>
         </div>
-        ${nonPagate.length > 0 ? `
-        <div style="background:var(--bg);border-radius:10px;padding:10px;margin-bottom:10px;">
-          <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;">Da pagare</div>
-          ${nonPagate.map(r => {
-            const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
-            return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
-              <input type="checkbox" class="check-pagamento" data-id="${r.id}" data-importo="${tot}" data-allenatore="${al.nome}" style="width:20px;height:20px;cursor:pointer;" onchange="updateSelezione()">
-              <div style="flex:1;">
-                <div style="font-size:13px;font-weight:500;">${r.gare?.nome || '—'}</div>
-                <div style="font-size:11px;color:var(--muted)">${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''} · 🚗 ${r.km} km</div>
-              </div>
-              <div style="font-weight:700;color:var(--blue)">€${tot.toFixed(2)}</div>
-            </div>`;
-          }).join('')}
-        </div>` : '<div style="font-size:13px;color:var(--green);margin-bottom:8px;">✅ Tutto pagato</div>'}
-        ${pagate.length > 0 ? `
-        <div style="background:#F0FBF7;border-radius:8px;padding:8px 10px;">
-          <div style="font-size:11px;font-weight:600;color:var(--green);margin-bottom:4px;">PAGATO</div>
-          ${pagate.map(r => {
-            const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
-            return `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;color:var(--muted);">
-              <span>${r.gare?.nome || '—'}</span>
-              <span style="color:var(--green);font-weight:600;">€${tot.toFixed(2)}</span>
-            </div>`;
-          }).join('')}
-        </div>` : ''}
+        <div id="${colId}" style="display:none;border-top:1px solid var(--border);margin-top:12px;padding-top:8px;" onclick="event.stopPropagation()">
+          ${nonPagate.length > 0 ? `
+          <div style="background:var(--bg);border-radius:10px;padding:10px;margin-bottom:10px;">
+            <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;">Da pagare</div>
+            ${nonPagate.map(r => {
+              const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
+              return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+                <input type="checkbox" class="check-pagamento" data-id="${r.id}" data-importo="${tot}" data-allenatore="${al.nome}" style="width:20px;height:20px;cursor:pointer;" onchange="updateSelezione()">
+                <div style="flex:1;">
+                  <div style="font-size:13px;font-weight:500;">${r.gare?.nome || '—'}</div>
+                  <div style="font-size:11px;color:var(--muted)">${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''} · 🚗 ${r.km} km</div>
+                </div>
+                <div style="font-weight:700;color:var(--blue)">€${tot.toFixed(2)}</div>
+              </div>`;
+            }).join('')}
+          </div>` : '<div style="font-size:13px;color:var(--green);margin-bottom:8px;">✅ Tutto pagato</div>'}
+          ${pagate.length > 0 ? `
+          <div style="background:#F0FBF7;border-radius:8px;padding:8px 10px;">
+            <div style="font-size:11px;font-weight:600;color:var(--green);margin-bottom:4px;">PAGATO</div>
+            ${pagate.map(r => {
+              const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
+              return `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;color:var(--muted);">
+                <span>${r.gare?.nome || '—'}</span>
+                <span style="color:var(--green);font-weight:600;">€${tot.toFixed(2)}</span>
+              </div>`;
+            }).join('')}
+          </div>` : ''}
+        </div>
       </div>`;
     }).join('') + `
     <div id="selezione-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--blue);color:white;padding:16px 20px;z-index:300;flex-direction:column;">
