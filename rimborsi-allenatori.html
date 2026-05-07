@@ -1760,7 +1760,7 @@ async function loadAdminContent(tab) {
     return;
   }
 
-  el.innerHTML = await (async () => {
+  el.innerHTML = (() => {
     if (tab !== 'approvate') {
       // Pulsante elimina tutto per rifiutate
       const btnElimina = tab === 'rifiutate' ? `
