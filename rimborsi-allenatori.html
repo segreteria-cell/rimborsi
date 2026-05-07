@@ -1148,9 +1148,7 @@ async function calcolaKm() {
       const selectedOption = sel.options[sel.selectedIndex];
       const dataGara = selectedOption?.dataset?.data || new Date().toISOString().split('T')[0];
       const tariffa = await getTariffaPerData(dataGara);
-      const rimborsoKm = kmCalcolati * tariffa;
 
-      document.getElementById('km-result').textContent = `${kmCalcolati} km${ar === 'ar' ? ' (A/R)' : ''} × €${tariffa}/km = €${rimborsoKm.toFixed(2)}`;
       document.getElementById('path-result').textContent = p + ' → ' + a;
       document.getElementById('route-result').style.display = 'block';
       document.getElementById('card-km-extra').style.display = 'block';
@@ -1159,6 +1157,7 @@ async function calcolaKm() {
       const kmTotExtra = kmExtraList.reduce((s, e) => s + (e.km || 0), 0);
       const kmTotali = kmCalcolati + kmTotExtra;
       const rimborsoKm = kmTotali * tariffa;
+      document.getElementById('km-result').textContent = `${kmCalcolati} km${ar === 'ar' ? ' (A/R)' : ''} × €${tariffa}/km = €${rimborsoKm.toFixed(2)}`;
       speseTemp = speseTemp.filter(s => s._km !== true);
       speseTemp.unshift({ tipo: 'carburante', importo: rimborsoKm, descrizione: `${kmTotali} km × €${tariffa}/km`, file: null, allegato_url: null, _km: true });
       renderSpese();
