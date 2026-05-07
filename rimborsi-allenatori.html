@@ -1760,7 +1760,7 @@ async function loadAdminContent(tab) {
     return;
   }
 
-  el.innerHTML = (() => {
+  el.innerHTML = await (async () => {
     if (tab !== 'approvate') {
       // Pulsante elimina tutto per rifiutate
       const btnElimina = tab === 'rifiutate' ? `
@@ -2101,6 +2101,8 @@ async function stampaPDFReport(dal, al) {
   </body></html>`);
   w.document.close();
 }
+
+function toggleCollapse(id, card) {
   const el = document.getElementById(id);
   const arrow = document.getElementById('arrow-' + id);
   const isOpen = el.style.display !== 'none';
