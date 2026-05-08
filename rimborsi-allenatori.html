@@ -2143,9 +2143,15 @@ async function generaReport() {
     ${sortedDate.map(data => {
       const allenatori = Object.values(perData[data]).sort((a,b) => a.nome.localeCompare(b.nome,'it'));
       const totData = allenatori.reduce((s,al) => s + al.richieste.reduce((ss,r) => ss+(r.spese||[]).reduce((sss,sp) => sss+sp.importo,0)-(r.acconto||0),0), 0);
+      // Raccogli tutti gli ID delle richieste di questo gruppo data
+      const ids = allenatori.flatMap(al => al.richieste.map(r => r.id));
+      const idsJson = JSON.stringify(ids).replace(/"/g,'&quot;');
       return `<div style="margin-bottom:16px;">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--blue-light);border-radius:var(--radius-sm) var(--radius-sm) 0 0;border:1px solid var(--border);">
-          <div style="font-size:14px;font-weight:700;color:var(--blue)">📅 Pagamento del ${data}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="font-size:14px;font-weight:700;color:var(--blue)">📅 Pagamento del ${data}</div>
+            <button onclick="modificaDataPagamento('${data}', ${idsJson})" style="background:none;border:1px solid var(--blue);border-radius:6px;padding:2px 8px;font-size:11px;color:var(--blue);cursor:pointer;">✏️ modifica</button>
+          </div>
           <div style="font-size:15px;font-weight:700;color:var(--green)">€${totData.toFixed(2)}</div>
         </div>
         <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius-sm) var(--radius-sm);padding:10px;">
@@ -2289,6 +2295,19 @@ function updateSelezione() {
   } else {
     bar.style.display = 'none';
   }
+}
+
+async function modificaDataPagamento(dataAttuale, ids) {
+  const nuovaData = prompt(`Modifica data di pagamento\nData attuale: ${dataAttuale}\n\nInserisci nuova data (gg/mm/aaaa):`, dataAttuale);
+  if (!nuovaData || nuovaData === dataAttuale) return;
+
+  const parts = nuovaData.split('/');
+  if (parts.length !== 3) { alert('Formato non valido. Usa gg/mm/aaaa'); return; }
+  const dataISO = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+  if (isNaN(new Date(dataISO).getTime())) { alert('Data non valida'); return; }
+
+  await sb.from('richieste').update({ pagata_il: new Date(dataISO).toISOString() }).in('id', ids);
+  loadAdminContent('pagamenti');
 }
 
 async function segnaComePagati() {
