@@ -477,14 +477,20 @@
       <div class="field">
         <label>Indirizzo di partenza</label>
         <div style="position:relative">
-          <input type="text" id="inp-partenza" placeholder="Es: Via Roma 1, Genova" oninput="resetKm();autocomplete('partenza',this.value)" autocomplete="off">
+          <input type="text" id="inp-partenza" placeholder="Es: Via Roma 1, Genova" 
+            oninput="resetKm();autocomplete('partenza',this.value)" 
+            onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('inp-arrivo').focus();}"
+            autocomplete="off">
           <div id="suggestions-partenza" class="suggestions"></div>
         </div>
       </div>
       <div class="field">
         <label>Indirizzo di arrivo</label>
         <div style="position:relative">
-          <input type="text" id="inp-arrivo" placeholder="Es: Via Garibaldi 5, Roma" oninput="resetKm();autocomplete('arrivo',this.value)" autocomplete="off">
+          <input type="text" id="inp-arrivo" placeholder="Es: Via Garibaldi 5, Roma" 
+            oninput="resetKm();autocomplete('arrivo',this.value)"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();calcolaKm();}"
+            autocomplete="off">
           <div id="suggestions-arrivo" class="suggestions"></div>
         </div>
       </div>
@@ -1014,6 +1020,12 @@ function selectAddress(field, address) {
   document.getElementById('inp-' + field).value = address;
   document.getElementById('suggestions-' + field).innerHTML = '';
   resetKm();
+  // Focus automatico al campo successivo
+  if (field === 'partenza') {
+    setTimeout(() => document.getElementById('inp-arrivo').focus(), 100);
+  } else if (field === 'arrivo') {
+    setTimeout(() => document.getElementById('btn-calcola-km').focus(), 100);
+  }
 }
 
 // Chiudi suggestions cliccando fuori
