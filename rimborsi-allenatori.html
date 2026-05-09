@@ -1069,10 +1069,15 @@ function inviaWhatsApp(nome, telefono, richieste) {
   const totale = richieste.reduce((s, r) => s + parseFloat(r.tot), 0);
   const righe = richieste.map(r => `🏊 ${r.gara} — €${r.tot}`).join('\n');
   const messaggio = `Ciao ${nome.split(' ')[0]}! 👋\n\nEcco il riepilogo dei tuoi rimborsi approvati ancora da pagare:\n\n${righe}\n\n💰 *Totale da ricevere: €${totale.toFixed(2)}*\n\nSe hai domande non esitare a contattarci.\n\nSuperbaNuoto 🌊`;
-  // Pulisci il numero (rimuovi spazi e +)
-  const numero = telefono.replace(/[\s\-\(\)]/g, '').replace(/^\+/, '');
-  const url = `https://wa.me/${numero}?text=${encodeURIComponent(messaggio)}`;
-  window.open(url, '_blank');
+  const numero = telefono.replace(/[\s\-\(\)\+]/g, '');
+  const testoEncoded = encodeURIComponent(messaggio);
+  // Prova prima con whatsapp://, poi fallback su wa.me
+  const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+  if (isMobile) {
+    window.location.href = `whatsapp://send?phone=${numero}&text=${testoEncoded}`;
+  } else {
+    window.open(`https://wa.me/${numero}?text=${testoEncoded}`, '_blank');
+  }
 }
 
 async function salvaTelefono() {
