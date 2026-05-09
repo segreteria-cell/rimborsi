@@ -643,6 +643,7 @@
       <button class="tab" onclick="adminTab('rifiutate')">Rifiutate</button>
       <button class="tab" onclick="adminTab('pagamenti')">💰 Pagamenti</button>
       <button class="tab" onclick="adminTab('report')">📊 Report</button>
+      <button class="tab" onclick="adminTab('allenatori')">👥 Allenatori</button>
       <button class="tab" onclick="adminTab('gare')">Gare</button>
       <button class="tab" onclick="adminTab('tariffe')">€/km</button>
     </div>
@@ -773,7 +774,22 @@
   </div>
 </div>
 
-<!-- ===== MODAL MODIFICA GARA ===== -->
+<!-- ===== MODAL MODIFICA ALLENATORE ===== -->
+<div class="modal-overlay" id="modal-modifica-allenatore">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">✏️ Modifica allenatore</div>
+    <input type="hidden" id="modifica-al-id">
+    <div class="field"><label>Nome</label><input type="text" id="modifica-al-nome"></div>
+    <div class="field"><label>Cognome</label><input type="text" id="modifica-al-cognome"></div>
+    <div class="field"><label>Email</label><input type="email" id="modifica-al-email"></div>
+    <div class="field"><label>Telefono</label><input type="tel" id="modifica-al-telefono" placeholder="+39 333 1234567"></div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-modifica-allenatore').classList.remove('open')">Annulla</button>
+      <button class="btn btn-primary" onclick="salvaModificaAllenatore()">Salva</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-modifica-gara">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -1773,7 +1789,7 @@ async function aggiornaStato(id, stato) {
 function adminTab(tab) {
   adminCurrentTab = tab;
   document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['attesa','approvate','rifiutate','pagamenti','report','gare','tariffe'][i] === tab);
+    t.classList.toggle('active', ['attesa','approvate','rifiutate','pagamenti','report','allenatori','gare','tariffe'][i] === tab);
   });
   loadAdminContent(tab);
 }
@@ -1824,8 +1840,8 @@ async function loadAdminContent(tab) {
             </div>
             ${al.telefono && nonPagate.length > 0 ? (() => {
               const totale = nonPagate.reduce((s,r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo,0) - (r.acconto||0), 0);
-              const righe = nonPagate.map(r => `🏊 ${r.gare?.nome||'—'} — €${((r.spese||[]).reduce((s,sp)=>s+sp.importo,0)-(r.acconto||0)).toFixed(2)}`).join('\n');
-              const msg = `Ciao ${al.nome.split(' ')[0]}! 👋\n\nEcco il riepilogo dei tuoi rimborsi approvati ancora da pagare:\n\n${righe}\n\n💰 *Totale da ricevere: €${totale.toFixed(2)}*\n\nSuperbaNuoto 🌊`;
+              const righe = nonPagate.map(r => `- ${r.gare?.nome||'—'} — €${((r.spese||[]).reduce((s,sp)=>s+sp.importo,0)-(r.acconto||0)).toFixed(2)}`).join('\n');
+              const msg = `Ciao ${al.nome.split(' ')[0]}! 👋\n\nTi informiamo che i seguenti rimborsi spese sono stati approvati e sono in attesa di pagamento:\n\n${righe}\n\nTotale da ricevere: €${totale.toFixed(2)}\n\nTi chiediamo di confermare la correttezza degli importi rispondendo a questo messaggio.\n\nGrazie, SuperbaNuoto`;
               const numero = al.telefono.replace(/[\s\-\(\)\+]/g,'');
               const url = `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
               return `<a href="${url}" target="_blank" rel="noopener" 
@@ -1883,6 +1899,40 @@ async function loadAdminContent(tab) {
       </div>
       <div id="selezione-dettaglio" style="font-size:12px;opacity:0.85;margin-top:6px;"></div>
     </div>`;
+    return;
+  }
+
+  if (tab === 'allenatori') {
+    const { data } = await sb.from('profili')
+      .select('*')
+      .eq('ruolo', 'allenatore')
+      .order('cognome', { ascending: true });
+
+    if (!data || data.length === 0) {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">👥</div><div class="empty-text">Nessun allenatore registrato</div></div>';
+      return;
+    }
+
+    el.innerHTML = data.map(al => `
+      <div class="admin-card" style="margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+          <div style="width:40px;height:40px;border-radius:50%;background:var(--blue);color:white;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0;">
+            ${(al.nome?.[0]||'?').toUpperCase()}${(al.cognome?.[0]||'').toUpperCase()}
+          </div>
+          <div>
+            <div style="font-size:16px;font-weight:700;">${al.nome} ${al.cognome}</div>
+            <div style="font-size:12px;color:var(--muted)">${al.email}</div>
+            <div style="font-size:12px;color:${al.telefono ? 'var(--green)' : 'var(--orange)'}">
+              ${al.telefono ? '📱 ' + al.telefono : '⚠️ Telefono mancante'}
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-sm btn-secondary" onclick="openModalModificaAllenatore('${al.id}','${(al.nome||'').replace(/'/g,"\\'")}','${(al.cognome||'').replace(/'/g,"\\'")}','${(al.email||'').replace(/'/g,"\\'")}','${(al.telefono||'').replace(/'/g,"\\'")}')">
+            ✏️ Modifica
+          </button>
+        </div>
+      </div>`).join('');
     return;
   }
 
@@ -2399,6 +2449,27 @@ async function eliminaTariffa(id, stagione) {
   if (!confirm(`Eliminare definitivamente la stagione "${stagione}"?`)) return;
   await sb.from('tariffe_km').delete().eq('id', id);
   loadAdminContent('tariffe');
+}
+
+function openModalModificaAllenatore(id, nome, cognome, email, telefono) {
+  document.getElementById('modifica-al-id').value = id;
+  document.getElementById('modifica-al-nome').value = nome;
+  document.getElementById('modifica-al-cognome').value = cognome;
+  document.getElementById('modifica-al-email').value = email;
+  document.getElementById('modifica-al-telefono').value = telefono;
+  document.getElementById('modal-modifica-allenatore').classList.add('open');
+}
+
+async function salvaModificaAllenatore() {
+  const id = document.getElementById('modifica-al-id').value;
+  const nome = document.getElementById('modifica-al-nome').value.trim();
+  const cognome = document.getElementById('modifica-al-cognome').value.trim();
+  const email = document.getElementById('modifica-al-email').value.trim();
+  const telefono = document.getElementById('modifica-al-telefono').value.trim();
+  if (!nome || !cognome) { alert('Nome e cognome sono obbligatori'); return; }
+  await sb.from('profili').update({ nome, cognome, email, telefono }).eq('id', id);
+  document.getElementById('modal-modifica-allenatore').classList.remove('open');
+  loadAdminContent('allenatori');
 }
 
 function openModalModificaGara(id, nome, data, luogo, categoria) {
