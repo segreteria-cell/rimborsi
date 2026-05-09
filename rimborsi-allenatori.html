@@ -1071,13 +1071,9 @@ function inviaWhatsApp(nome, telefono, richieste) {
   const messaggio = `Ciao ${nome.split(' ')[0]}! 👋\n\nEcco il riepilogo dei tuoi rimborsi approvati ancora da pagare:\n\n${righe}\n\n💰 *Totale da ricevere: €${totale.toFixed(2)}*\n\nSe hai domande non esitare a contattarci.\n\nSuperbaNuoto 🌊`;
   const numero = telefono.replace(/[\s\-\(\)\+]/g, '');
   const testoEncoded = encodeURIComponent(messaggio);
-  // Prova prima con whatsapp://, poi fallback su wa.me
-  const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
-  if (isMobile) {
-    window.location.href = `whatsapp://send?phone=${numero}&text=${testoEncoded}`;
-  } else {
-    window.open(`https://wa.me/${numero}?text=${testoEncoded}`, '_blank');
-  }
+  // Usa api.whatsapp.com che funziona su tutti i dispositivi
+  const url = `https://api.whatsapp.com/send?phone=${numero}&text=${testoEncoded}`;
+  window.open(url, '_blank');
 }
 
 async function salvaTelefono() {
