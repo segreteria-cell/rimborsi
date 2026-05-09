@@ -519,6 +519,9 @@
             <div class="route-path" id="path-result"></div>
           </div>
         </div>
+        <button class="btn btn-secondary" onclick="vediPercorso()" style="margin-top:8px;font-size:13px;">
+          🗺️ Vedi percorso su mappa
+        </button>
       </div>
       <!-- Km extra -->
       <div id="card-km-extra" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
@@ -687,7 +690,20 @@
   </div>
 </div>
 
-<!-- ===== MODAL AGGIUNGI SPESA ===== -->
+<!-- ===== MODAL MAPPA PERCORSO ===== -->
+<div class="modal-overlay" id="modal-mappa" style="align-items:center;">
+  <div class="modal" style="border-radius:16px;padding:0;overflow:hidden;max-height:90vh;width:95%;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:var(--blue);color:white;">
+      <div style="font-size:15px;font-weight:600;">🗺️ Percorso</div>
+      <button onclick="document.getElementById('modal-mappa').classList.remove('open')" 
+        style="background:rgba(255,255,255,0.2);border:none;color:white;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;">✕</button>
+    </div>
+    <iframe id="mappa-iframe" 
+      width="100%" height="450" frameborder="0" style="border:0;display:block;" 
+      allowfullscreen referrerpolicy="no-referrer-when-downgrade" src="">
+    </iframe>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-spesa">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -953,6 +969,16 @@ function showNuovaRichiesta() {
   aggiornaRiepilogo();
   showScreen('nuova');
   loadGare();
+}
+
+function vediPercorso() {
+  const p = document.getElementById('inp-partenza').value.trim();
+  const a = document.getElementById('inp-arrivo').value.trim();
+  if (!p || !a) return;
+  const GMAPS_KEY = 'AIzaSyCqmo6ACKtEqkERrCLUmjzmMwScrn_nZ-w';
+  const url = `https://www.google.com/maps/embed/v1/directions?key=${GMAPS_KEY}&origin=${encodeURIComponent(p)}&destination=${encodeURIComponent(a)}&language=it&region=it&mode=driving`;
+  document.getElementById('mappa-iframe').src = url;
+  document.getElementById('modal-mappa').classList.add('open');
 }
 
 function onGaraChange() {
