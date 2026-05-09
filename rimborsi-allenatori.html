@@ -591,6 +591,16 @@
     </div>
 
     <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">📱 Numero di telefono</div>
+      <div id="telefono-alert"></div>
+      <div class="field">
+        <label>Cellulare (per ricevere messaggi WhatsApp)</label>
+        <input type="tel" id="inp-telefono" placeholder="+39 333 1234567">
+      </div>
+      <button class="btn btn-primary" onclick="salvaTelefono()">Salva numero</button>
+    </div>
+
+    <div class="card">
       <div class="card-title" style="margin-bottom:12px;">🔒 Cambia password</div>
       <div id="pwd-alert"></div>
       <div class="field">
@@ -1014,7 +1024,9 @@ function showProfilo() {
   document.getElementById('profilo-nome').textContent = currentProfilo.nome;
   document.getElementById('profilo-cognome').textContent = currentProfilo.cognome;
   document.getElementById('profilo-ruolo').textContent = currentProfilo.ruolo === 'admin' ? '🔐 Amministratore' : '🏊 Allenatore';
-  document.getElementById('profilo-avatar').textContent = (currentProfilo.nome[0] || '?').toUpperCase();
+  const avatar = document.getElementById('profilo-avatar');
+  if (avatar) avatar.textContent = (currentProfilo.nome[0] || '?').toUpperCase();
+  document.getElementById('inp-telefono').value = currentProfilo.telefono || '';
   showScreen('profilo');
 }
 
@@ -1051,6 +1063,24 @@ async function doRegister() {
 
   showAlert('register-alert', '✅ Account creato! Puoi ora accedere.', 'success');
   setTimeout(showLogin, 1500);
+}
+
+function inviaWhatsApp(nome, telefono, richieste) {
+  const totale = richieste.reduce((s, r) => s + parseFloat(r.tot), 0);
+  const righe = richieste.map(r => `🏊 ${r.gara} — €${r.tot}`).join('\n');
+  const messaggio = `Ciao ${nome.split(' ')[0]}! 👋\n\nEcco il riepilogo dei tuoi rimborsi approvati ancora da pagare:\n\n${righe}\n\n💰 *Totale da ricevere: €${totale.toFixed(2)}*\n\nSe hai domande non esitare a contattarci.\n\nSuperbaNuoto 🌊`;
+  // Pulisci il numero (rimuovi spazi e +)
+  const numero = telefono.replace(/[\s\-\(\)]/g, '').replace(/^\+/, '');
+  const url = `https://wa.me/${numero}?text=${encodeURIComponent(messaggio)}`;
+  window.open(url, '_blank');
+}
+
+async function salvaTelefono() {
+  const tel = document.getElementById('inp-telefono').value.trim();
+  const { error } = await sb.from('profili').update({ telefono: tel }).eq('id', currentUser.id);
+  if (error) { showAlert('telefono-alert', 'Errore nel salvataggio', 'error'); return; }
+  currentProfilo.telefono = tel;
+  showAlert('telefono-alert', '✅ Numero salvato!', 'success');
 }
 
 async function cambiaPassword() {
@@ -1744,7 +1774,7 @@ async function loadAdminContent(tab) {
 
   if (tab === 'pagamenti') {
     const { data } = await sb.from('richieste')
-      .select('*, gare(nome, data), profili(nome, cognome, email), spese(*)')
+      .select('*, gare(nome, data), profili(nome, cognome, email, telefono), spese(*)')
       .eq('stato', 'approvata')
       .order('creata_il', { ascending: false });
 
@@ -1759,7 +1789,8 @@ async function loadAdminContent(tab) {
       const key = r.allenatore_id || r.allenatore_nome || 'sconosciuto';
       const nomeDisplay = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || 'Sconosciuto');
       const emailDisplay = r.profili?.email || '—';
-      if (!perAllenatore[key]) perAllenatore[key] = { nome: nomeDisplay, email: emailDisplay, richieste: [] };
+      const telefonoDisplay = r.profili?.telefono || '';
+      if (!perAllenatore[key]) perAllenatore[key] = { nome: nomeDisplay, email: emailDisplay, telefono: telefonoDisplay, richieste: [] };
       perAllenatore[key].richieste.push(r);
     });
 
@@ -1781,6 +1812,11 @@ async function loadAdminContent(tab) {
               ${nonPagate.length > 0 ? `· <span style="color:var(--orange)">${nonPagate.length} da pagare</span>` : ''}
               ${pagate.length > 0 ? `· <span style="color:var(--green)">${pagate.length} pagate</span>` : ''}
             </div>
+            ${al.telefono && nonPagate.length > 0 ? `
+            <button onclick="event.stopPropagation();inviaWhatsApp('${al.nome.replace(/'/g,"\\'")}','${al.telefono}',${JSON.stringify(nonPagate.map(r=>({gara:(r.gare?.nome||'—'),tot:((r.spese||[]).reduce((s,sp)=>s+sp.importo,0)-(r.acconto||0)).toFixed(2)})))})"
+              style="margin-top:6px;background:#25D366;color:white;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">
+              📱 WhatsApp
+            </button>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
             <div style="text-align:right;">
