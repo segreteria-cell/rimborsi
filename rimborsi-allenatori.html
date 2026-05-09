@@ -445,7 +445,7 @@
       <div class="card-title" style="margin-bottom:12px;">🏆 Gara / Trasferta</div>
       <div class="field">
         <label>Seleziona gara</label>
-        <select id="sel-gara">
+        <select id="sel-gara" onchange="onGaraChange()">
           <option value="">Caricamento gare...</option>
         </select>
       </div>
@@ -594,6 +594,20 @@
       <div class="detail-row"><div class="detail-label">Cognome</div><div class="detail-value" id="profilo-cognome">—</div></div>
       <div class="detail-row"><div class="detail-label">Email</div><div class="detail-value" id="profilo-email2">—</div></div>
       <div class="detail-row"><div class="detail-label">Ruolo</div><div class="detail-value" id="profilo-ruolo">—</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">🏠 Indirizzo di casa</div>
+      <div id="casa-alert"></div>
+      <div class="field">
+        <label>Il tuo indirizzo (verrà usato come partenza automatica)</label>
+        <div style="position:relative">
+          <input type="text" id="inp-casa" placeholder="Es: Via Roma 1, Genova" 
+            oninput="autocomplete('casa',this.value)" autocomplete="off">
+          <div id="suggestions-casa" class="suggestions"></div>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="salvaIndirizzoCasa()">Salva indirizzo</button>
     </div>
 
     <div class="card">
@@ -766,6 +780,13 @@
     <div class="field"><label>Nome gara</label><input type="text" id="gara-nome" placeholder="Es: Campionato Regionale"></div>
     <div class="field"><label>Data</label><input type="date" id="gara-data"></div>
     <div class="field"><label>Luogo</label><input type="text" id="gara-luogo" placeholder="Es: Piscina comunale, Roma"></div>
+    <div class="field">
+      <label>Indirizzo piscina (per calcolo km automatico)</label>
+      <div style="position:relative">
+        <input type="text" id="gara-piscina" placeholder="Es: Via Piscina 1, Roma" oninput="autocomplete('gara-piscina',this.value)" autocomplete="off">
+        <div id="suggestions-gara-piscina" class="suggestions"></div>
+      </div>
+    </div>
     <div class="field"><label>Categoria</label>
       <select id="gara-categoria">
         <option value="nuoto">🏊 Nuoto</option>
@@ -804,6 +825,13 @@
     <div class="field"><label>Nome gara</label><input type="text" id="modifica-gara-nome"></div>
     <div class="field"><label>Data</label><input type="date" id="modifica-gara-data"></div>
     <div class="field"><label>Luogo</label><input type="text" id="modifica-gara-luogo"></div>
+    <div class="field">
+      <label>Indirizzo piscina (per calcolo km automatico)</label>
+      <div style="position:relative">
+        <input type="text" id="modifica-gara-piscina" placeholder="Es: Via Piscina 1, Roma" oninput="autocomplete('modifica-gara-piscina',this.value)" autocomplete="off">
+        <div id="suggestions-modifica-gara-piscina" class="suggestions"></div>
+      </div>
+    </div>
     <div class="field"><label>Categoria</label>
       <select id="modifica-gara-categoria">
         <option value="nuoto">🏊 Nuoto</option>
@@ -903,7 +931,13 @@ function showNuovaRichiesta() {
   kmCalcolati = 0;
   kmExtraList = [];
   mezziSelezionati = ['auto_propria'];
-  document.getElementById('inp-partenza').value = '';
+  // Pre-compila partenza con indirizzo di casa se disponibile
+  const partenzaEl = document.getElementById('inp-partenza');
+  if (currentProfilo?.indirizzo_casa) {
+    partenzaEl.value = currentProfilo.indirizzo_casa;
+  } else {
+    partenzaEl.value = '';
+  }
   document.getElementById('inp-arrivo').value = '';
   document.getElementById('inp-note').value = '';
   document.getElementById('inp-acconto').value = '0';
@@ -919,6 +953,21 @@ function showNuovaRichiesta() {
   aggiornaRiepilogo();
   showScreen('nuova');
   loadGare();
+}
+
+function onGaraChange() {
+  const sel = document.getElementById('sel-gara');
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt || !opt.value) return;
+  const piscina = opt.dataset.piscina;
+  if (piscina) {
+    document.getElementById('inp-arrivo').value = piscina;
+    resetKm();
+    const partenza = document.getElementById('inp-partenza').value.trim();
+    if (partenza) {
+      showAlert('nuova-alert', '📍 Arrivo pre-compilato con l\'indirizzo della piscina. Clicca "Calcola km" per procedere.', 'info');
+    }
+  }
 }
 
 function setAutoPrivata(val) {
@@ -1055,6 +1104,7 @@ function showProfilo() {
   const avatar = document.getElementById('profilo-avatar');
   if (avatar) avatar.textContent = (currentProfilo.nome[0] || '?').toUpperCase();
   document.getElementById('inp-telefono').value = currentProfilo.telefono || '';
+  document.getElementById('inp-casa').value = currentProfilo.indirizzo_casa || '';
   showScreen('profilo');
 }
 
@@ -1111,6 +1161,15 @@ function apriWhatsApp(nome, telefono, richieste) {
 
 function inviaWhatsApp(nome, telefono, richieste) {
   apriWhatsApp(nome, telefono, richieste);
+}
+
+async function salvaIndirizzoCasa() {
+  const casa = document.getElementById('inp-casa').value.trim();
+  if (!casa) { showAlert('casa-alert', 'Inserisci un indirizzo', 'error'); return; }
+  const { error } = await sb.from('profili').update({ indirizzo_casa: casa }).eq('id', currentUser.id);
+  if (error) { showAlert('casa-alert', 'Errore nel salvataggio', 'error'); return; }
+  currentProfilo.indirizzo_casa = casa;
+  showAlert('casa-alert', '✅ Indirizzo salvato!', 'success');
 }
 
 async function salvaTelefono() {
@@ -1224,33 +1283,27 @@ async function loadGare() {
   const sel = document.getElementById('sel-gara');
   sel.innerHTML = '<option value="">Caricamento...</option>';
   try {
-    const { data, error } = await sb.from('gare').select('id, nome, data, luogo, categoria').eq('attiva', true).order('data', { ascending: true });
+    const { data, error } = await sb.from('gare').select('id, nome, data, luogo, categoria, indirizzo_piscina').eq('attiva', true).order('data', { ascending: true });
     if (error || !data || data.length === 0) {
       sel.innerHTML = '<option value="">Nessuna gara disponibile</option>';
       return;
     }
-    // Raggruppa per categoria
     const nuoto = data.filter(g => !g.categoria || g.categoria === 'nuoto');
     const salvamento = data.filter(g => g.categoria === 'salvamento');
     const altro = data.filter(g => g.categoria && g.categoria !== 'nuoto' && g.categoria !== 'salvamento');
 
     let html = '<option value="">Seleziona una gara...</option>';
-    if (nuoto.length) {
-      html += '<optgroup label="🏊 Nuoto">';
-      html += nuoto.map(g => `<option value="${g.id}" data-data="${g.data}">${g.nome} — ${new Date(g.data).toLocaleDateString('it-IT')} · ${g.luogo}</option>`).join('');
-      html += '</optgroup>';
-    }
-    if (salvamento.length) {
-      html += '<optgroup label="🛟 Salvamento">';
-      html += salvamento.map(g => `<option value="${g.id}" data-data="${g.data}">${g.nome} — ${new Date(g.data).toLocaleDateString('it-IT')} · ${g.luogo}</option>`).join('');
-      html += '</optgroup>';
-    }
-    if (altro.length) {
-      html += '<optgroup label="📋 Altro">';
-      html += altro.map(g => `<option value="${g.id}" data-data="${g.data}">${g.nome} — ${new Date(g.data).toLocaleDateString('it-IT')} · ${g.luogo}</option>`).join('');
-      html += '</optgroup>';
-    }
+    const optHtml = (g) => `<option value="${g.id}" data-data="${g.data}" data-piscina="${g.indirizzo_piscina||''}">${g.nome} — ${new Date(g.data).toLocaleDateString('it-IT')} · ${g.luogo}</option>`;
+    if (nuoto.length) { html += '<optgroup label="🏊 Nuoto">'; html += nuoto.map(optHtml).join(''); html += '</optgroup>'; }
+    if (salvamento.length) { html += '<optgroup label="🛟 Salvamento">'; html += salvamento.map(optHtml).join(''); html += '</optgroup>'; }
+    if (altro.length) { html += '<optgroup label="📋 Altro">'; html += altro.map(optHtml).join(''); html += '</optgroup>'; }
     sel.innerHTML = html;
+
+    // Pre-compila partenza con indirizzo di casa se disponibile
+    const partenzaEl = document.getElementById('inp-partenza');
+    if (partenzaEl && currentProfilo?.indirizzo_casa && !partenzaEl.value) {
+      partenzaEl.value = currentProfilo.indirizzo_casa;
+    }
   } catch(e) {
     sel.innerHTML = '<option value="">Errore: ' + e.message + '</option>';
   }
@@ -1311,6 +1364,17 @@ async function calcolaKm() {
       speseTemp.unshift({ tipo: 'carburante', importo: rimborsoKm, descrizione: `${kmTotali} km × €${tariffa}/km`, file: null, allegato_url: null, _km: true });
       renderSpese();
       aggiornaRiepilogo();
+
+      // Proponi di salvare indirizzo di partenza come casa
+      if (!currentProfilo?.indirizzo_casa && p) {
+        setTimeout(() => {
+          if (confirm(`💡 Vuoi salvare "${p}" come tuo indirizzo di partenza abituale?\n\nVerrà proposto automaticamente nelle prossime richieste.`)) {
+            sb.from('profili').update({ indirizzo_casa: p }).eq('id', currentUser.id).then(() => {
+              currentProfilo.indirizzo_casa = p;
+            });
+          }
+        }, 500);
+      }
     } else { alert('Percorso non trovato. Controlla gli indirizzi.'); }
   } catch(e) { alert('Errore nel calcolo. Riprova: ' + e.message); }
   btn.innerHTML = '📍 Ricalcola km';
@@ -2007,11 +2071,12 @@ async function loadAdminContent(tab) {
             <div>
               <div class="card-title">${g.nome}</div>
               <div class="card-sub">📅 ${new Date(g.data).toLocaleDateString('it-IT')} · 📍 ${g.luogo}</div>
+              ${g.indirizzo_piscina ? `<div style="font-size:11px;color:var(--blue);margin-top:2px;">🏊 ${g.indirizzo_piscina}</div>` : '<div style="font-size:11px;color:var(--orange);margin-top:2px;">⚠️ Indirizzo piscina mancante</div>'}
             </div>
             <span class="badge ${g.attiva ? 'badge-approved' : 'badge-rejected'}">${g.attiva ? 'Attiva' : 'Disattiva'}</span>
           </div>
           <div style="display:flex;gap:8px;margin-top:8px;">
-            <button class="btn btn-sm btn-secondary" onclick="openModalModificaGara('${g.id}','${g.nome.replace(/'/g,"\\'")}','${g.data}','${g.luogo.replace(/'/g,"\\'")}','${g.categoria||'nuoto'}')">
+            <button class="btn btn-sm btn-secondary" onclick="openModalModificaGara('${g.id}','${g.nome.replace(/'/g,"\\'")}','${g.data}','${g.luogo.replace(/'/g,"\\'")}','${g.categoria||'nuoto'}','${(g.indirizzo_piscina||'').replace(/'/g,"\\'")}')">
               ✏️ Modifica
             </button>
             <button class="btn btn-sm btn-danger" onclick="eliminaGara('${g.id}','${g.nome.replace(/'/g,"\\'")}')">
@@ -2484,12 +2549,14 @@ async function salvaModificaAllenatore() {
   loadAdminContent('allenatori');
 }
 
-function openModalModificaGara(id, nome, data, luogo, categoria) {
+function openModalModificaGara(id, nome, data, luogo, categoria, piscina) {
   document.getElementById('modifica-gara-id').value = id;
   document.getElementById('modifica-gara-nome').value = nome;
   document.getElementById('modifica-gara-data').value = data;
   document.getElementById('modifica-gara-luogo').value = luogo;
   document.getElementById('modifica-gara-categoria').value = categoria || 'nuoto';
+  const piscinaEl = document.getElementById('modifica-gara-piscina');
+  if (piscinaEl) piscinaEl.value = piscina || '';
   document.getElementById('modal-modifica-gara').classList.add('open');
 }
 
@@ -2499,8 +2566,9 @@ async function salvaModificaGara() {
   const data = document.getElementById('modifica-gara-data').value;
   const luogo = document.getElementById('modifica-gara-luogo').value.trim();
   const categoria = document.getElementById('modifica-gara-categoria').value;
+  const piscina = document.getElementById('modifica-gara-piscina')?.value.trim() || null;
   if (!nome || !data || !luogo) { alert('Compila tutti i campi'); return; }
-  await sb.from('gare').update({ nome, data, luogo, categoria }).eq('id', id);
+  await sb.from('gare').update({ nome, data, luogo, categoria, indirizzo_piscina: piscina }).eq('id', id);
   document.getElementById('modal-modifica-gara').classList.remove('open');
   loadAdminContent('gare');
 }
@@ -2561,8 +2629,9 @@ async function addGara() {
   const data = document.getElementById('gara-data').value;
   const luogo = document.getElementById('gara-luogo').value.trim();
   const categoria = document.getElementById('gara-categoria').value;
+  const piscina = document.getElementById('gara-piscina')?.value.trim() || null;
   if (!nome || !data || !luogo) { alert('Compila tutti i campi'); return; }
-  await sb.from('gare').insert({ nome, data, luogo, attiva: true, categoria });
+  await sb.from('gare').insert({ nome, data, luogo, attiva: true, categoria, indirizzo_piscina: piscina });
   closeModalGara();
   loadAdminContent('gare');
 }
