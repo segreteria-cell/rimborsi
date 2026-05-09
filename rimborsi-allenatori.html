@@ -1822,11 +1822,18 @@ async function loadAdminContent(tab) {
               ${nonPagate.length > 0 ? `· <span style="color:var(--orange)">${nonPagate.length} da pagare</span>` : ''}
               ${pagate.length > 0 ? `· <span style="color:var(--green)">${pagate.length} pagate</span>` : ''}
             </div>
-            ${al.telefono && nonPagate.length > 0 ? `
-            <a href="javascript:void(0)" onclick="event.stopPropagation();apriWhatsApp('${al.nome.replace(/'/g,"\\'")}','${al.telefono}',${JSON.stringify(nonPagate.map(r=>({gara:(r.gare?.nome||'—'),tot:((r.spese||[]).reduce((s,sp)=>s+sp.importo,0)-(r.acconto||0)).toFixed(2)})))})"
-              style="display:inline-block;margin-top:6px;background:#25D366;color:white;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;">
-              📱 WhatsApp
-            </a>` : ''}
+            ${al.telefono && nonPagate.length > 0 ? (() => {
+              const totale = nonPagate.reduce((s,r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo,0) - (r.acconto||0), 0);
+              const righe = nonPagate.map(r => `🏊 ${r.gare?.nome||'—'} — €${((r.spese||[]).reduce((s,sp)=>s+sp.importo,0)-(r.acconto||0)).toFixed(2)}`).join('\n');
+              const msg = `Ciao ${al.nome.split(' ')[0]}! 👋\n\nEcco il riepilogo dei tuoi rimborsi approvati ancora da pagare:\n\n${righe}\n\n💰 *Totale da ricevere: €${totale.toFixed(2)}*\n\nSuperbaNuoto 🌊`;
+              const numero = al.telefono.replace(/[\s\-\(\)\+]/g,'');
+              const url = `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
+              return `<a href="${url}" target="_blank" rel="noopener" 
+                onclick="event.stopPropagation();"
+                style="display:inline-block;margin-top:6px;background:#25D366;color:white;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;text-decoration:none;">
+                📱 WhatsApp
+              </a>`;
+            })() : ''}
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
             <div style="text-align:right;">
