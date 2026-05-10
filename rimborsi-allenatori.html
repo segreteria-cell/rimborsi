@@ -3003,7 +3003,7 @@ async function compensiAdminTab(tab) {
             <div style="width:32px;height:32px;border-radius:50%;background:var(--green);color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">${d.profili?.nome?.[0]||'?'}${d.profili?.cognome?.[0]||'?'}</div>
             <div>
               <div style="font-size:13px;font-weight:500;">${d.profili?.nome} ${d.profili?.cognome}</div>
-              <div style="font-size:11px;color:var(--muted);">Lordo €${d.tot_lordo.toFixed(0)} · ${new Date(d.data_presentazione).toLocaleDateString('it-IT')}</div>
+              <div style="font-size:11px;color:var(--muted);">${mesi[d.mese]} ${d.anno} · €${d.tot_lordo.toFixed(0)} · ${new Date(d.data_presentazione).toLocaleDateString('it-IT')}</div>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
