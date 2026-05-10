@@ -1531,26 +1531,38 @@ async function confermaDichiarazione() {
   const hasFirma = Array.from(pixels).some((p, i) => i % 4 === 3 && p > 0);
   if (!hasFirma) { alert('Firma il documento prima di procedere!'); return; }
 
-  const firmaUrl = canvas.toDataURL('image/png');
-  const { mese, anno, compSN, compExt, tots } = { 
-    mese: window._dichMese, anno: window._dichAnno, 
-    compSN: window._dichCompSN, compExt: window._dichCompExt, tots: window._dichTots 
-  };
+  const firmaDataUrl = canvas.toDataURL('image/png');
+  const mese = window._dichMese;
+  const anno = window._dichAnno;
+  const compSN = window._dichCompSN;
+  const compExt = window._dichCompExt;
+  const tots = window._dichTots;
 
-  // Salva in DB
+  // Converti base64 in blob per upload
+  const res = await fetch(firmaDataUrl);
+  const blob = await res.blob();
+  const firmaPath = `firme/${currentUser.id}/${anno}_${mese}_firma.png`;
+  const { error: errUpload } = await sb.storage.from('allegati').upload(firmaPath, blob, { upsert: true });
+  
+  let firmaUrl = firmaDataUrl; // fallback locale
+  if (!errUpload) {
+    const { data: urlData } = sb.storage.from('allegati').getPublicUrl(firmaPath);
+    firmaUrl = urlData.publicUrl;
+  }
+
+  // Salva in DB con URL firma
   const { data: dich, error } = await sb.from('dichiarazioni_compensi').upsert({
     allenatore_id: currentUser.id, mese, anno,
     data_presentazione: new Date().toISOString(),
     tot_lordo_sn: tots.totSN, tot_netto_sn: tots.totNettoSN,
     tot_lordo_altri: tots.totExt, tot_netto_altri: tots.totNettoExt,
-    tot_lordo: tots.totLordo
+    tot_lordo: tots.totLordo,
+    firma_url: firmaUrl
   }, { onConflict: 'allenatore_id,mese,anno' }).select().single();
 
   if (error) { alert('Errore nel salvataggio: ' + error.message); return; }
 
   document.getElementById('modal-firma').classList.remove('open');
-  
-  // Genera e apri PDF
   stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl);
   loadCompensi();
 }
@@ -1723,25 +1735,19 @@ async function eliminaDichiarazioneAdmin(id) {
 
 async function stampaDichiarazioneAdmin(id) {
   const { data: dich } = await sb.from('dichiarazioni_compensi')
-    .select('*, profili(nome, cognome)').eq('id', id).single();
+    .select('*, profili(nome, cognome, data_nascita, luogo_nascita, provincia_nascita, citta_residenza, provincia_residenza, indirizzo_residenza, cap, codice_fiscale, iban)')
+    .eq('id', id).single();
   if (!dich) return;
   const { data: compSN } = await sb.from('compensi').select('*')
     .eq('allenatore_id', dich.allenatore_id).eq('mese', dich.mese).eq('anno', dich.anno);
   const { data: compExt } = await sb.from('compensi_esterni').select('*')
     .eq('allenatore_id', dich.allenatore_id).eq('anno', dich.anno);
   const tots = { totSN: dich.tot_lordo_sn, totNettoSN: dich.tot_netto_sn, totExt: dich.tot_lordo_altri, totNettoExt: dich.tot_netto_altri, totLordo: dich.tot_lordo };
-  // Override currentProfilo temporaneamente per stampare con nome corretto
-  const nomeOriginale = currentProfilo?.nome;
-  const cognomeOriginale = currentProfilo?.cognome;
-  if (currentProfilo) {
-    currentProfilo.nome = dich.profili?.nome || '';
-    currentProfilo.cognome = dich.profili?.cognome || '';
-  }
-  stampaDichiarazionePDF(dich, compSN||[], compExt||[], tots, '');
-  if (currentProfilo) {
-    currentProfilo.nome = nomeOriginale;
-    currentProfilo.cognome = cognomeOriginale;
-  }
+  // Salva profilo originale e sovrascrivi temporaneamente con dati allenatore
+  const profiloOriginale = {...(currentProfilo||{})};
+  if (currentProfilo && dich.profili) Object.assign(currentProfilo, dich.profili);
+  stampaDichiarazionePDF(dich, compSN||[], compExt||[], tots, dich.firma_url || '');
+  if (currentProfilo) Object.assign(currentProfilo, profiloOriginale);
 }
 
 async function stampaDichiarazione(id) {
