@@ -1651,10 +1651,9 @@ async function inviaRichiesta() {
       window._modificaRichiestaId = null;
       showAlert('nuova-alert', '✅ Richiesta modificata con successo!', 'success');
       setTimeout(() => { showTab('home'); }, 1500);
+      btn.disabled = false; btn.textContent = 'Salva modifiche';
       return;
     }
-
-  try {
     // Crea richiesta
     const { data: richiesta, error: errR } = await sb.from('richieste').insert({
       allenatore_id: currentUser.id,
