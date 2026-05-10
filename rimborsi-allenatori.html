@@ -1298,58 +1298,58 @@ async function salvaCompensoAdmin() {
   setTimeout(() => loadAdminContent('compensi'), 1500);
 }
 
-async function loadDichiarazioneStatus(anno, mese, compSN, compExt) {
+async function loadDichiarazioneStatus(anno, mese) {
   const el = document.getElementById('dichiarazione-status');
+  if (!el) return;
   const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
-  
-  // Mese di riferimento (mese precedente)
-  const oggi = new Date();
-  const meseRef = mese || oggi.getMonth(); // mese precedente
-  const annoRef = meseRef === 0 ? anno - 1 : anno;
-  const meseRefAdj = meseRef === 0 ? 12 : meseRef;
-  const scadenza = `5 ${mesi[meseRefAdj === 12 ? 1 : meseRefAdj + 1]} ${meseRefAdj === 12 ? annoRef + 1 : annoRef}`;
+  const meseSucc = mese === 12 ? 1 : mese + 1;
+  const annoSucc = mese === 12 ? anno + 1 : anno;
+  const scadenza = `5 ${mesi[meseSucc]} ${annoSucc}`;
 
-  // Controlla se già presentata
-  const { data: dich } = await sb.from('dichiarazioni_compensi')
-    .select('*')
-    .eq('allenatore_id', currentUser.id)
-    .eq('mese', meseRefAdj)
-    .eq('anno', annoRef)
-    .single();
+  try {
+    const { data: dich } = await sb.from('dichiarazioni_compensi')
+      .select('*')
+      .eq('allenatore_id', currentUser.id)
+      .eq('mese', mese)
+      .eq('anno', anno)
+      .maybeSingle();
 
-  if (dich) {
-    el.innerHTML = `
-      <div class="card" style="border-left:4px solid var(--green);">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-          <span style="font-size:24px;">✅</span>
-          <div>
-            <div style="font-weight:700;color:var(--green);">Dichiarazione presentata</div>
-            <div style="font-size:12px;color:var(--muted);">${mesi[meseRefAdj]} ${annoRef} · ${new Date(dich.data_presentazione).toLocaleDateString('it-IT')}</div>
+    if (dich) {
+      el.innerHTML = `
+        <div class="card" style="border-left:4px solid var(--green);">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <span style="font-size:24px;">✅</span>
+            <div>
+              <div style="font-weight:700;color:var(--green);">Dichiarazione presentata</div>
+              <div style="font-size:12px;color:var(--muted);">${mesi[mese]} ${anno} · ${new Date(dich.data_presentazione).toLocaleDateString('it-IT')}</div>
+            </div>
           </div>
-        </div>
-        <div style="font-size:12px;color:var(--muted);">Lordo totale dichiarato: <strong>€${dich.tot_lordo.toFixed(2)}</strong></div>
-        <button class="btn btn-sm btn-secondary" onclick="stampaDichiarazione('${dich.id}')" style="margin-top:10px;">
-          🖨️ Ristampa PDF
-        </button>
-      </div>`;
-  } else {
-    el.innerHTML = `
-      <div class="card" style="border-left:4px solid var(--orange);">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-          <span style="font-size:24px;">⚠️</span>
-          <div>
-            <div style="font-weight:700;color:var(--orange);">Dichiarazione mancante</div>
-            <div style="font-size:12px;color:var(--muted);">${mesi[meseRefAdj]} ${annoRef} · Scadenza: ${scadenza}</div>
+          <div style="font-size:12px;color:var(--muted);">Lordo totale dichiarato: <strong>€${dich.tot_lordo.toFixed(2)}</strong></div>
+          <button class="btn btn-sm btn-secondary" onclick="stampaDichiarazione('${dich.id}')" style="margin-top:10px;">
+            🖨️ Ristampa PDF
+          </button>
+        </div>`;
+    } else {
+      el.innerHTML = `
+        <div class="card" style="border-left:4px solid var(--orange);">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <span style="font-size:24px;">⚠️</span>
+            <div>
+              <div style="font-weight:700;color:var(--orange);">Dichiarazione mancante</div>
+              <div style="font-size:12px;color:var(--muted);">${mesi[mese]} ${anno} · Scadenza: ${scadenza}</div>
+            </div>
           </div>
-        </div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
-          Devi dichiarare i compensi percepiti nel mese di ${mesi[meseRefAdj]}. 
-          Assicurati di aver inserito tutti i compensi da altri soggetti prima di procedere.
-        </div>
-        <button class="btn btn-primary" onclick="openModalFirma(${meseRefAdj}, ${annoRef})">
-          📋 Genera dichiarazione ${mesi[meseRefAdj]}
-        </button>
-      </div>`;
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+            Devi dichiarare i compensi percepiti nel mese di ${mesi[mese]}.
+            Assicurati di aver inserito tutti i compensi da altri soggetti prima di procedere.
+          </div>
+          <button class="btn btn-primary" onclick="openModalFirma(${mese}, ${anno})">
+            📋 Genera dichiarazione ${mesi[mese]}
+          </button>
+        </div>`;
+    }
+  } catch(e) {
+    el.innerHTML = `<div style="font-size:13px;color:var(--muted);">Errore caricamento: ${e.message}</div>`;
   }
 }
 
@@ -1540,8 +1540,11 @@ async function stampaDichiarazione(id) {
   const { data: compExt } = await sb.from('compensi_esterni').select('*').eq('allenatore_id', currentUser.id).eq('anno', dich.anno);
   const tots = { totSN: dich.tot_lordo_sn, totNettoSN: dich.tot_netto_sn, totExt: dich.tot_lordo_altri, totNettoExt: dich.tot_netto_altri, totLordo: dich.tot_lordo };
   stampaDichiarazionePDF(dich, compSN||[], compExt||[], tots, '');
-  // Carica stato dichiarazione
-  await loadDichiarazioneStatus(anno, new Date().getMonth(), compSN, compExt);
+  // Carica stato dichiarazione mese precedente
+  const oggi = new Date();
+  const mesePrecedente = oggi.getMonth() === 0 ? 12 : oggi.getMonth();
+  const annoPrecedente = oggi.getMonth() === 0 ? anno - 1 : anno;
+  await loadDichiarazioneStatus(annoPrecedente, mesePrecedente);
 }
 
 function openModalCompensoeEsterno() {
