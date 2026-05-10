@@ -1296,7 +1296,10 @@ async function loadCompensi() {
           </div>
         </div>
         <div style="font-size:12px;color:var(--muted);">Lordo totale: <strong>€${dich.tot_lordo.toFixed(2)}</strong></div>
-        <button class="btn btn-sm btn-secondary" onclick="stampaDichiarazione('${dich.id}')" style="margin-top:8px;">🖨️ Ristampa PDF</button>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-sm btn-secondary" onclick="stampaDichiarazione('${dich.id}')">🖨️ Ristampa PDF</button>
+          <button class="btn btn-sm btn-danger" onclick="eliminaDichiarazione('${dich.id}')">🗑️ Elimina</button>
+        </div>
       </div>`;
     } else {
       return `<div class="card" style="border-left:4px solid var(--orange);margin-bottom:8px;">
@@ -1621,7 +1624,6 @@ function stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl) {
     in qualità di <strong class="underline">ALLENATORE DI NUOTO</strong>, a fronte del contratto di lavoro sportivo nella forma 
     di collaborazione coordinata e continuativa (articolo 25, D.Lgs. 36/2021) svolta nell'ambito di attività sportiva 
     dilettantistica per il periodo <strong class="underline">MESE DI ${mesi[mese].toUpperCase()} ${anno}</strong>, 
-    che prevede la corresponsione di un compenso lordo di <strong>€ ${totSN.toFixed(2)}</strong>, 
     consapevole delle sanzioni penali, nel caso di dichiarazioni non veritiere, di formazione o uso di atti falsi, 
     richiamate dall'art. 76 del D.P.R. 28/12/200 n. 445 e della decadenza dai benefici eventualmente conseguiti 
     con provvedimenti emanati in base a dichiarazione non veritiere, ai sensi dell'art. 75 del D.P.R. 28/12/200 n. 445
@@ -1660,7 +1662,7 @@ function stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl) {
 
   <div class="section" style="font-size:11px;margin-top:12px;">
     Il pagamento, al netto delle eventuali trattenute di legge, potrà avvenire alle seguenti coordinate bancarie:<br>
-    <strong style="color:#0055CC;">${iban}</strong>
+    <strong style="color:#0055CC;font-size:13px;letter-spacing:1px;">${iban !== '_______________' ? iban : '<em style="color:#888;">IBAN non disponibile</em>'}</strong>
   </div>
 
   <table class="no-border" style="margin-top:16px;">
@@ -1683,6 +1685,18 @@ function stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl) {
   </div>
   </body></html>`);
   w.document.close();
+}
+
+async function eliminaDichiarazione(id) {
+  if (!confirm('Eliminare questa dichiarazione? Potrai crearne una nuova.')) return;
+  await sb.from('dichiarazioni_compensi').delete().eq('id', id);
+  loadCompensi();
+}
+
+async function eliminaDichiarazioneAdmin(id) {
+  if (!confirm('Eliminare questa dichiarazione?')) return;
+  await sb.from('dichiarazioni_compensi').delete().eq('id', id);
+  compensiAdminTab('dichiarazioni');
 }
 
 async function stampaDichiarazioneAdmin(id) {
@@ -2992,7 +3006,10 @@ async function compensiAdminTab(tab) {
               <div style="font-size:11px;color:var(--muted);">Lordo €${d.tot_lordo.toFixed(0)} · ${new Date(d.data_presentazione).toLocaleDateString('it-IT')}</div>
             </div>
           </div>
-          <button class="btn btn-sm btn-secondary" onclick="stampaDichiarazioneAdmin('${d.id}')">🖨️ PDF</button>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="btn btn-sm btn-secondary" onclick="stampaDichiarazioneAdmin('${d.id}')">🖨️ PDF</button>
+            <button class="btn btn-sm btn-danger" onclick="eliminaDichiarazioneAdmin('${d.id}')">🗑️</button>
+          </div>
         </div>`).join('')}
       </div>` : ''}`;
   } else {
