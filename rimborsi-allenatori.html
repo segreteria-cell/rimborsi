@@ -1250,11 +1250,78 @@ async function loadCompensi() {
       </div>`).join('');
   }
 
-  // Carica stato dichiarazione mese precedente
+  // Carica stato dichiarazioni - mostra per ogni mese con compensi
   const oggi = new Date();
+  const annoCorrente = oggi.getFullYear();
+  
+  // Trova tutti i mesi con compensi
+  const { data: mesiConCompensi } = await sb.from('compensi')
+    .select('mese, anno')
+    .eq('allenatore_id', currentUser.id)
+    .eq('anno', annoCorrente)
+    .order('mese', { ascending: false });
+
   const mesePrecedente = oggi.getMonth() === 0 ? 12 : oggi.getMonth();
-  const annoPrecedente = oggi.getMonth() === 0 ? anno - 1 : anno;
-  loadDichiarazioneStatus(annoPrecedente, mesePrecedente);
+  const annoPrecedente = oggi.getMonth() === 0 ? annoCorrente - 1 : annoCorrente;
+  
+  const mesiDaDichiarare = new Set();
+  (mesiConCompensi||[]).forEach(m => mesiDaDichiarare.add(`${m.anno}-${m.mese}`));
+  mesiDaDichiarare.add(`${annoPrecedente}-${mesePrecedente}`);
+
+  const { data: dichiarazioniEsistenti } = await sb.from('dichiarazioni_compensi')
+    .select('*')
+    .eq('allenatore_id', currentUser.id)
+    .eq('anno', annoCorrente);
+  
+  const dichMap = {};
+  (dichiarazioniEsistenti||[]).forEach(d => dichMap[`${d.anno}-${d.mese}`] = d);
+
+  const mesiNomi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+  const dichEl = document.getElementById('dichiarazione-status');
+  if (!dichEl) return;
+
+  dichEl.innerHTML = Array.from(mesiDaDichiarare).sort().reverse().map(key => {
+    const [a, m] = key.split('-').map(Number);
+    const dich = dichMap[key];
+    const meseSucc = m === 12 ? 1 : m + 1;
+    const annoSucc = m === 12 ? a + 1 : a;
+
+    if (dich) {
+      return `<div class="card" style="border-left:4px solid var(--green);margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span style="font-size:20px;">✅</span>
+          <div>
+            <div style="font-weight:700;color:var(--green);">Dichiarazione presentata</div>
+            <div style="font-size:12px;color:var(--muted);">${mesiNomi[m]} ${a} · ${new Date(dich.data_presentazione).toLocaleDateString('it-IT')}</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);">Lordo totale: <strong>€${dich.tot_lordo.toFixed(2)}</strong></div>
+        <button class="btn btn-sm btn-secondary" onclick="stampaDichiarazione('${dich.id}')" style="margin-top:8px;">🖨️ Ristampa PDF</button>
+      </div>`;
+    } else {
+      return `<div class="card" style="border-left:4px solid var(--orange);margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span style="font-size:20px;">⚠️</span>
+          <div>
+            <div style="font-weight:700;color:var(--orange);">Dichiarazione mancante</div>
+            <div style="font-size:12px;color:var(--muted);">${mesiNomi[m]} ${a} · Scadenza: 5 ${mesiNomi[meseSucc]} ${annoSucc}</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">
+          Inserisci tutti i compensi da altri soggetti per ${mesiNomi[m]}, poi genera la dichiarazione.
+        </div>
+        <button class="btn btn-primary" onclick="openModalFirma(${m}, ${a})">
+          📋 Genera dichiarazione ${mesiNomi[m]}
+        </button>
+      </div>`;
+    }
+  }).join('');
+}
+
+async function eliminaCompensoAdmin(id) {
+  if (!confirm('Eliminare questo compenso?')) return;
+  await sb.from('compensi').delete().eq('id', id);
+  compensiAdminTab('riepilogo');
 }
 
 function calcolaNettoAdmin() {
@@ -2988,6 +3055,7 @@ async function compensiAdminTab(tab) {
                 <th style="padding:6px 8px;text-align:right;font-weight:600;">INPS</th>
                 <th style="padding:6px 8px;text-align:right;font-weight:600;">IRPEF</th>
                 <th style="padding:6px 8px;text-align:right;font-weight:600;">Netto</th>
+                <th style="padding:6px 8px;text-align:center;font-weight:600;"></th>
               </tr>
               ${compAl.map(c => `<tr style="border-top:1px solid var(--border);">
                 <td style="padding:6px 8px;">${mesi[c.mese]}</td>
@@ -2995,6 +3063,9 @@ async function compensiAdminTab(tab) {
                 <td style="padding:6px 8px;text-align:right;color:var(--muted);">${c.ritenuta_inps>0?'€'+c.ritenuta_inps.toFixed(2):'—'}</td>
                 <td style="padding:6px 8px;text-align:right;color:var(--muted);">${c.ritenuta_irpef>0?'€'+c.ritenuta_irpef.toFixed(2):'—'}</td>
                 <td style="padding:6px 8px;text-align:right;font-weight:600;color:var(--green);">€${c.netto.toFixed(2)}</td>
+                <td style="padding:6px 8px;text-align:center;">
+                  <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();eliminaCompensoAdmin('${c.id}')">🗑️</button>
+                </td>
               </tr>`).join('')}
             </table>` : ''}
             ${compExt.length > 0 ? `
