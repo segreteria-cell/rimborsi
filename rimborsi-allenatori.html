@@ -1249,6 +1249,12 @@ async function loadCompensi() {
         </div>
       </div>`).join('');
   }
+
+  // Carica stato dichiarazione mese precedente
+  const oggi = new Date();
+  const mesePrecedente = oggi.getMonth() === 0 ? 12 : oggi.getMonth();
+  const annoPrecedente = oggi.getMonth() === 0 ? anno - 1 : anno;
+  loadDichiarazioneStatus(annoPrecedente, mesePrecedente);
 }
 
 function calcolaNettoAdmin() {
@@ -1307,12 +1313,13 @@ async function loadDichiarazioneStatus(anno, mese) {
   const scadenza = `5 ${mesi[meseSucc]} ${annoSucc}`;
 
   try {
-    const { data: dich } = await sb.from('dichiarazioni_compensi')
+    const { data: dichArr } = await sb.from('dichiarazioni_compensi')
       .select('*')
       .eq('allenatore_id', currentUser.id)
       .eq('mese', mese)
       .eq('anno', anno)
-      .maybeSingle();
+      .limit(1);
+    const dich = dichArr && dichArr.length > 0 ? dichArr[0] : null;
 
     if (dich) {
       el.innerHTML = `
@@ -1540,11 +1547,6 @@ async function stampaDichiarazione(id) {
   const { data: compExt } = await sb.from('compensi_esterni').select('*').eq('allenatore_id', currentUser.id).eq('anno', dich.anno);
   const tots = { totSN: dich.tot_lordo_sn, totNettoSN: dich.tot_netto_sn, totExt: dich.tot_lordo_altri, totNettoExt: dich.tot_netto_altri, totLordo: dich.tot_lordo };
   stampaDichiarazionePDF(dich, compSN||[], compExt||[], tots, '');
-  // Carica stato dichiarazione mese precedente
-  const oggi = new Date();
-  const mesePrecedente = oggi.getMonth() === 0 ? 12 : oggi.getMonth();
-  const annoPrecedente = oggi.getMonth() === 0 ? anno - 1 : anno;
-  await loadDichiarazioneStatus(annoPrecedente, mesePrecedente);
 }
 
 function openModalCompensoeEsterno() {
