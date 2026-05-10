@@ -2491,6 +2491,7 @@ async function compensiAdminTab(tab) {
             ${(allenatori||[]).map(a => `<option value="${a.id}">${a.nome} ${a.cognome}</option>`).join('')}
           </select>
         </div>
+        <div id="ca-soglie-info" style="margin-bottom:12px;"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="field"><label>Mese</label>
             <select id="ca-mese">
@@ -2511,7 +2512,6 @@ async function compensiAdminTab(tab) {
         </div>
         <div class="field"><label>Data incasso</label><input type="date" id="ca-data"></div>
         <div class="field"><label>Note (opzionale)</label><input type="text" id="ca-note"></div>
-        <div id="ca-soglie-info" style="margin-bottom:12px;"></div>
         <button class="btn btn-primary" onclick="salvaCompensoAdmin()">Salva compenso</button>
       </div>`;
   } else {
