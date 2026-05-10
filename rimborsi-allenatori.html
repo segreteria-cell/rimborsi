@@ -2056,8 +2056,14 @@ async function modificaRichiesta(id) {
 
 async function aggiornaStato(id, stato) {
   await sb.from('richieste').update({ stato }).eq('id', id);
-  goBack();
-  if (currentProfilo?.ruolo === 'admin') loadAdminContent(adminCurrentTab);
+  // Torna indietro e ricarica
+  if (currentProfilo?.ruolo === 'admin') {
+    showScreen('admin');
+    loadAdminContent(adminCurrentTab);
+  } else {
+    showScreen('home');
+    loadHome();
+  }
 }
 
 // ===== ADMIN =====
