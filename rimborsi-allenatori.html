@@ -1540,6 +1540,29 @@ function stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl) {
   w.document.close();
 }
 
+async function stampaDichiarazioneAdmin(id) {
+  const { data: dich } = await sb.from('dichiarazioni_compensi')
+    .select('*, profili(nome, cognome)').eq('id', id).single();
+  if (!dich) return;
+  const { data: compSN } = await sb.from('compensi').select('*')
+    .eq('allenatore_id', dich.allenatore_id).eq('mese', dich.mese).eq('anno', dich.anno);
+  const { data: compExt } = await sb.from('compensi_esterni').select('*')
+    .eq('allenatore_id', dich.allenatore_id).eq('anno', dich.anno);
+  const tots = { totSN: dich.tot_lordo_sn, totNettoSN: dich.tot_netto_sn, totExt: dich.tot_lordo_altri, totNettoExt: dich.tot_netto_altri, totLordo: dich.tot_lordo };
+  // Override currentProfilo temporaneamente per stampare con nome corretto
+  const nomeOriginale = currentProfilo?.nome;
+  const cognomeOriginale = currentProfilo?.cognome;
+  if (currentProfilo) {
+    currentProfilo.nome = dich.profili?.nome || '';
+    currentProfilo.cognome = dich.profili?.cognome || '';
+  }
+  stampaDichiarazionePDF(dich, compSN||[], compExt||[], tots, '');
+  if (currentProfilo) {
+    currentProfilo.nome = nomeOriginale;
+    currentProfilo.cognome = cognomeOriginale;
+  }
+}
+
 async function stampaDichiarazione(id) {
   const { data: dich } = await sb.from('dichiarazioni_compensi').select('*').eq('id', id).single();
   if (!dich) return;
@@ -2816,28 +2839,42 @@ async function compensiAdminTab(tab) {
       </div>` : '<div style="background:#E6FBF5;border-radius:10px;padding:12px;margin-bottom:16px;color:var(--green);font-weight:600;">✅ Tutti hanno presentato!</div>'}
       ${(dichiarazioni||[]).length > 0 ? `<div style="background:#E6FBF5;border-radius:10px;padding:12px;">
         <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:8px;">✅ Presentata (${dichiarazioni.length})</div>
-        ${dichiarazioni.map(d => `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid rgba(0,0,0,0.06);">
-          <span>👤 ${d.profili?.nome} ${d.profili?.cognome}</span>
-          <span style="color:var(--muted);">€${d.tot_lordo.toFixed(0)} · ${new Date(d.data_presentazione).toLocaleDateString('it-IT')}</span>
+        ${dichiarazioni.map(d => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.06);">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--green);color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">${d.profili?.nome?.[0]||'?'}${d.profili?.cognome?.[0]||'?'}</div>
+            <div>
+              <div style="font-size:13px;font-weight:500;">${d.profili?.nome} ${d.profili?.cognome}</div>
+              <div style="font-size:11px;color:var(--muted);">Lordo €${d.tot_lordo.toFixed(0)} · ${new Date(d.data_presentazione).toLocaleDateString('it-IT')}</div>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-secondary" onclick="stampaDichiarazioneAdmin('${d.id}')">🖨️ PDF</button>
         </div>`).join('')}
       </div>` : ''}`;
   } else {
     // RIEPILOGO
+    const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
     el.innerHTML = `<div class="section-title">Riepilogo allenatori — ${anno}</div>` +
-      (allenatori||[]).map(al => {
-        const compAl = (tutti||[]).filter(c => c.allenatore_id === al.id);
+      (allenatori||[]).map((al, idx) => {
+        const compAl = (tutti||[]).filter(c => c.allenatore_id === al.id).sort((a,b) => b.mese - a.mese);
         const compExt = (esterni||[]).filter(c => c.allenatore_id === al.id);
         const totSN = compAl.reduce((s,c) => s+c.lordo, 0);
         const totExt = compExt.reduce((s,c) => s+c.lordo, 0);
         const totale = totSN + totExt;
         const superaINPS = totale >= 5000;
         const superaIRPEF = totale >= 15000;
-        return `<div class="admin-card" style="margin-bottom:10px;">
+        const colId = `riepilogo-al-${idx}`;
+        return `<div class="admin-card" style="margin-bottom:10px;cursor:pointer;" onclick="toggleCollapse('${colId}',this)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <div style="font-size:15px;font-weight:700;">${al.nome} ${al.cognome}</div>
-            <span class="badge ${superaIRPEF?'badge-rejected':superaINPS?'badge-pending':'badge-approved'}">
-              ${superaIRPEF?'⚠️ Soglia IRPEF':superaINPS?'⚠️ Soglia INPS':'✅ Sotto soglia'}
-            </span>
+            <div>
+              <div style="font-size:15px;font-weight:700;">${al.nome} ${al.cognome}</div>
+              <div style="font-size:11px;color:var(--muted);">${compAl.length} mesi SuperbaNuoto · ${compExt.length} altri soggetti</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="badge ${superaIRPEF?'badge-rejected':superaINPS?'badge-pending':'badge-approved'}">
+                ${superaIRPEF?'⚠️ IRPEF':superaINPS?'⚠️ INPS':'✅ OK'}
+              </span>
+              <span id="arrow-${colId}" style="font-size:16px;transition:transform 0.2s;">▼</span>
+            </div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
             <div style="background:var(--bg);border-radius:8px;padding:8px;text-align:center;">
@@ -2857,9 +2894,47 @@ async function compensiAdminTab(tab) {
             <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:2px;"><span>INPS</span><span>€${totale.toFixed(0)} / €5.000</span></div>
             <div style="background:var(--border);border-radius:4px;height:6px;"><div style="width:${Math.min(totale/50,100)}%;height:100%;background:${superaINPS?'var(--orange)':'var(--blue)'};border-radius:4px;"></div></div>
           </div>
-          <div>
+          <div style="margin-bottom:4px;">
             <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:2px;"><span>IRPEF</span><span>€${totale.toFixed(0)} / €15.000</span></div>
             <div style="background:var(--border);border-radius:4px;height:6px;"><div style="width:${Math.min(totale/150,100)}%;height:100%;background:${superaIRPEF?'var(--red)':'var(--green)'};border-radius:4px;"></div></div>
+          </div>
+
+          <!-- DETTAGLIO ESPANDIBILE -->
+          <div id="${colId}" style="display:none;border-top:1px solid var(--border);margin-top:12px;padding-top:12px;" onclick="event.stopPropagation()">
+            ${compAl.length > 0 ? `
+            <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;">COMPENSI SUPERBANUOTO</div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px;">
+              <tr style="background:var(--bg);">
+                <th style="padding:6px 8px;text-align:left;font-weight:600;">Mese</th>
+                <th style="padding:6px 8px;text-align:right;font-weight:600;">Lordo</th>
+                <th style="padding:6px 8px;text-align:right;font-weight:600;">INPS</th>
+                <th style="padding:6px 8px;text-align:right;font-weight:600;">IRPEF</th>
+                <th style="padding:6px 8px;text-align:right;font-weight:600;">Netto</th>
+              </tr>
+              ${compAl.map(c => `<tr style="border-top:1px solid var(--border);">
+                <td style="padding:6px 8px;">${mesi[c.mese]}</td>
+                <td style="padding:6px 8px;text-align:right;">€${c.lordo.toFixed(2)}</td>
+                <td style="padding:6px 8px;text-align:right;color:var(--muted);">${c.ritenuta_inps>0?'€'+c.ritenuta_inps.toFixed(2):'—'}</td>
+                <td style="padding:6px 8px;text-align:right;color:var(--muted);">${c.ritenuta_irpef>0?'€'+c.ritenuta_irpef.toFixed(2):'—'}</td>
+                <td style="padding:6px 8px;text-align:right;font-weight:600;color:var(--green);">€${c.netto.toFixed(2)}</td>
+              </tr>`).join('')}
+            </table>` : ''}
+            ${compExt.length > 0 ? `
+            <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;">ALTRI SOGGETTI SPORTIVI</div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+              <tr style="background:var(--bg);">
+                <th style="padding:6px 8px;text-align:left;font-weight:600;">Soggetto</th>
+                <th style="padding:6px 8px;text-align:right;font-weight:600;">Lordo</th>
+                <th style="padding:6px 8px;text-align:right;font-weight:600;">Netto</th>
+                <th style="padding:6px 8px;text-align:right;font-weight:600;">Data</th>
+              </tr>
+              ${compExt.map(c => `<tr style="border-top:1px solid var(--border);">
+                <td style="padding:6px 8px;">${c.soggetto}</td>
+                <td style="padding:6px 8px;text-align:right;">€${c.lordo.toFixed(2)}</td>
+                <td style="padding:6px 8px;text-align:right;color:var(--green);">€${c.netto.toFixed(2)}</td>
+                <td style="padding:6px 8px;text-align:right;color:var(--muted);">${c.data_incasso?new Date(c.data_incasso).toLocaleDateString('it-IT'):'—'}</td>
+              </tr>`).join('')}
+            </table>` : ''}
           </div>
         </div>`;
       }).join('');
