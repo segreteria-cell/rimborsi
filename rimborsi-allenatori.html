@@ -1756,7 +1756,7 @@ async function stampaDichiarazione(id) {
   const { data: compSN } = await sb.from('compensi').select('*').eq('allenatore_id', currentUser.id).eq('mese', dich.mese).eq('anno', dich.anno);
   const { data: compExt } = await sb.from('compensi_esterni').select('*').eq('allenatore_id', currentUser.id).eq('anno', dich.anno);
   const tots = { totSN: dich.tot_lordo_sn, totNettoSN: dich.tot_netto_sn, totExt: dich.tot_lordo_altri, totNettoExt: dich.tot_netto_altri, totLordo: dich.tot_lordo };
-  stampaDichiarazionePDF(dich, compSN||[], compExt||[], tots, '');
+  stampaDichiarazionePDF(dich, compSN||[], compExt||[], tots, dich.firma_url || '');
 }
 
 function openModalCompensoeEsterno() {
