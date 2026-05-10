@@ -2759,50 +2759,7 @@ async function compensiAdminTab(tab) {
   const { data: tutti } = await sb.from('compensi').select('*').eq('anno', anno);
   const { data: esterni } = await sb.from('compensi_esterni').select('*').eq('anno', anno);
 
-  if (tab === 'dichiarazioni') {
-    const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
-    const meseRef = new Date().getMonth(); // mese precedente
-    const annoRef = meseRef === 0 ? anno - 1 : anno;
-    const meseRefAdj = meseRef === 0 ? 12 : meseRef;
-
-    const { data: dichiarazioni } = await sb.from('dichiarazioni_compensi')
-      .select('*, profili(nome, cognome)')
-      .eq('mese', meseRefAdj).eq('anno', annoRef);
-
-    const presentati = new Set((dichiarazioni||[]).map(d => d.allenatore_id));
-    const mancanti = (allenatori||[]).filter(a => !presentati.has(a.id));
-    const hanno = (allenatori||[]).filter(a => presentati.has(a.id));
-
-    el.innerHTML = `
-      <div style="font-size:14px;font-weight:700;margin-bottom:16px;">
-        Dichiarazioni ${mesi[meseRefAdj]} ${annoRef}
-        <span style="font-size:12px;font-weight:400;color:var(--muted);margin-left:8px;">Scadenza: 5 ${mesi[meseRefAdj===12?1:meseRefAdj+1]} ${meseRefAdj===12?annoRef+1:annoRef}</span>
-      </div>
-
-      ${mancanti.length > 0 ? `
-      <div style="background:#FFF4E5;border-radius:10px;padding:12px;margin-bottom:16px;">
-        <div style="font-size:13px;font-weight:700;color:var(--orange);margin-bottom:8px;">⚠️ Non ancora presentata (${mancanti.length})</div>
-        ${mancanti.map(a => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.06);">
-          <div style="width:32px;height:32px;border-radius:50%;background:var(--orange);color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">${a.nome[0]}${a.cognome[0]}</div>
-          <div style="font-size:13px;font-weight:500;">${a.nome} ${a.cognome}</div>
-        </div>`).join('')}
-      </div>` : '<div style="background:#E6FBF5;border-radius:10px;padding:12px;margin-bottom:16px;color:var(--green);font-weight:600;">✅ Tutti gli allenatori hanno presentato la dichiarazione!</div>'}
-
-      ${hanno.length > 0 ? `
-      <div style="background:#E6FBF5;border-radius:10px;padding:12px;">
-        <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:8px;">✅ Presentata (${hanno.length})</div>
-        ${(dichiarazioni||[]).map(d => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.06);">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <div style="width:32px;height:32px;border-radius:50%;background:var(--green);color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">${d.profili?.nome?.[0]||'?'}${d.profili?.cognome?.[0]||'?'}</div>
-            <div>
-              <div style="font-size:13px;font-weight:500;">${d.profili?.nome} ${d.profili?.cognome}</div>
-              <div style="font-size:11px;color:var(--muted);">Lordo €${d.tot_lordo.toFixed(0)} · ${new Date(d.data_presentazione).toLocaleDateString('it-IT')}</div>
-            </div>
-          </div>
-        </div>`).join('')}
-      </div>` : ''}`;
-    return;
-  }
+  if (tab === 'inserisci') {
     el.innerHTML = `
       <div class="card" style="margin-bottom:16px;">
         <div class="card-title" style="margin-bottom:12px;">Inserisci compenso mensile</div>
@@ -2836,6 +2793,29 @@ async function compensiAdminTab(tab) {
         <div class="field"><label>Note (opzionale)</label><input type="text" id="ca-note"></div>
         <button class="btn btn-primary" onclick="salvaCompensoAdmin()">Salva compenso</button>
       </div>`;
+  } else if (tab === 'dichiarazioni') {
+    const meseRef = new Date().getMonth();
+    const annoRef = meseRef === 0 ? anno - 1 : anno;
+    const meseRefAdj = meseRef === 0 ? 12 : meseRef;
+    const { data: dichiarazioni } = await sb.from('dichiarazioni_compensi')
+      .select('*, profili(nome, cognome)').eq('mese', meseRefAdj).eq('anno', annoRef);
+    const presentati = new Set((dichiarazioni||[]).map(d => d.allenatore_id));
+    const mancanti = (allenatori||[]).filter(a => !presentati.has(a.id));
+    el.innerHTML = `
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;">Dichiarazioni ${mesi[meseRefAdj]} ${annoRef}
+        <span style="font-size:12px;font-weight:400;color:var(--muted);margin-left:8px;">Scadenza: 5 ${mesi[meseRefAdj===12?1:meseRefAdj+1]} ${meseRefAdj===12?annoRef+1:annoRef}</span>
+      </div>
+      ${mancanti.length > 0 ? `<div style="background:#FFF4E5;border-radius:10px;padding:12px;margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:700;color:var(--orange);margin-bottom:8px;">⚠️ Mancante (${mancanti.length})</div>
+        ${mancanti.map(a => `<div style="padding:6px 0;font-size:13px;border-bottom:1px solid rgba(0,0,0,0.06);">👤 ${a.nome} ${a.cognome}</div>`).join('')}
+      </div>` : '<div style="background:#E6FBF5;border-radius:10px;padding:12px;margin-bottom:16px;color:var(--green);font-weight:600;">✅ Tutti hanno presentato!</div>'}
+      ${(dichiarazioni||[]).length > 0 ? `<div style="background:#E6FBF5;border-radius:10px;padding:12px;">
+        <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:8px;">✅ Presentata (${dichiarazioni.length})</div>
+        ${dichiarazioni.map(d => `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid rgba(0,0,0,0.06);">
+          <span>👤 ${d.profili?.nome} ${d.profili?.cognome}</span>
+          <span style="color:var(--muted);">€${d.tot_lordo.toFixed(0)} · ${new Date(d.data_presentazione).toLocaleDateString('it-IT')}</span>
+        </div>`).join('')}
+      </div>` : ''}`;
   } else {
     // RIEPILOGO
     el.innerHTML = `<div class="section-title">Riepilogo allenatori — ${anno}</div>` +
