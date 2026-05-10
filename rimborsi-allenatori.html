@@ -339,6 +339,31 @@
       <span style="font-size:14px;color:var(--muted)">Prima volta? </span>
       <span style="font-size:14px;color:var(--blue);font-weight:600;cursor:pointer" onclick="showRegister()">Registrati</span>
     </div>
+    <div style="text-align:center;margin-top:10px;">
+      <span style="font-size:13px;color:var(--muted);cursor:pointer;text-decoration:underline;" onclick="showResetPassword()">Password dimenticata?</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== RESET PASSWORD ===== -->
+<div id="screen-reset" class="screen" style="background:linear-gradient(160deg,#0044CC 0%,#0066FF 50%,#3399FF 100%);align-items:center;justify-content:center;padding:40px 24px;">
+  <div class="login-logo">
+    <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png" style="height:80px;margin-bottom:12px;filter:brightness(0) invert(1);">
+    <h1 style="color:white;">Superbanuoto</h1>
+    <p>Reimposta la tua password</p>
+  </div>
+  <div class="login-card">
+    <h2>Password dimenticata?</h2>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:20px;">Inserisci la tua email e ti mandiamo un link per reimpostare la password.</p>
+    <div id="reset-alert"></div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="reset-email" placeholder="nome@email.it">
+    </div>
+    <button class="btn btn-primary" onclick="doResetPassword()">Invia link di reset</button>
+    <div style="text-align:center;margin-top:16px;">
+      <span style="font-size:14px;color:var(--blue);font-weight:600;cursor:pointer" onclick="showLogin()">← Torna al login</span>
+    </div>
   </div>
 </div>
 
@@ -1174,6 +1199,19 @@ function showProfilo() {
 }
 
 // ===== AUTH =====
+function showResetPassword() { showScreen('reset'); }
+
+async function doResetPassword() {
+  const email = document.getElementById('reset-email').value.trim();
+  if (!email) { showAlert('reset-alert', 'Inserisci la tua email', 'error'); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: 'https://rimborsi.superbanuoto.it/rimborsi-allenatori.html'
+  });
+  if (error) { showAlert('reset-alert', 'Errore: ' + error.message, 'error'); return; }
+  showAlert('reset-alert', '✅ Email inviata! Controlla la tua casella di posta.', 'success');
+  setTimeout(() => showLogin(), 3000);
+}
+
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
