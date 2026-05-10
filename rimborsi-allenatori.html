@@ -1122,11 +1122,11 @@ async function loadCompensi() {
   document.getElementById('compensi-anno').textContent = anno;
   document.getElementById('compensi-sub').textContent = `Anno ${anno}`;
 
-  // Carica compensi SuperbaNuoto
+  // Carica compensi SuperbaNuoto - cerca per allenatore_id O per nome
   const { data: compSN } = await sb.from('compensi')
     .select('*')
-    .eq('allenatore_id', currentUser.id)
     .eq('anno', anno)
+    .or(`allenatore_id.eq.${currentUser.id},allenatore_nome.ilike.${currentProfilo?.nome} ${currentProfilo?.cognome}`)
     .order('mese', { ascending: false });
 
   // Carica compensi esterni
@@ -1136,9 +1136,17 @@ async function loadCompensi() {
     .eq('anno', anno)
     .order('data_incasso', { ascending: false });
 
+  // Se trovati compensi per nome non collegati, collegali automaticamente
+  if (compSN) {
+    const daCollegare = compSN.filter(c => !c.allenatore_id && c.allenatore_nome);
+    for (const c of daCollegare) {
+      await sb.from('compensi').update({ allenatore_id: currentUser.id }).eq('id', c.id);
+    }
+  }
+
   // Calcola totali per soglie
-  const totLordoSN = (compSN || []).reduce((s, c) => s + c.lordo, 0);
-  const totLordoExt = (compExt || []).reduce((s, c) => s + c.lordo, 0);
+  const totLordoSN = (compSN || []).reduce((s, c) => s + (c.lordo || 0), 0);
+  const totLordoExt = (compExt || []).reduce((s, c) => s + (c.lordo || 0), 0);
   const totLordo = totLordoSN + totLordoExt;
 
   // Aggiorna barre soglie
@@ -1154,12 +1162,14 @@ async function loadCompensi() {
   if (totLordo >= sogliINPS) {
     document.getElementById('inps-bar').style.background = 'var(--red)';
     document.getElementById('inps-note').textContent = `⚠️ Soglia superata di €${(totLordo - sogliINPS).toFixed(0)} — applicare ritenuta INPS`;
+    document.getElementById('inps-note').style.color = 'var(--red)';
   } else {
     document.getElementById('inps-note').textContent = `Mancano €${(sogliINPS - totLordo).toFixed(0)} alla soglia contributiva`;
   }
   if (totLordo >= sogliIRPEF) {
     document.getElementById('irpef-bar').style.background = 'var(--red)';
     document.getElementById('irpef-note').textContent = `⚠️ Soglia superata di €${(totLordo - sogliIRPEF).toFixed(0)} — applicare ritenuta IRPEF`;
+    document.getElementById('irpef-note').style.color = 'var(--red)';
   } else {
     document.getElementById('irpef-note').textContent = `Mancano €${(sogliIRPEF - totLordo).toFixed(0)} alla soglia fiscale`;
   }
@@ -1175,14 +1185,14 @@ async function loadCompensi() {
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div>
             <div style="font-size:14px;font-weight:600;">${mesi[c.mese]} ${c.anno}</div>
-            <div style="font-size:12px;color:var(--muted);">Lordo €${c.lordo.toFixed(2)}
+            <div style="font-size:12px;color:var(--muted);">Lordo €${(c.lordo||0).toFixed(2)}
               ${c.ritenuta_inps > 0 ? ` · INPS -€${c.ritenuta_inps.toFixed(2)}` : ''}
               ${c.ritenuta_irpef > 0 ? ` · IRPEF -€${c.ritenuta_irpef.toFixed(2)}` : ''}
             </div>
             ${c.data_incasso ? `<div style="font-size:11px;color:var(--muted);">Incassato il ${new Date(c.data_incasso).toLocaleDateString('it-IT')}</div>` : ''}
           </div>
           <div style="text-align:right;">
-            <div style="font-size:16px;font-weight:700;color:var(--green)">€${c.netto.toFixed(2)}</div>
+            <div style="font-size:16px;font-weight:700;color:var(--green)">€${(c.netto||0).toFixed(2)}</div>
             <div style="font-size:11px;color:var(--green)">netto</div>
           </div>
         </div>
