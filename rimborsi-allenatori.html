@@ -1614,6 +1614,10 @@ async function inviaRichiesta() {
   if (autoPrivata && (!partenza || !arrivo)) { showAlert('nuova-alert', 'Inserisci partenza e arrivo', 'error'); return; }
   if (autoPrivata && kmCalcolati === 0) { showAlert('nuova-alert', 'Calcola i km del percorso', 'error'); return; }
 
+  // Controlla che il totale non sia zero
+  const totaleSpese = speseTemp.reduce((s, sp) => s + sp.importo, 0);
+  if (totaleSpese <= 0) { showAlert('nuova-alert', 'Aggiungi almeno una spesa prima di inviare', 'error'); return; }
+
   const btn = document.getElementById('btn-invia');
   btn.disabled = true; btn.textContent = 'Salvataggio in corso...';
 
