@@ -1466,73 +1466,151 @@ async function confermaDichiarazione() {
 function stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl) {
   const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
   const nome = `${currentProfilo.nome} ${currentProfilo.cognome}`;
+  const p = currentProfilo;
   const dataOggi = new Date().toLocaleDateString('it-IT');
   const mese = dich.mese; const anno = dich.anno;
+  
+  // Formatta data nascita
+  const dataNascita = p.data_nascita ? new Date(p.data_nascita).toLocaleDateString('it-IT') : '_______________';
+  const luogoNascita = p.luogo_nascita || '_______________';
+  const provNascita = p.provincia_nascita || '___';
+  const indirizzo = p.indirizzo_residenza || '_______________';
+  const cap = p.cap || '_____';
+  const citta = p.citta_residenza || '_______________';
+  const provRes = p.provincia_residenza || '___';
+  const cf = p.codice_fiscale || '_______________';
+  const iban = p.iban || '_______________';
+  
+  const totSN = tots.totSN || 0;
+  const totExt = tots.totExt || 0;
 
   const w = window.open('', '_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Dichiarazione Compensi ${mesi[mese]} ${anno}</title>
+  <title>Dichiarazione Compensi ${mesi[mese]} ${anno} — ${nome}</title>
   <style>
-    body{font-family:Arial,sans-serif;padding:30px;color:#1a1a2e;max-width:750px;margin:0 auto;font-size:14px;}
-    h1{color:#0055CC;font-size:20px;margin-bottom:4px;}
-    .sub{color:#888;font-size:13px;margin-bottom:20px;}
-    table{width:100%;border-collapse:collapse;margin:16px 0;}
-    th{background:#0055CC;color:white;padding:8px 12px;text-align:left;font-size:13px;}
-    td{padding:8px 12px;border-bottom:1px solid #eee;font-size:13px;}
-    .tot-row{background:#f5f5f5;font-weight:700;}
-    .firma-box{border:1px solid #ccc;border-radius:8px;padding:16px;margin-top:20px;}
-    .dichiarazione{background:#f9f9f9;border-left:4px solid #0055CC;padding:12px 16px;margin:16px 0;font-size:13px;line-height:1.6;}
+    body{font-family:Arial,sans-serif;padding:30px;color:#000;max-width:780px;margin:0 auto;font-size:12px;line-height:1.4;}
+    h3{text-align:center;font-size:13px;margin:4px 0;}
+    .center{text-align:center;}
+    table{width:100%;border-collapse:collapse;margin:10px 0;}
+    td,th{border:1px solid #000;padding:6px 8px;font-size:11px;}
+    .no-border td{border:none;padding:2px 4px;}
+    .section{margin:12px 0;}
+    .bold{font-weight:bold;}
+    .underline{text-decoration:underline;}
+    .firma-box{border:1px solid #ccc;border-radius:4px;padding:10px;margin-top:16px;text-align:center;}
+    .campo{border-bottom:1px solid #000;display:inline-block;min-width:120px;}
     @media print{button{display:none!important}}
   </style></head><body>
-  <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png" style="height:40px;margin-bottom:12px;">
-  <h1>Dichiarazione Compensi Sportivi</h1>
-  <div class="sub">${mesi[mese]} ${anno} · Generata il ${dataOggi}</div>
 
-  <p><strong>Allenatore:</strong> ${nome}</p>
+  <div class="center" style="margin-bottom:16px;">
+    <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png" style="height:35px;margin-bottom:8px;"><br>
+    <strong style="font-size:13px;">AUTOCERTIFICAZIONE DEI REDDITI PERCEPITI NELL'AMBITO DI PRESTAZIONI SPORTIVE DILETTANTISTICHE</strong><br>
+    <span style="font-size:11px;">(ARTICOLO 35 E ARTICOLO 36 COMMA 6-BIS, D.LGS. 36/2021 S.M.I.)</span><br>
+    <strong style="font-size:12px;">DICHIARAZIONE SOSTITUTIVA DI CERTIFICAZIONE</strong><br>
+    <span style="font-size:11px;">(Art. 46 D.P.R. 28 dicembre 2000, n. 445)</span>
+  </div>
 
-  <table>
-    <thead><tr>
-      <th>Soggetto erogante</th>
-      <th style="text-align:right;">Lordo €</th>
-      <th style="text-align:right;">Ritenute €</th>
-      <th style="text-align:right;">Netto €</th>
-    </tr></thead>
-    <tbody>
-      ${compSN.map(c => `<tr>
-        <td>SuperbaNuoto — ${mesi[c.mese]} ${c.anno}</td>
-        <td style="text-align:right;">€${c.lordo.toFixed(2)}</td>
-        <td style="text-align:right;">€${((c.ritenuta_inps||0)+(c.ritenuta_irpef||0)).toFixed(2)}</td>
-        <td style="text-align:right;">€${c.netto.toFixed(2)}</td>
-      </tr>`).join('')}
-      ${compExt.map(c => `<tr>
-        <td>${c.soggetto}</td>
-        <td style="text-align:right;">€${c.lordo.toFixed(2)}</td>
-        <td style="text-align:right;">—</td>
-        <td style="text-align:right;">€${c.netto.toFixed(2)}</td>
-      </tr>`).join('')}
-      <tr class="tot-row">
-        <td>TOTALE</td>
-        <td style="text-align:right;color:#0055CC;">€${tots.totLordo.toFixed(2)}</td>
-        <td style="text-align:right;">—</td>
-        <td style="text-align:right;color:#00875A;">€${(tots.totNettoSN+tots.totNettoExt).toFixed(2)}</td>
-      </tr>
-    </tbody>
+  <table class="no-border" style="margin-bottom:8px;">
+    <tr>
+      <td style="width:60%;border:none;"></td>
+      <td style="width:40%;border:none;font-size:11px;">
+        <strong>SPETT.LE</strong><br>
+        SUPERBA NUOTO SSD RL<br>
+        VIA SERRA, 6/5<br>
+        16122 - GENOVA
+      </td>
+    </tr>
   </table>
 
-  <div class="dichiarazione">
-    Il/la sottoscritto/a <strong>${nome}</strong> dichiara, ai sensi del D.Lgs. 36/2021, 
-    che i dati sopra riportati relativi ai compensi sportivi percepiti nel mese di 
-    <strong>${mesi[mese]} ${anno}</strong> sono veritieri e completi, includendo tutti 
-    i compensi percepiti da qualsiasi soggetto sportivo durante il periodo di riferimento.
+  <table>
+    <tr><td style="width:30%;background:#f0f0f0;"><strong>Il/La Signor/a</strong></td><td><strong>${nome.toUpperCase()}</strong></td></tr>
+    <tr>
+      <td style="background:#f0f0f0;"><strong>nato/a</strong></td>
+      <td>
+        <table class="no-border" style="margin:0;"><tr>
+          <td style="border:none;width:40%;">${luogoNascita}</td>
+          <td style="border:none;width:15%;">Prov. <strong>${provNascita}</strong></td>
+          <td style="border:none;width:10%;">il</td>
+          <td style="border:none;width:35%;"><strong>${dataNascita}</strong></td>
+        </tr></table>
+      </td>
+    </tr>
+    <tr>
+      <td style="background:#f0f0f0;"><strong>residente a</strong></td>
+      <td>
+        <table class="no-border" style="margin:0;"><tr>
+          <td style="border:none;width:35%;">${citta} – ${provRes}</td>
+          <td style="border:none;width:10%;">Via</td>
+          <td style="border:none;width:35%;">${indirizzo}</td>
+          <td style="border:none;width:10%;">CAP</td>
+          <td style="border:none;width:10%;">${cap}</td>
+        </tr></table>
+      </td>
+    </tr>
+    <tr><td style="background:#f0f0f0;"><strong>codice fiscale</strong></td><td><strong>${cf}</strong></td></tr>
+  </table>
+
+  <div class="section" style="font-size:11px;line-height:1.6;">
+    in qualità di <strong class="underline">ALLENATORE DI NUOTO</strong>, a fronte del contratto di lavoro sportivo nella forma 
+    di collaborazione coordinata e continuativa (articolo 25, D.Lgs. 36/2021) svolta nell'ambito di attività sportiva 
+    dilettantistica per il periodo <strong class="underline">MESE DI ${mesi[mese].toUpperCase()} ${anno}</strong>, 
+    che prevede la corresponsione di un compenso lordo di <strong>€ ${totSN.toFixed(2)}</strong>, 
+    consapevole delle sanzioni penali, nel caso di dichiarazioni non veritiere, di formazione o uso di atti falsi, 
+    richiamate dall'art. 76 del D.P.R. 28/12/200 n. 445 e della decadenza dai benefici eventualmente conseguiti 
+    con provvedimenti emanati in base a dichiarazione non veritiere, ai sensi dell'art. 75 del D.P.R. 28/12/200 n. 445
   </div>
 
-  <div class="firma-box">
-    <div style="font-size:13px;color:#555;margin-bottom:8px;">Firma dell'allenatore:</div>
-    <img src="${firmaUrl}" style="max-height:80px;border-bottom:1px solid #ccc;padding-bottom:4px;">
-    <div style="font-size:12px;color:#888;margin-top:6px;">${nome} · ${dataOggi}</div>
+  <div class="center bold" style="margin:10px 0;">DICHIARA</div>
+
+  <table>
+    <tr>
+      <td style="width:75%;font-size:11px;font-style:italic;">
+        Compensi sportivi post-riforma <strong>PERCEPITI DA SUPERBA NUOTO</strong><br>
+        di aver percepito compensi di natura sportiva di cui agli artt. 25-42 D.LGS.36/2001 
+        per il periodo compreso 01/01/${anno} – 31/12/${anno} rientranti nel nuovo regime 
+        dei compensi di lavoro sportivo, per complessivi euro
+      </td>
+      <td style="width:25%;text-align:center;font-size:20px;font-weight:bold;vertical-align:middle;">
+        ${totSN.toFixed(2)}
+      </td>
+    </tr>
+    <tr>
+      <td style="font-size:11px;font-style:italic;">
+        Compensi sportivi post-riforma <strong>PERCEPITI DA ALTRI SOGGETTI DELLO SPORT</strong><br>
+        di aver percepito compensi di natura sportiva di cui agli artt. 25-42 D.LGS.36/2001 
+        per il periodo compreso 01/01/${anno} AD OGGI rientranti nel nuovo regime dei 
+        compensi di lavoro sportivo, per complessivi euro <em>(indicare l'importo al lordo di eventuali ritenute)</em>
+      </td>
+      <td style="text-align:center;font-size:20px;font-weight:bold;vertical-align:middle;">
+        ${totExt > 0 ? totExt.toFixed(2) : '<span style="font-size:12px;color:#888;">Da compilare a cura del percipiente</span>'}
+      </td>
+    </tr>
+    ${compExt.length > 0 ? `<tr><td colspan="2" style="font-size:10px;background:#f9f9f9;">
+      <strong>Dettaglio altri soggetti:</strong> 
+      ${compExt.map(c => `${c.soggetto}: lordo €${c.lordo.toFixed(2)}`).join(' | ')}
+    </td></tr>` : ''}
+  </table>
+
+  <div class="section" style="font-size:11px;margin-top:12px;">
+    Il pagamento, al netto delle eventuali trattenute di legge, potrà avvenire alle seguenti coordinate bancarie:<br>
+    <strong style="color:#0055CC;">${iban}</strong>
   </div>
 
-  <div style="margin-top:24px;">
+  <table class="no-border" style="margin-top:16px;">
+    <tr>
+      <td style="border:none;width:50%;font-size:11px;">
+        ${citta}, lì ${dataOggi}
+      </td>
+      <td style="border:none;width:50%;text-align:center;font-size:11px;">
+        <em>Il Dichiarante</em><br>
+        ${firmaUrl ? `<img src="${firmaUrl}" style="max-height:60px;border-bottom:1px solid #000;padding-bottom:2px;margin-top:4px;">` : 
+        '<div style="border-bottom:1px solid #000;height:50px;margin-top:4px;"></div>'}
+        <div style="margin-top:4px;">${nome}</div>
+      </td>
+    </tr>
+  </table>
+
+  <div style="margin-top:20px;display:flex;gap:10px;">
     <button onclick="window.print()" style="padding:10px 24px;background:#0055CC;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;">🖨️ Stampa / Salva PDF</button>
     <button onclick="window.close()" style="padding:10px 24px;background:#eee;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-left:8px;">Chiudi</button>
   </div>
