@@ -1048,6 +1048,25 @@
     </div>
   </div>
 </div>
+<!-- ===== MODAL MODIFICA COMPENSO ESTERNO ===== -->
+<div class="modal-overlay" id="modal-modifica-compenso-esterno">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">✏️ Modifica compenso</div>
+    <input type="hidden" id="mce-id">
+    <div id="mce-alert"></div>
+    <div class="field"><label>Soggetto sportivo</label><input type="text" id="mce-soggetto"></div>
+    <div class="field"><label>Importo lordo €</label><input type="number" id="mce-lordo" step="0.01" min="0"></div>
+    <div class="field"><label>Importo netto €</label><input type="number" id="mce-netto" step="0.01" min="0"></div>
+    <div class="field"><label>Data incasso</label><input type="date" id="mce-data"></div>
+    <div class="field"><label>Note (opzionale)</label><input type="text" id="mce-note"></div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-modifica-compenso-esterno').classList.remove('open')">Annulla</button>
+      <button class="btn btn-primary" onclick="salvaModificaCompensoEsterno()">Salva</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-modifica-allenatore">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -1245,7 +1264,10 @@ async function loadCompensi() {
             <div style="font-size:12px;color:var(--muted);">Lordo €${c.lordo.toFixed(2)} · Netto €${c.netto.toFixed(2)}</div>
             ${c.data_incasso ? `<div style="font-size:11px;color:var(--muted);">${new Date(c.data_incasso).toLocaleDateString('it-IT')}</div>` : ''}
           </div>
-          <button class="btn btn-sm btn-danger" onclick="eliminaCompensoEsterno('${c.id}')">🗑️</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm btn-secondary" onclick="openModalModificaCompensoEsterno('${c.id}','${c.soggetto.replace(/'/g,"\\'")}',${c.lordo},${c.netto},'${c.data_incasso||''}','${c.note||''}')">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="eliminaCompensoEsterno('${c.id}')">🗑️</button>
+          </div>
         </div>
       </div>`).join('');
   }
@@ -1755,6 +1777,34 @@ async function salvaCompensoEsterno() {
   });
   if (error) { showAlert('compenso-esterno-alert', 'Errore: ' + error.message, 'error'); return; }
   document.getElementById('modal-compenso-esterno').classList.remove('open');
+  loadCompensi();
+}
+
+function openModalModificaCompensoEsterno(id, soggetto, lordo, netto, data, note) {
+  document.getElementById('mce-id').value = id;
+  document.getElementById('mce-soggetto').value = soggetto;
+  document.getElementById('mce-lordo').value = lordo;
+  document.getElementById('mce-netto').value = netto;
+  document.getElementById('mce-data').value = data;
+  document.getElementById('mce-note').value = note;
+  document.getElementById('modal-modifica-compenso-esterno').classList.add('open');
+}
+
+async function salvaModificaCompensoEsterno() {
+  const id = document.getElementById('mce-id').value;
+  const soggetto = document.getElementById('mce-soggetto').value.trim();
+  const lordo = parseFloat(document.getElementById('mce-lordo').value);
+  const netto = parseFloat(document.getElementById('mce-netto').value);
+  const data = document.getElementById('mce-data').value;
+  const note = document.getElementById('mce-note').value.trim();
+  if (!soggetto || !lordo || !netto) { showAlert('mce-alert', 'Compila tutti i campi', 'error'); return; }
+  const { error } = await sb.from('compensi_esterni').update({
+    soggetto, lordo, netto,
+    data_incasso: data || null,
+    note: note || null
+  }).eq('id', id);
+  if (error) { showAlert('mce-alert', 'Errore: ' + error.message, 'error'); return; }
+  document.getElementById('modal-modifica-compenso-esterno').classList.remove('open');
   loadCompensi();
 }
 
