@@ -389,7 +389,7 @@
   <div class="topbar">
     <div>
       <div class="topbar-title">SuperbaNuoto</div>
-      <div class="topbar-sub">Rimborsi allenatori</div>
+      <div class="topbar-sub">Benvenuto</div>
     </div>
   </div>
   <div class="content">
@@ -397,9 +397,46 @@
       <span style="font-size:14px;">👁️ Vista allenatore</span>
       <button onclick="showScreen('admin');loadAdminContent('attesa')" style="background:white;color:var(--blue);border:none;border-radius:6px;padding:6px 12px;font-weight:600;font-size:13px;cursor:pointer;">← Torna Admin</button>
     </div>
-    <div class="hero-card">
+
+    <div class="hero-card" style="margin-bottom:24px;">
       <div class="hero-greeting">Benvenuto 👋</div>
       <div class="hero-name" id="home-name">Allenatore</div>
+    </div>
+
+    <div style="font-size:14px;color:var(--muted);margin-bottom:12px;text-align:center;">Cosa vuoi gestire oggi?</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;">
+      <div onclick="showSezione('rimborsi')" style="background:var(--white);border:2px solid var(--blue);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;">
+        <div style="font-size:36px;margin-bottom:8px;">🧾</div>
+        <div style="font-size:15px;font-weight:700;color:var(--blue);">Rimborsi</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;" id="home-badge-rimborsi">Le tue trasferte</div>
+      </div>
+      <div onclick="showSezione('compensi')" style="background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;">
+        <div style="font-size:36px;margin-bottom:8px;">💶</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);">Compensi</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;" id="home-badge-compensi">Anno 2026</div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-nav">
+    <button class="nav-item active" onclick="showTab('home')"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></button>
+    <button class="nav-item" onclick="showSezione('rimborsi');showTab('nuova')"><div class="nav-icon">➕</div><div class="nav-label">Nuova</div></button>
+    <button class="nav-item" onclick="showTab('riepilogo')"><div class="nav-icon">📊</div><div class="nav-label">Riepilogo</div></button>
+    <button class="nav-item" onclick="showTab('profilo')"><div class="nav-icon">👤</div><div class="nav-label">Profilo</div></button>
+  </div>
+</div>
+
+<!-- ===== SEZIONE RIMBORSI ===== -->
+<div id="screen-rimborsi" class="screen">
+  <div class="topbar">
+    <button class="back-btn" onclick="showScreen('home')">←</button>
+    <div>
+      <div class="topbar-title">Rimborsi</div>
+      <div class="topbar-sub">Le tue trasferte</div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="hero-card">
       <div class="hero-stats">
         <div class="hero-stat">
           <div class="hero-stat-num" id="stat-totale">€0</div>
@@ -419,7 +456,6 @@
         </div>
       </div>
     </div>
-
     <div class="section-title">Le tue richieste</div>
     <div id="home-richieste">
       <div class="loading"><div class="spinner"></div>Caricamento...</div>
@@ -427,10 +463,60 @@
   </div>
   <button class="fab" onclick="showNuovaRichiesta()">+</button>
   <div class="bottom-nav">
-    <button class="nav-item active" onclick="showTab('home')"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></button>
-    <button class="nav-item" onclick="showTab('nuova')"><div class="nav-icon">➕</div><div class="nav-label">Nuova</div></button>
+    <button class="nav-item active" onclick="showScreen('rimborsi')"><div class="nav-icon">🧾</div><div class="nav-label">Rimborsi</div></button>
+    <button class="nav-item" onclick="showNuovaRichiesta()"><div class="nav-icon">➕</div><div class="nav-label">Nuova</div></button>
     <button class="nav-item" onclick="showTab('riepilogo')"><div class="nav-icon">📊</div><div class="nav-label">Riepilogo</div></button>
     <button class="nav-item" onclick="showTab('profilo')"><div class="nav-icon">👤</div><div class="nav-label">Profilo</div></button>
+  </div>
+</div>
+
+<!-- ===== SEZIONE COMPENSI ===== -->
+<div id="screen-compensi" class="screen">
+  <div class="topbar">
+    <button class="back-btn" onclick="showScreen('home')">←</button>
+    <div>
+      <div class="topbar-title">Compensi</div>
+      <div class="topbar-sub" id="compensi-sub">Anno 2026</div>
+    </div>
+  </div>
+  <div class="content">
+    <!-- SOGLIE -->
+    <div class="section-title">Soglie anno <span id="compensi-anno">2026</span></div>
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-size:13px;font-weight:600;">INPS</span>
+        <span style="font-size:12px;color:var(--muted);" id="inps-label">€0 / €5.000</span>
+      </div>
+      <div style="background:var(--border);border-radius:4px;height:10px;overflow:hidden;margin-bottom:4px;">
+        <div id="inps-bar" style="width:0%;height:100%;background:var(--blue);border-radius:4px;transition:width 0.5s;"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);" id="inps-note">Esente da contributi INPS</div>
+    </div>
+    <div class="card" style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-size:13px;font-weight:600;">IRPEF</span>
+        <span style="font-size:12px;color:var(--muted);" id="irpef-label">€0 / €15.000</span>
+      </div>
+      <div style="background:var(--border);border-radius:4px;height:10px;overflow:hidden;margin-bottom:4px;">
+        <div id="irpef-bar" style="width:0%;height:100%;background:var(--green);border-radius:4px;transition:width 0.5s;"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);" id="irpef-note">Non imponibile IRPEF</div>
+    </div>
+
+    <!-- COMPENSI SUPERBANUOTO -->
+    <div class="section-title">SuperbaNuoto</div>
+    <div id="compensi-sn-list">
+      <div class="loading"><div class="spinner"></div>Caricamento...</div>
+    </div>
+
+    <!-- ALTRI COMPENSI -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:20px 0 8px;">
+      <div class="section-title" style="margin:0;">Altri soggetti sportivi</div>
+      <button class="btn btn-sm btn-secondary" onclick="openModalCompensoeEsterno()">+ Aggiungi</button>
+    </div>
+    <div id="compensi-esterni-list">
+      <div class="loading"><div class="spinner"></div>Caricamento...</div>
+    </div>
   </div>
 </div>
 
@@ -691,6 +777,7 @@
       <button class="tab" onclick="adminTab('rifiutate')">Rifiutate</button>
       <button class="tab" onclick="adminTab('pagamenti')">💰 Pagamenti</button>
       <button class="tab" onclick="adminTab('report')">📊 Report</button>
+      <button class="tab" onclick="adminTab('compensi')">💶 Compensi</button>
       <button class="tab" onclick="adminTab('allenatori')">👥 Allenatori</button>
       <button class="tab" onclick="adminTab('gare')">Gare</button>
       <button class="tab" onclick="adminTab('tariffe')">€/km</button>
@@ -858,7 +945,24 @@
   </div>
 </div>
 
-<!-- ===== MODAL MODIFICA ALLENATORE ===== -->
+<!-- ===== MODAL COMPENSO ESTERNO ===== -->
+<div class="modal-overlay" id="modal-compenso-esterno">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Aggiungi compenso esterno</div>
+    <div id="compenso-esterno-alert"></div>
+    <div class="field"><label>Soggetto sportivo</label><input type="text" id="ce-soggetto" placeholder="Es: ASD Nuoto Liguria"></div>
+    <div class="field"><label>Anno</label><input type="number" id="ce-anno" value="2026" min="2020" max="2030"></div>
+    <div class="field"><label>Importo lordo €</label><input type="number" id="ce-lordo" placeholder="0.00" step="0.01" min="0"></div>
+    <div class="field"><label>Importo netto €</label><input type="number" id="ce-netto" placeholder="0.00" step="0.01" min="0"></div>
+    <div class="field"><label>Data incasso</label><input type="date" id="ce-data"></div>
+    <div class="field"><label>Note (opzionale)</label><input type="text" id="ce-note" placeholder="Es: Corso estivo"></div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-compenso-esterno').classList.remove('open')">Annulla</button>
+      <button class="btn btn-primary" onclick="salvaCompensoEsterno()">Salva</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-modifica-allenatore">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -951,14 +1055,210 @@ function showScreen(id) {
 function showLogin() { showScreen('login'); }
 function showRegister() { showScreen('register'); }
 
+function showSezione(sezione) {
+  if (sezione === 'rimborsi') {
+    showScreen('rimborsi');
+    loadHome();
+  } else if (sezione === 'compensi') {
+    showScreen('compensi');
+    loadCompensi();
+  }
+}
+
+async function loadCompensi() {
+  const anno = new Date().getFullYear();
+  document.getElementById('compensi-anno').textContent = anno;
+  document.getElementById('compensi-sub').textContent = `Anno ${anno}`;
+
+  // Carica compensi SuperbaNuoto
+  const { data: compSN } = await sb.from('compensi')
+    .select('*')
+    .eq('allenatore_id', currentUser.id)
+    .eq('anno', anno)
+    .order('mese', { ascending: false });
+
+  // Carica compensi esterni
+  const { data: compExt } = await sb.from('compensi_esterni')
+    .select('*')
+    .eq('allenatore_id', currentUser.id)
+    .eq('anno', anno)
+    .order('data_incasso', { ascending: false });
+
+  // Calcola totali per soglie
+  const totLordoSN = (compSN || []).reduce((s, c) => s + c.lordo, 0);
+  const totLordoExt = (compExt || []).reduce((s, c) => s + c.lordo, 0);
+  const totLordo = totLordoSN + totLordoExt;
+
+  // Aggiorna barre soglie
+  const sogliINPS = 5000, sogliIRPEF = 15000;
+  const percINPS = Math.min((totLordo / sogliINPS) * 100, 100);
+  const percIRPEF = Math.min((totLordo / sogliIRPEF) * 100, 100);
+
+  document.getElementById('inps-label').textContent = `€${totLordo.toFixed(0)} / €5.000`;
+  document.getElementById('irpef-label').textContent = `€${totLordo.toFixed(0)} / €15.000`;
+  document.getElementById('inps-bar').style.width = percINPS + '%';
+  document.getElementById('irpef-bar').style.width = percIRPEF + '%';
+
+  if (totLordo >= sogliINPS) {
+    document.getElementById('inps-bar').style.background = 'var(--red)';
+    document.getElementById('inps-note').textContent = `⚠️ Soglia superata di €${(totLordo - sogliINPS).toFixed(0)} — applicare ritenuta INPS`;
+  } else {
+    document.getElementById('inps-note').textContent = `Mancano €${(sogliINPS - totLordo).toFixed(0)} alla soglia contributiva`;
+  }
+  if (totLordo >= sogliIRPEF) {
+    document.getElementById('irpef-bar').style.background = 'var(--red)';
+    document.getElementById('irpef-note').textContent = `⚠️ Soglia superata di €${(totLordo - sogliIRPEF).toFixed(0)} — applicare ritenuta IRPEF`;
+  } else {
+    document.getElementById('irpef-note').textContent = `Mancano €${(sogliIRPEF - totLordo).toFixed(0)} alla soglia fiscale`;
+  }
+
+  // Render compensi SuperbaNuoto
+  const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+  const snEl = document.getElementById('compensi-sn-list');
+  if (!compSN || !compSN.length) {
+    snEl.innerHTML = '<div class="empty"><div class="empty-icon">💶</div><div class="empty-text">Nessun compenso registrato</div></div>';
+  } else {
+    snEl.innerHTML = compSN.map(c => `
+      <div class="admin-card" style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:14px;font-weight:600;">${mesi[c.mese]} ${c.anno}</div>
+            <div style="font-size:12px;color:var(--muted);">Lordo €${c.lordo.toFixed(2)}
+              ${c.ritenuta_inps > 0 ? ` · INPS -€${c.ritenuta_inps.toFixed(2)}` : ''}
+              ${c.ritenuta_irpef > 0 ? ` · IRPEF -€${c.ritenuta_irpef.toFixed(2)}` : ''}
+            </div>
+            ${c.data_incasso ? `<div style="font-size:11px;color:var(--muted);">Incassato il ${new Date(c.data_incasso).toLocaleDateString('it-IT')}</div>` : ''}
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:16px;font-weight:700;color:var(--green)">€${c.netto.toFixed(2)}</div>
+            <div style="font-size:11px;color:var(--green)">netto</div>
+          </div>
+        </div>
+      </div>`).join('');
+  }
+
+  // Render compensi esterni
+  const extEl = document.getElementById('compensi-esterni-list');
+  if (!compExt || !compExt.length) {
+    extEl.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0;">Nessun compenso da altri soggetti inserito</div>';
+  } else {
+    extEl.innerHTML = compExt.map(c => `
+      <div class="admin-card" style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:14px;font-weight:600;">${c.soggetto}</div>
+            <div style="font-size:12px;color:var(--muted);">Lordo €${c.lordo.toFixed(2)} · Netto €${c.netto.toFixed(2)}</div>
+            ${c.data_incasso ? `<div style="font-size:11px;color:var(--muted);">${new Date(c.data_incasso).toLocaleDateString('it-IT')}</div>` : ''}
+          </div>
+          <button class="btn btn-sm btn-danger" onclick="eliminaCompensoEsterno('${c.id}')">🗑️</button>
+        </div>
+      </div>`).join('');
+  }
+}
+
+function calcolaNettoAdmin() {
+  const lordo = parseFloat(document.getElementById('ca-lordo').value) || 0;
+  const inps = parseFloat(document.getElementById('ca-inps').value) || 0;
+  const irpef = parseFloat(document.getElementById('ca-irpef').value) || 0;
+  document.getElementById('ca-netto').value = (lordo - inps - irpef).toFixed(2);
+}
+
+async function aggiornaSoglieAdmin(allenId, tutti, esterni) {
+  if (!allenId) { document.getElementById('ca-soglie-info').innerHTML = ''; return; }
+  const anno = parseInt(document.getElementById('ca-anno').value);
+  const compAl = tutti.filter(c => c.allenatore_id === allenId && c.anno === anno);
+  const compExt = esterni.filter(c => c.allenatore_id === allenId && c.anno === anno);
+  const totale = compAl.reduce((s,c) => s+c.lordo, 0) + compExt.reduce((s,c) => s+c.lordo, 0);
+  const lordonuovo = parseFloat(document.getElementById('ca-lordo').value) || 0;
+  const nuovoTot = totale + lordonuovo;
+  const color = nuovoTot >= 5000 ? 'var(--orange)' : 'var(--blue)';
+  document.getElementById('ca-soglie-info').innerHTML = `
+    <div style="background:var(--bg);border-radius:8px;padding:10px;font-size:12px;">
+      <div style="font-weight:600;margin-bottom:4px;">Situazione soglie ${anno}</div>
+      <div style="color:var(--muted);">Percepito finora: <strong>€${totale.toFixed(0)}</strong></div>
+      ${lordonuovo > 0 ? `<div style="color:${color};">Con questo compenso: <strong>€${nuovoTot.toFixed(0)}</strong></div>` : ''}
+      <div style="color:${totale >= 5000 ? 'var(--red)' : 'var(--muted)'};">INPS: ${totale >= 5000 ? '⚠️ Soglia superata' : `mancano €${(5000-totale).toFixed(0)}`}</div>
+      <div style="color:${totale >= 15000 ? 'var(--red)' : 'var(--muted)'};">IRPEF: ${totale >= 15000 ? '⚠️ Soglia superata' : `mancano €${(15000-totale).toFixed(0)}`}</div>
+    </div>`;
+}
+
+async function salvaCompensoAdmin() {
+  const allenId = document.getElementById('ca-allenatore').value;
+  const mese = parseInt(document.getElementById('ca-mese').value);
+  const anno = parseInt(document.getElementById('ca-anno').value);
+  const lordo = parseFloat(document.getElementById('ca-lordo').value);
+  const inps = parseFloat(document.getElementById('ca-inps').value) || 0;
+  const irpef = parseFloat(document.getElementById('ca-irpef').value) || 0;
+  const netto = parseFloat(document.getElementById('ca-netto').value);
+  const data = document.getElementById('ca-data').value;
+  const note = document.getElementById('ca-note').value.trim();
+  if (!allenId || !lordo || !netto) { showAlert('compensi-admin-alert', 'Compila tutti i campi obbligatori', 'error'); return; }
+  const { error } = await sb.from('compensi').insert({
+    allenatore_id: allenId, mese, anno, lordo,
+    ritenuta_inps: inps, ritenuta_irpef: irpef, netto,
+    data_incasso: data || null, note: note || null
+  });
+  if (error) { showAlert('compensi-admin-alert', 'Errore: ' + error.message, 'error'); return; }
+  showAlert('compensi-admin-alert', '✅ Compenso salvato!', 'success');
+  setTimeout(() => loadAdminContent('compensi'), 1500);
+}
+
+function openModalCompensoeEsterno() {
+  document.getElementById('ce-soggetto').value = '';
+  document.getElementById('ce-anno').value = new Date().getFullYear();
+  document.getElementById('ce-lordo').value = '';
+  document.getElementById('ce-netto').value = '';
+  document.getElementById('ce-data').value = '';
+  document.getElementById('ce-note').value = '';
+  document.getElementById('modal-compenso-esterno').classList.add('open');
+}
+
+async function salvaCompensoEsterno() {
+  const soggetto = document.getElementById('ce-soggetto').value.trim();
+  const anno = parseInt(document.getElementById('ce-anno').value);
+  const lordo = parseFloat(document.getElementById('ce-lordo').value);
+  const netto = parseFloat(document.getElementById('ce-netto').value);
+  const data = document.getElementById('ce-data').value;
+  const note = document.getElementById('ce-note').value.trim();
+  if (!soggetto || !lordo || !netto) { showAlert('compenso-esterno-alert', 'Compila tutti i campi obbligatori', 'error'); return; }
+  const { error } = await sb.from('compensi_esterni').insert({
+    allenatore_id: currentUser.id, soggetto, anno, lordo, netto,
+    data_incasso: data || null, note: note || null
+  });
+  if (error) { showAlert('compenso-esterno-alert', 'Errore: ' + error.message, 'error'); return; }
+  document.getElementById('modal-compenso-esterno').classList.remove('open');
+  loadCompensi();
+}
+
+async function eliminaCompensoEsterno(id) {
+  if (!confirm('Eliminare questo compenso?')) return;
+  await sb.from('compensi_esterni').delete().eq('id', id);
+  loadCompensi();
+}
+
 function goToApp() {
   if (currentProfilo?.ruolo === 'admin') {
     showScreen('admin');
     loadAdminContent('attesa');
   } else {
     showScreen('home');
-    loadHome();
+    document.getElementById('home-name').textContent = currentProfilo?.nome || 'Allenatore';
+    loadHomeBadges();
   }
+}
+
+async function loadHomeBadges() {
+  // Mostra badge rimborsi in attesa
+  const { data } = await sb.from('richieste')
+    .select('stato')
+    .eq('allenatore_id', currentUser.id);
+  if (data) {
+    const inAttesa = data.filter(r => r.stato === 'in attesa').length;
+    document.getElementById('home-badge-rimborsi').textContent = inAttesa > 0 ? `${inAttesa} in attesa` : 'Le tue trasferte';
+  }
+  // Badge compensi
+  const anno = new Date().getFullYear();
+  document.getElementById('home-badge-compensi').textContent = `Anno ${anno}`;
 }
 
 function goBack() {
@@ -2086,7 +2386,7 @@ async function aggiornaStato(id, stato) {
 function adminTab(tab) {
   adminCurrentTab = tab;
   document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['attesa','approvate','rifiutate','pagamenti','report','allenatori','gare','tariffe'][i] === tab);
+    t.classList.toggle('active', ['attesa','approvate','rifiutate','pagamenti','report','compensi','allenatori','gare','tariffe'][i] === tab);
   });
   loadAdminContent(tab);
 }
@@ -2196,6 +2496,95 @@ async function loadAdminContent(tab) {
       </div>
       <div id="selezione-dettaglio" style="font-size:12px;opacity:0.85;margin-top:6px;"></div>
     </div>`;
+    return;
+  }
+
+  if (tab === 'compensi') {
+    const anno = new Date().getFullYear();
+    const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+    const { data: allenatori } = await sb.from('profili').select('*').eq('ruolo','allenatore').order('cognome');
+    const { data: tutti } = await sb.from('compensi').select('*').eq('anno', anno);
+    const { data: esterni } = await sb.from('compensi_esterni').select('*').eq('anno', anno);
+
+    el.innerHTML = `
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title" style="margin-bottom:12px;">💶 Inserisci compenso mensile</div>
+        <div id="compensi-admin-alert"></div>
+        <div class="field"><label>Allenatore</label>
+          <select id="ca-allenatore">
+            <option value="">Seleziona...</option>
+            ${(allenatori||[]).map(a => `<option value="${a.id}">${a.nome} ${a.cognome}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="field"><label>Mese</label>
+            <select id="ca-mese">
+              ${mesi.slice(1).map((m,i) => `<option value="${i+1}" ${i+1 === new Date().getMonth()+1 ? 'selected' : ''}>${m}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field"><label>Anno</label>
+            <input type="number" id="ca-anno" value="${anno}" min="2020" max="2030">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="field"><label>Lordo €</label><input type="number" id="ca-lordo" placeholder="0.00" step="0.01" min="0" oninput="calcolaNettoAdmin()"></div>
+          <div class="field"><label>INPS €</label><input type="number" id="ca-inps" placeholder="0.00" step="0.01" min="0" value="0" oninput="calcolaNettoAdmin()"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="field"><label>IRPEF €</label><input type="number" id="ca-irpef" placeholder="0.00" step="0.01" min="0" value="0" oninput="calcolaNettoAdmin()"></div>
+          <div class="field"><label>Netto €</label><input type="number" id="ca-netto" placeholder="0.00" step="0.01" min="0"></div>
+        </div>
+        <div class="field"><label>Data incasso</label><input type="date" id="ca-data"></div>
+        <div class="field"><label>Note (opzionale)</label><input type="text" id="ca-note"></div>
+        <div id="ca-soglie-info" style="margin-bottom:12px;"></div>
+        <button class="btn btn-primary" onclick="salvaCompensoAdmin()">Salva compenso</button>
+      </div>
+
+      <div class="section-title">Riepilogo allenatori — ${anno}</div>
+      ${(allenatori||[]).map(al => {
+        const compAl = (tutti||[]).filter(c => c.allenatore_id === al.id);
+        const compExt = (esterni||[]).filter(c => c.allenatore_id === al.id);
+        const totSN = compAl.reduce((s,c) => s+c.lordo, 0);
+        const totExt = compExt.reduce((s,c) => s+c.lordo, 0);
+        const totale = totSN + totExt;
+        const superaINPS = totale >= 5000;
+        const superaIRPEF = totale >= 15000;
+        return `<div class="admin-card" style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="font-size:15px;font-weight:700;">${al.nome} ${al.cognome}</div>
+            <span class="badge ${superaIRPEF ? 'badge-rejected' : superaINPS ? 'badge-pending' : 'badge-approved'}">
+              ${superaIRPEF ? '⚠️ Soglia IRPEF' : superaINPS ? '⚠️ Soglia INPS' : '✅ Sotto soglia'}
+            </span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+            <div style="background:var(--bg);border-radius:8px;padding:8px;text-align:center;">
+              <div style="font-size:10px;color:var(--muted);">SuperbaNuoto</div>
+              <div style="font-size:14px;font-weight:700;">€${totSN.toFixed(0)}</div>
+            </div>
+            <div style="background:var(--bg);border-radius:8px;padding:8px;text-align:center;">
+              <div style="font-size:10px;color:var(--muted);">Altri soggetti</div>
+              <div style="font-size:14px;font-weight:700;">€${totExt.toFixed(0)}</div>
+            </div>
+            <div style="background:${superaINPS ? '#FFF4E5' : 'var(--bg)'};border-radius:8px;padding:8px;text-align:center;">
+              <div style="font-size:10px;color:var(--muted);">Totale</div>
+              <div style="font-size:14px;font-weight:700;color:${superaINPS ? 'var(--orange)' : 'var(--text)'};">€${totale.toFixed(0)}</div>
+            </div>
+          </div>
+          <div style="margin-bottom:4px;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:2px;"><span>INPS</span><span>€${totale.toFixed(0)} / €5.000</span></div>
+            <div style="background:var(--border);border-radius:4px;height:6px;"><div style="width:${Math.min(totale/50,100)}%;height:100%;background:${superaINPS?'var(--orange)':'var(--blue)'};border-radius:4px;"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:2px;"><span>IRPEF</span><span>€${totale.toFixed(0)} / €15.000</span></div>
+            <div style="background:var(--border);border-radius:4px;height:6px;"><div style="width:${Math.min(totale/150,100)}%;height:100%;background:${superaIRPEF?'var(--red)':'var(--green)'};border-radius:4px;"></div></div>
+          </div>
+        </div>`;
+      }).join('')}`;
+    
+    // Aggiungi listener per aggiornare soglie quando si seleziona allenatore
+    document.getElementById('ca-allenatore').addEventListener('change', async function() {
+      await aggiornaSoglieAdmin(this.value, tutti||[], esterni||[]);
+    });
     return;
   }
 
