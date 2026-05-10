@@ -1004,6 +1004,8 @@ function showNuovaRichiesta() {
   document.getElementById('km-extra-totale').style.display = 'none';
   document.getElementById('nuova-alert').innerHTML = '';
   document.getElementById('card-percorso').style.display = 'block';
+  window._modificaRichiestaId = null;
+  document.getElementById('btn-invia').textContent = 'Invia richiesta';
   setAutoPrivata(true);
   setAR('andata');
   renderSpese();
@@ -1613,7 +1615,44 @@ async function inviaRichiesta() {
   if (autoPrivata && kmCalcolati === 0) { showAlert('nuova-alert', 'Calcola i km del percorso', 'error'); return; }
 
   const btn = document.getElementById('btn-invia');
-  btn.disabled = true; btn.textContent = 'Invio in corso...';
+  btn.disabled = true; btn.textContent = 'Salvataggio in corso...';
+
+  try {
+    // Se siamo in modalità modifica, aggiorna la richiesta esistente
+    if (window._modificaRichiestaId) {
+      const ridId = window._modificaRichiestaId;
+      await sb.from('richieste').update({
+        gara_id: garaId,
+        partenza: partenza || '—', arrivo: arrivo || '—',
+        km: kmTotali, note, mezzo, acconto
+      }).eq('id', ridId);
+
+      // Elimina spese vecchie e ricrea
+      await sb.from('spese').delete().eq('richiesta_id', ridId);
+      for (const spesa of speseTemp) {
+        let allegato_url = spesa.allegato_url || null;
+        let allegati_urls = spesa.allegati_urls || null;
+        if (spesa.files && spesa.files.length > 0) {
+          allegati_urls = [];
+          for (const file of spesa.files) {
+            if (!file) continue;
+            const ext = file.name.split('.').pop();
+            const path = `${currentUser.id}/${ridId}/${Date.now()}_${Math.random().toString(36).slice(2,6)}.${ext}`;
+            const { error: errU } = await sb.storage.from('allegati').upload(path, file);
+            if (!errU) {
+              const { data: urlData } = sb.storage.from('allegati').getPublicUrl(path);
+              allegati_urls.push(urlData.publicUrl);
+            }
+          }
+          if (allegati_urls.length > 0) allegato_url = allegati_urls[0];
+        }
+        await sb.from('spese').insert({ richiesta_id: ridId, tipo: spesa.tipo, importo: spesa.importo, descrizione: spesa.descrizione, allegato_url, allegati_urls: allegati_urls?.length > 0 ? allegati_urls : null });
+      }
+      window._modificaRichiestaId = null;
+      showAlert('nuova-alert', '✅ Richiesta modificata con successo!', 'success');
+      setTimeout(() => { showTab('home'); }, 1500);
+      return;
+    }
 
   try {
     // Crea richiesta
@@ -1764,6 +1803,11 @@ async function showDettaglio(id, from) {
     <div style="display:flex;gap:10px;margin-top:8px;">
       <button class="btn btn-danger" onclick="aggiornaStato('${id}','rifiutata')">❌ Rifiuta</button>
       <button class="btn btn-green" onclick="aggiornaStato('${id}','approvata')">✅ Approva</button>
+    </div>` : ''}
+    ${!isAdmin && r.stato === 'in attesa' ? `
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-secondary" onclick="modificaRichiesta('${id}')">✏️ Modifica richiesta</button>
+      <button class="btn btn-danger" onclick="eliminaRichiestaAllenatore('${id}')">🗑️ Elimina</button>
     </div>` : ''}
     ${isAdmin && r.stato === 'approvata' ? `
     <div style="margin-top:8px;">
@@ -1956,6 +2000,59 @@ async function eliminaTutte(stato) {
     await sb.from('richieste').delete().eq('stato', stato);
   }
   loadAdminContent('rifiutate');
+}
+
+async function eliminaRichiestaAllenatore(id) {
+  if (!confirm('Sei sicuro di voler eliminare questa richiesta?')) return;
+  await sb.from('spese').delete().eq('richiesta_id', id);
+  await sb.from('richieste').delete().eq('id', id);
+  goBack();
+  loadHome();
+}
+
+async function modificaRichiesta(id) {
+  // Carica i dati della richiesta
+  const { data: r } = await sb.from('richieste')
+    .select('*, gare(*), spese(*)')
+    .eq('id', id).single();
+  if (!r) return;
+
+  // Pre-compila il form nuova richiesta con i dati esistenti
+  showNuovaRichiesta();
+  await loadGare();
+
+  // Imposta i valori
+  setTimeout(() => {
+    document.getElementById('sel-gara').value = r.gara_id || '';
+    document.getElementById('inp-partenza').value = r.partenza || '';
+    document.getElementById('inp-arrivo').value = r.arrivo || '';
+    document.getElementById('inp-note').value = r.note || '';
+    document.getElementById('inp-acconto').value = r.acconto || 0;
+    setAutoPrivata(r.mezzo === 'auto_propria' || !r.mezzo);
+    kmCalcolati = r.km || 0;
+
+    // Carica le spese esistenti (escludi rimborso km automatico)
+    speseTemp = (r.spese || [])
+      .filter(s => s.tipo !== 'carburante' || !s.descrizione?.includes('km ×'))
+      .map(s => ({ tipo: s.tipo, importo: s.importo, descrizione: s.descrizione || '', files: [], allegato_url: s.allegato_url, allegati_urls: s.allegati_urls }));
+
+    if (r.km > 0) {
+      document.getElementById('km-result').textContent = `${r.km} km`;
+      document.getElementById('path-result').textContent = `${r.partenza} → ${r.arrivo}`;
+      document.getElementById('route-result').style.display = 'block';
+    }
+
+    renderSpese();
+    aggiornaRiepilogo();
+
+    // Salva l'ID della richiesta da modificare
+    window._modificaRichiestaId = id;
+
+    // Cambia il testo del pulsante
+    const btnInvia = document.getElementById('btn-invia');
+    btnInvia.textContent = 'Salva modifiche';
+    showAlert('nuova-alert', '✏️ Stai modificando una richiesta esistente', 'info');
+  }, 500);
 }
 
 async function aggiornaStato(id, stato) {
