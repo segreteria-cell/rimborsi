@@ -517,6 +517,38 @@
     <div id="compensi-esterni-list">
       <div class="loading"><div class="spinner"></div>Caricamento...</div>
     </div>
+
+    <!-- DICHIARAZIONE MENSILE -->
+    <div style="margin-top:24px;" id="dichiarazione-section">
+      <div class="section-title">📋 Dichiarazione mensile</div>
+      <div id="dichiarazione-status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL FIRMA DICHIARAZIONE ===== -->
+<div class="modal-overlay" id="modal-firma">
+  <div class="modal" style="padding:0;overflow:hidden;">
+    <div style="background:var(--blue);color:white;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-size:15px;font-weight:700;">📋 Dichiarazione compensi</div>
+      <button onclick="document.getElementById('modal-firma').classList.remove('open')" style="background:rgba(255,255,255,0.2);border:none;color:white;border-radius:50%;width:28px;height:28px;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:16px;overflow-y:auto;max-height:70vh;">
+      <div id="firma-riepilogo" style="margin-bottom:16px;"></div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">✍️ Firma qui sotto con il dito</div>
+      <canvas id="firma-canvas" width="340" height="120" 
+        style="border:2px solid var(--border);border-radius:8px;touch-action:none;background:white;display:block;width:100%;"></canvas>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-sm btn-secondary" onclick="clearFirma()">🗑️ Cancella firma</button>
+        <div style="font-size:11px;color:var(--muted);align-self:center;">La firma certifica la correttezza dei dati</div>
+      </div>
+      <div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--muted);">
+        Il/la sottoscritto/a dichiara che i dati inseriti relativi ai compensi percepiti sono veritieri e completi ai sensi del D.Lgs. 36/2021.
+      </div>
+      <button class="btn btn-primary" onclick="confermaDichiarazione()" style="margin-top:12px;width:100%;">
+        ✅ Conferma e genera PDF
+      </button>
+    </div>
   </div>
 </div>
 
@@ -833,6 +865,7 @@
     <div class="tabs" style="flex-wrap:wrap;gap:6px;">
       <button class="tab active" onclick="compensiAdminTab('inserisci')">➕ Inserisci</button>
       <button class="tab" onclick="compensiAdminTab('riepilogo')">📊 Riepilogo</button>
+      <button class="tab" onclick="compensiAdminTab('dichiarazioni')">📋 Dichiarazioni</button>
     </div>
     <div id="admin-compensi-content">
       <div class="loading"><div class="spinner"></div>Caricamento...</div>
@@ -1263,6 +1296,252 @@ async function salvaCompensoAdmin() {
   if (error) { showAlert('compensi-admin-alert', 'Errore: ' + error.message, 'error'); return; }
   showAlert('compensi-admin-alert', '✅ Compenso salvato!', 'success');
   setTimeout(() => loadAdminContent('compensi'), 1500);
+}
+
+async function loadDichiarazioneStatus(anno, mese, compSN, compExt) {
+  const el = document.getElementById('dichiarazione-status');
+  const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+  
+  // Mese di riferimento (mese precedente)
+  const oggi = new Date();
+  const meseRef = mese || oggi.getMonth(); // mese precedente
+  const annoRef = meseRef === 0 ? anno - 1 : anno;
+  const meseRefAdj = meseRef === 0 ? 12 : meseRef;
+  const scadenza = `5 ${mesi[meseRefAdj === 12 ? 1 : meseRefAdj + 1]} ${meseRefAdj === 12 ? annoRef + 1 : annoRef}`;
+
+  // Controlla se già presentata
+  const { data: dich } = await sb.from('dichiarazioni_compensi')
+    .select('*')
+    .eq('allenatore_id', currentUser.id)
+    .eq('mese', meseRefAdj)
+    .eq('anno', annoRef)
+    .single();
+
+  if (dich) {
+    el.innerHTML = `
+      <div class="card" style="border-left:4px solid var(--green);">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span style="font-size:24px;">✅</span>
+          <div>
+            <div style="font-weight:700;color:var(--green);">Dichiarazione presentata</div>
+            <div style="font-size:12px;color:var(--muted);">${mesi[meseRefAdj]} ${annoRef} · ${new Date(dich.data_presentazione).toLocaleDateString('it-IT')}</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);">Lordo totale dichiarato: <strong>€${dich.tot_lordo.toFixed(2)}</strong></div>
+        <button class="btn btn-sm btn-secondary" onclick="stampaDichiarazione('${dich.id}')" style="margin-top:10px;">
+          🖨️ Ristampa PDF
+        </button>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div class="card" style="border-left:4px solid var(--orange);">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span style="font-size:24px;">⚠️</span>
+          <div>
+            <div style="font-weight:700;color:var(--orange);">Dichiarazione mancante</div>
+            <div style="font-size:12px;color:var(--muted);">${mesi[meseRefAdj]} ${annoRef} · Scadenza: ${scadenza}</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+          Devi dichiarare i compensi percepiti nel mese di ${mesi[meseRefAdj]}. 
+          Assicurati di aver inserito tutti i compensi da altri soggetti prima di procedere.
+        </div>
+        <button class="btn btn-primary" onclick="openModalFirma(${meseRefAdj}, ${annoRef})">
+          📋 Genera dichiarazione ${mesi[meseRefAdj]}
+        </button>
+      </div>`;
+  }
+}
+
+async function openModalFirma(mese, anno) {
+  const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+  
+  // Carica compensi del mese
+  const { data: compSN } = await sb.from('compensi')
+    .select('*').eq('allenatore_id', currentUser.id).eq('mese', mese).eq('anno', anno);
+  const { data: compExt } = await sb.from('compensi_esterni')
+    .select('*').eq('allenatore_id', currentUser.id).eq('anno', anno);
+
+  const totSN = (compSN||[]).reduce((s,c) => s+c.lordo, 0);
+  const totNettoSN = (compSN||[]).reduce((s,c) => s+c.netto, 0);
+  const totExt = (compExt||[]).reduce((s,c) => s+c.lordo, 0);
+  const totNettoExt = (compExt||[]).reduce((s,c) => s+c.netto, 0);
+  const totLordo = totSN + totExt;
+
+  // Salva dati per dopo
+  window._dichMese = mese;
+  window._dichAnno = anno;
+  window._dichCompSN = compSN || [];
+  window._dichCompExt = compExt || [];
+  window._dichTots = { totSN, totNettoSN, totExt, totNettoExt, totLordo };
+
+  document.getElementById('firma-riepilogo').innerHTML = `
+    <div style="font-size:14px;font-weight:700;margin-bottom:12px;">Riepilogo ${mesi[mese]} ${anno}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <tr style="background:#f5f5f5;">
+        <th style="padding:6px 8px;text-align:left;">Soggetto</th>
+        <th style="padding:6px 8px;text-align:right;">Lordo</th>
+        <th style="padding:6px 8px;text-align:right;">Netto</th>
+      </tr>
+      ${compSN?.map(c => `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;">SuperbaNuoto (${mesi[c.mese]})</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;">€${c.lordo.toFixed(2)}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;">€${c.netto.toFixed(2)}</td></tr>`).join('') || '<tr><td colspan="3" style="padding:6px 8px;color:#888;">Nessun compenso SuperbaNuoto</td></tr>'}
+      ${compExt?.map(c => `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;">${c.soggetto}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;">€${c.lordo.toFixed(2)}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;">€${c.netto.toFixed(2)}</td></tr>`).join('') || '<tr><td colspan="3" style="padding:6px 8px;color:#888;">Nessun compenso da altri soggetti</td></tr>'}
+      <tr style="background:#f5f5f5;font-weight:700;">
+        <td style="padding:6px 8px;">TOTALE</td>
+        <td style="padding:6px 8px;text-align:right;color:var(--blue);">€${totLordo.toFixed(2)}</td>
+        <td style="padding:6px 8px;text-align:right;color:var(--green);">€${(totNettoSN+totNettoExt).toFixed(2)}</td>
+      </tr>
+    </table>`;
+
+  document.getElementById('modal-firma').classList.add('open');
+  initFirmaCanvas();
+}
+
+function initFirmaCanvas() {
+  const canvas = document.getElementById('firma-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = '#000033';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  let drawing = false;
+
+  const getPos = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  };
+
+  canvas.onmousedown = canvas.ontouchstart = (e) => { e.preventDefault(); drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); };
+  canvas.onmousemove = canvas.ontouchmove = (e) => { e.preventDefault(); if (!drawing) return; const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); };
+  canvas.onmouseup = canvas.ontouchend = () => { drawing = false; };
+}
+
+function clearFirma() {
+  const canvas = document.getElementById('firma-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+async function confermaDichiarazione() {
+  const canvas = document.getElementById('firma-canvas');
+  const ctx = canvas.getContext('2d');
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const hasFirma = Array.from(pixels).some((p, i) => i % 4 === 3 && p > 0);
+  if (!hasFirma) { alert('Firma il documento prima di procedere!'); return; }
+
+  const firmaUrl = canvas.toDataURL('image/png');
+  const { mese, anno, compSN, compExt, tots } = { 
+    mese: window._dichMese, anno: window._dichAnno, 
+    compSN: window._dichCompSN, compExt: window._dichCompExt, tots: window._dichTots 
+  };
+
+  // Salva in DB
+  const { data: dich, error } = await sb.from('dichiarazioni_compensi').upsert({
+    allenatore_id: currentUser.id, mese, anno,
+    data_presentazione: new Date().toISOString(),
+    tot_lordo_sn: tots.totSN, tot_netto_sn: tots.totNettoSN,
+    tot_lordo_altri: tots.totExt, tot_netto_altri: tots.totNettoExt,
+    tot_lordo: tots.totLordo
+  }, { onConflict: 'allenatore_id,mese,anno' }).select().single();
+
+  if (error) { alert('Errore nel salvataggio: ' + error.message); return; }
+
+  document.getElementById('modal-firma').classList.remove('open');
+  
+  // Genera e apri PDF
+  stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl);
+  loadCompensi();
+}
+
+function stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl) {
+  const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+  const nome = `${currentProfilo.nome} ${currentProfilo.cognome}`;
+  const dataOggi = new Date().toLocaleDateString('it-IT');
+  const mese = dich.mese; const anno = dich.anno;
+
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Dichiarazione Compensi ${mesi[mese]} ${anno}</title>
+  <style>
+    body{font-family:Arial,sans-serif;padding:30px;color:#1a1a2e;max-width:750px;margin:0 auto;font-size:14px;}
+    h1{color:#0055CC;font-size:20px;margin-bottom:4px;}
+    .sub{color:#888;font-size:13px;margin-bottom:20px;}
+    table{width:100%;border-collapse:collapse;margin:16px 0;}
+    th{background:#0055CC;color:white;padding:8px 12px;text-align:left;font-size:13px;}
+    td{padding:8px 12px;border-bottom:1px solid #eee;font-size:13px;}
+    .tot-row{background:#f5f5f5;font-weight:700;}
+    .firma-box{border:1px solid #ccc;border-radius:8px;padding:16px;margin-top:20px;}
+    .dichiarazione{background:#f9f9f9;border-left:4px solid #0055CC;padding:12px 16px;margin:16px 0;font-size:13px;line-height:1.6;}
+    @media print{button{display:none!important}}
+  </style></head><body>
+  <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png" style="height:40px;margin-bottom:12px;">
+  <h1>Dichiarazione Compensi Sportivi</h1>
+  <div class="sub">${mesi[mese]} ${anno} · Generata il ${dataOggi}</div>
+
+  <p><strong>Allenatore:</strong> ${nome}</p>
+
+  <table>
+    <thead><tr>
+      <th>Soggetto erogante</th>
+      <th style="text-align:right;">Lordo €</th>
+      <th style="text-align:right;">Ritenute €</th>
+      <th style="text-align:right;">Netto €</th>
+    </tr></thead>
+    <tbody>
+      ${compSN.map(c => `<tr>
+        <td>SuperbaNuoto — ${mesi[c.mese]} ${c.anno}</td>
+        <td style="text-align:right;">€${c.lordo.toFixed(2)}</td>
+        <td style="text-align:right;">€${((c.ritenuta_inps||0)+(c.ritenuta_irpef||0)).toFixed(2)}</td>
+        <td style="text-align:right;">€${c.netto.toFixed(2)}</td>
+      </tr>`).join('')}
+      ${compExt.map(c => `<tr>
+        <td>${c.soggetto}</td>
+        <td style="text-align:right;">€${c.lordo.toFixed(2)}</td>
+        <td style="text-align:right;">—</td>
+        <td style="text-align:right;">€${c.netto.toFixed(2)}</td>
+      </tr>`).join('')}
+      <tr class="tot-row">
+        <td>TOTALE</td>
+        <td style="text-align:right;color:#0055CC;">€${tots.totLordo.toFixed(2)}</td>
+        <td style="text-align:right;">—</td>
+        <td style="text-align:right;color:#00875A;">€${(tots.totNettoSN+tots.totNettoExt).toFixed(2)}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="dichiarazione">
+    Il/la sottoscritto/a <strong>${nome}</strong> dichiara, ai sensi del D.Lgs. 36/2021, 
+    che i dati sopra riportati relativi ai compensi sportivi percepiti nel mese di 
+    <strong>${mesi[mese]} ${anno}</strong> sono veritieri e completi, includendo tutti 
+    i compensi percepiti da qualsiasi soggetto sportivo durante il periodo di riferimento.
+  </div>
+
+  <div class="firma-box">
+    <div style="font-size:13px;color:#555;margin-bottom:8px;">Firma dell'allenatore:</div>
+    <img src="${firmaUrl}" style="max-height:80px;border-bottom:1px solid #ccc;padding-bottom:4px;">
+    <div style="font-size:12px;color:#888;margin-top:6px;">${nome} · ${dataOggi}</div>
+  </div>
+
+  <div style="margin-top:24px;">
+    <button onclick="window.print()" style="padding:10px 24px;background:#0055CC;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;">🖨️ Stampa / Salva PDF</button>
+    <button onclick="window.close()" style="padding:10px 24px;background:#eee;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-left:8px;">Chiudi</button>
+  </div>
+  </body></html>`);
+  w.document.close();
+}
+
+async function stampaDichiarazione(id) {
+  const { data: dich } = await sb.from('dichiarazioni_compensi').select('*').eq('id', id).single();
+  if (!dich) return;
+  const { data: compSN } = await sb.from('compensi').select('*').eq('allenatore_id', currentUser.id).eq('mese', dich.mese).eq('anno', dich.anno);
+  const { data: compExt } = await sb.from('compensi_esterni').select('*').eq('allenatore_id', currentUser.id).eq('anno', dich.anno);
+  const tots = { totSN: dich.tot_lordo_sn, totNettoSN: dich.tot_netto_sn, totExt: dich.tot_lordo_altri, totNettoExt: dich.tot_netto_altri, totLordo: dich.tot_lordo };
+  stampaDichiarazionePDF(dich, compSN||[], compExt||[], tots, '');
+  // Carica stato dichiarazione
+  await loadDichiarazioneStatus(anno, new Date().getMonth(), compSN, compExt);
 }
 
 function openModalCompensoeEsterno() {
@@ -2470,7 +2749,7 @@ function adminTab(tab) {
 
 async function compensiAdminTab(tab) {
   document.querySelectorAll('#screen-admin-compensi .tab').forEach((t, i) => {
-    t.classList.toggle('active', ['inserisci','riepilogo'][i] === tab);
+    t.classList.toggle('active', ['inserisci','riepilogo','dichiarazioni'][i] === tab);
   });
   const el = document.getElementById('admin-compensi-content');
   el.innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
@@ -2480,7 +2759,50 @@ async function compensiAdminTab(tab) {
   const { data: tutti } = await sb.from('compensi').select('*').eq('anno', anno);
   const { data: esterni } = await sb.from('compensi_esterni').select('*').eq('anno', anno);
 
-  if (tab === 'inserisci') {
+  if (tab === 'dichiarazioni') {
+    const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+    const meseRef = new Date().getMonth(); // mese precedente
+    const annoRef = meseRef === 0 ? anno - 1 : anno;
+    const meseRefAdj = meseRef === 0 ? 12 : meseRef;
+
+    const { data: dichiarazioni } = await sb.from('dichiarazioni_compensi')
+      .select('*, profili(nome, cognome)')
+      .eq('mese', meseRefAdj).eq('anno', annoRef);
+
+    const presentati = new Set((dichiarazioni||[]).map(d => d.allenatore_id));
+    const mancanti = (allenatori||[]).filter(a => !presentati.has(a.id));
+    const hanno = (allenatori||[]).filter(a => presentati.has(a.id));
+
+    el.innerHTML = `
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;">
+        Dichiarazioni ${mesi[meseRefAdj]} ${annoRef}
+        <span style="font-size:12px;font-weight:400;color:var(--muted);margin-left:8px;">Scadenza: 5 ${mesi[meseRefAdj===12?1:meseRefAdj+1]} ${meseRefAdj===12?annoRef+1:annoRef}</span>
+      </div>
+
+      ${mancanti.length > 0 ? `
+      <div style="background:#FFF4E5;border-radius:10px;padding:12px;margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:700;color:var(--orange);margin-bottom:8px;">⚠️ Non ancora presentata (${mancanti.length})</div>
+        ${mancanti.map(a => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.06);">
+          <div style="width:32px;height:32px;border-radius:50%;background:var(--orange);color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">${a.nome[0]}${a.cognome[0]}</div>
+          <div style="font-size:13px;font-weight:500;">${a.nome} ${a.cognome}</div>
+        </div>`).join('')}
+      </div>` : '<div style="background:#E6FBF5;border-radius:10px;padding:12px;margin-bottom:16px;color:var(--green);font-weight:600;">✅ Tutti gli allenatori hanno presentato la dichiarazione!</div>'}
+
+      ${hanno.length > 0 ? `
+      <div style="background:#E6FBF5;border-radius:10px;padding:12px;">
+        <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:8px;">✅ Presentata (${hanno.length})</div>
+        ${(dichiarazioni||[]).map(d => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.06);">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--green);color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">${d.profili?.nome?.[0]||'?'}${d.profili?.cognome?.[0]||'?'}</div>
+            <div>
+              <div style="font-size:13px;font-weight:500;">${d.profili?.nome} ${d.profili?.cognome}</div>
+              <div style="font-size:11px;color:var(--muted);">Lordo €${d.tot_lordo.toFixed(0)} · ${new Date(d.data_presentazione).toLocaleDateString('it-IT')}</div>
+            </div>
+          </div>
+        </div>`).join('')}
+      </div>` : ''}`;
+    return;
+  }
     el.innerHTML = `
       <div class="card" style="margin-bottom:16px;">
         <div class="card-title" style="margin-bottom:12px;">Inserisci compenso mensile</div>
