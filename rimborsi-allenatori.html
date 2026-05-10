@@ -1036,7 +1036,19 @@
     <div class="modal-handle"></div>
     <div class="modal-title">Aggiungi compenso esterno</div>
     <div id="compenso-esterno-alert"></div>
-    <div class="field"><label>Soggetto sportivo</label><input type="text" id="ce-soggetto" placeholder="Es: ASD Nuoto Liguria"></div>
+    <div class="field">
+      <label>Soggetto sportivo</label>
+      <select id="ce-soggetto-select" onchange="onCommittenteSelect(this.value)" style="margin-bottom:8px;">
+        <option value="">— Seleziona committente salvato o inserisci nuovo —</option>
+      </select>
+      <input type="text" id="ce-soggetto" placeholder="Es: ASD Nuoto Liguria" oninput="onSoggettoInput()">
+      <div id="ce-salva-committente" style="display:none;margin-top:6px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" id="ce-salva-check" checked>
+          Salva questo committente per la prossima volta
+        </label>
+      </div>
+    </div>
     <div class="field"><label>Anno</label><input type="number" id="ce-anno" value="2026" min="2020" max="2030"></div>
     <div class="field"><label>Importo lordo €</label><input type="number" id="ce-lordo" placeholder="0.00" step="0.01" min="0"></div>
     <div class="field"><label>Importo netto €</label><input type="number" id="ce-netto" placeholder="0.00" step="0.01" min="0"></div>
@@ -1759,14 +1771,46 @@ async function stampaDichiarazione(id) {
   stampaDichiarazionePDF(dich, compSN||[], compExt||[], tots, dich.firma_url || '');
 }
 
-function openModalCompensoeEsterno() {
+async function openModalCompensoeEsterno() {
   document.getElementById('ce-soggetto').value = '';
   document.getElementById('ce-anno').value = new Date().getFullYear();
   document.getElementById('ce-lordo').value = '';
   document.getElementById('ce-netto').value = '';
   document.getElementById('ce-data').value = '';
   document.getElementById('ce-note').value = '';
+  document.getElementById('ce-salva-committente').style.display = 'none';
+  document.getElementById('ce-salva-check').checked = true;
+
+  // Carica committenti salvati
+  const { data: committenti } = await sb.from('committenti_sportivi')
+    .select('*').eq('allenatore_id', currentUser.id).order('nome');
+  
+  const sel = document.getElementById('ce-soggetto-select');
+  sel.innerHTML = '<option value="">— Seleziona committente salvato o inserisci nuovo —</option>';
+  (committenti||[]).forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.nome;
+    opt.textContent = c.nome;
+    sel.appendChild(opt);
+  });
+
   document.getElementById('modal-compenso-esterno').classList.add('open');
+}
+
+function onCommittenteSelect(val) {
+  if (val) {
+    document.getElementById('ce-soggetto').value = val;
+    document.getElementById('ce-salva-committente').style.display = 'none';
+  }
+}
+
+function onSoggettoInput() {
+  const val = document.getElementById('ce-soggetto').value.trim();
+  const sel = document.getElementById('ce-soggetto-select');
+  const esisteGia = Array.from(sel.options).some(o => o.value.toLowerCase() === val.toLowerCase());
+  document.getElementById('ce-salva-committente').style.display = val && !esisteGia ? 'block' : 'none';
+  // Deseleziona la tendina se si sta scrivendo manualmente
+  if (val) sel.value = '';
 }
 
 async function salvaCompensoEsterno() {
@@ -1776,12 +1820,25 @@ async function salvaCompensoEsterno() {
   const netto = parseFloat(document.getElementById('ce-netto').value);
   const data = document.getElementById('ce-data').value;
   const note = document.getElementById('ce-note').value.trim();
+  const salvaCommittente = document.getElementById('ce-salva-check').checked;
+  const mostraSalva = document.getElementById('ce-salva-committente').style.display !== 'none';
+
   if (!soggetto || !lordo || !netto) { showAlert('compenso-esterno-alert', 'Compila tutti i campi obbligatori', 'error'); return; }
+  
   const { error } = await sb.from('compensi_esterni').insert({
     allenatore_id: currentUser.id, soggetto, anno, lordo, netto,
     data_incasso: data || null, note: note || null
   });
   if (error) { showAlert('compenso-esterno-alert', 'Errore: ' + error.message, 'error'); return; }
+
+  // Salva committente se richiesto e non già presente
+  if (salvaCommittente && mostraSalva) {
+    await sb.from('committenti_sportivi').upsert(
+      { allenatore_id: currentUser.id, nome: soggetto },
+      { onConflict: 'allenatore_id,nome' }
+    );
+  }
+
   document.getElementById('modal-compenso-esterno').classList.remove('open');
   loadCompensi();
 }
