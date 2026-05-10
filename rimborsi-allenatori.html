@@ -1808,6 +1808,12 @@ async function showDettaglio(id, from) {
       <button class="btn btn-secondary" onclick="modificaRichiesta('${id}')">✏️ Modifica richiesta</button>
       <button class="btn btn-danger" onclick="eliminaRichiestaAllenatore('${id}')">🗑️ Elimina</button>
     </div>` : ''}
+    ${!isAdmin && r.stato === 'rifiutata' ? `
+    <div class="alert alert-error" style="margin-top:8px;">❌ Questa richiesta è stata rifiutata dal responsabile.</div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-secondary" onclick="modificaEReinvia('${id}')">✏️ Modifica e reinvia</button>
+      <button class="btn btn-danger" onclick="eliminaRichiestaAllenatore('${id}')">🗑️ Elimina</button>
+    </div>` : ''}
     ${isAdmin && r.stato === 'approvata' ? `
     <div style="margin-top:8px;">
       <button class="btn btn-danger" onclick="aggiornaStato('${id}','in attesa')">↩️ Annulla approvazione</button>
@@ -1999,6 +2005,12 @@ async function eliminaTutte(stato) {
     await sb.from('richieste').delete().eq('stato', stato);
   }
   loadAdminContent('rifiutate');
+}
+
+async function modificaEReinvia(id) {
+  // Prima rimette in attesa, poi apre la modifica
+  await sb.from('richieste').update({ stato: 'in attesa' }).eq('id', id);
+  modificaRichiesta(id);
 }
 
 async function eliminaRichiestaAllenatore(id) {
