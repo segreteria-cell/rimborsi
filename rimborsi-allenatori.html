@@ -3392,10 +3392,29 @@ async function compensiAdminTab(tab) {
         <div id="importa-alert"></div>
         <div class="field">
           <label>Seleziona file Excel (.xlsx)</label>
-          <input type="file" id="inp-excel-import" accept=".xlsx,.xls" onchange="anteprimaExcel(this)" style="padding:10px;background:var(--bg);border:2px dashed var(--border);border-radius:10px;cursor:pointer;">
+          <div onclick="document.getElementById('inp-excel-import').click()"
+            style="padding:20px;background:var(--bg);border:2px dashed var(--border);border-radius:10px;cursor:pointer;text-align:center;">
+            <div style="font-size:32px;margin-bottom:6px;">📂</div>
+            <div style="font-size:14px;font-weight:600;color:var(--blue);">Tocca per selezionare il file</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:4px;" id="excel-filename">Nessun file selezionato</div>
+          </div>
+          <input type="file" id="inp-excel-import" accept=".xlsx,.xls" style="display:none;">
         </div>
       </div>
       <div id="importa-anteprima"></div>`;
+
+    // Attach listener dopo che il DOM è pronto
+    setTimeout(() => {
+      const inp = document.getElementById('inp-excel-import');
+      if (inp) {
+        inp.addEventListener('change', function() {
+          const nome = this.files[0]?.name || '';
+          const el = document.getElementById('excel-filename');
+          if (el) el.textContent = nome;
+          anteprimaExcel(this);
+        });
+      }
+    }, 50);
     return;
   }
 
