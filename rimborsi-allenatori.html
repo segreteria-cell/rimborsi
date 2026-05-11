@@ -2192,17 +2192,35 @@ async function doRegister() {
   const password = document.getElementById('reg-password').value;
   if (!nome || !cognome || !email || !password) { showAlert('register-alert', 'Compila tutti i campi', 'error'); return; }
   if (password.length < 6) { showAlert('register-alert', 'La password deve avere almeno 6 caratteri', 'error'); return; }
+
   const { data, error } = await sb.auth.signUp({ email, password, options: { data: { nome, cognome } } });
   if (error) { showAlert('register-alert', error.message, 'error'); return; }
-  
+
+  const userId = data.user?.id;
+  if (!userId) { showAlert('register-alert', 'Errore nella creazione dell\'account. Riprova.', 'error'); return; }
+
+  // Crea il profilo nella tabella profili
+  const { error: errProfilo } = await sb.from('profili').upsert({
+    id: userId,
+    nome,
+    cognome,
+    email,
+    ruolo: 'allenatore'
+  }, { onConflict: 'id' });
+
+  if (errProfilo) {
+    showAlert('register-alert', 'Errore nel salvataggio del profilo: ' + errProfilo.message, 'error');
+    return;
+  }
+
   // Prova a collegare subito le richieste e compensi storici (formato "Cognome Nome")
   const nomeCompleto = cognome + ' ' + nome;
   await sb.from('richieste')
-    .update({ allenatore_id: data.user?.id })
+    .update({ allenatore_id: userId })
     .ilike('allenatore_nome', nomeCompleto)
     .is('allenatore_id', null);
   await sb.from('compensi')
-    .update({ allenatore_id: data.user?.id })
+    .update({ allenatore_id: userId })
     .ilike('allenatore_nome', nomeCompleto)
     .is('allenatore_id', null);
 
