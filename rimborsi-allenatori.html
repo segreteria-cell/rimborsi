@@ -3321,15 +3321,14 @@ async function anteprimaExcel(input) {
             </tbody>
           </table>
         </div>
-        ${abbinati.length ? `
+        ${abbinati.length || nonAbbinati.length ? `
           <div style="margin-top:16px;padding:12px;background:var(--bg);border-radius:8px;font-size:13px;">
-            <b>${abbinati.length}</b> compensi pronti per l'importazione
-            ${nonAbbinati.length ? ` · <span style="color:var(--orange);">${nonAbbinati.length} saltati</span>` : ''}
+            <b>${abbinati.length}</b> con profilo collegato
+            ${nonAbbinati.length ? ` · <b>${nonAbbinati.length}</b> senza profilo <span style="color:var(--muted);">(verranno collegati alla registrazione)</span>` : ''}
           </div>
           <button class="btn btn-primary" style="margin-top:12px;width:100%;" onclick="importaCompensiBulk()">
-            💾 Importa ${abbinati.length} compensi
-          </button>` : '<div style="color:var(--orange);margin-top:12px;text-align:center;">Nessun allenatore abbinato — nulla da importare</div>'}
-      </div>`;
+            💾 Importa tutti i ${excelImportData.length} compensi
+          </button>` : '<div style="color:var(--orange);margin-top:12px;text-align:center;">Nessuna riga valida da importare</div>'}
   } catch(e) {
     anteprimaEl.innerHTML = '';
     showAlert('importa-alert', '❌ Errore nella lettura del file: ' + e.message, 'error');
@@ -3337,7 +3336,7 @@ async function anteprimaExcel(input) {
 }
 
 async function importaCompensiBulk() {
-  const righe = excelImportData.filter(r => r.profilo);
+  const righe = excelImportData; // importa TUTTE le righe, anche senza profilo
   if (!righe.length) return;
 
   const btn = document.querySelector('#importa-anteprima button');
@@ -3345,8 +3344,7 @@ async function importaCompensiBulk() {
 
   let ok = 0, err = 0;
   for (const r of righe) {
-    const { error } = await sb.from('compensi').insert({
-      allenatore_id: r.profilo.id,
+    const record = {
       allenatore_nome: r.nomeExcel,
       lordo: r.lordo,
       netto: r.netto,
@@ -3354,7 +3352,11 @@ async function importaCompensiBulk() {
       anno: r.anno,
       data_incasso: r.dataIncasso,
       fonte: 'superbanuoto'
-    });
+    };
+    // Aggiungi allenatore_id solo se il profilo esiste
+    if (r.profilo) record.allenatore_id = r.profilo.id;
+
+    const { error } = await sb.from('compensi').insert(record);
     if (error) { console.error(r.nomeExcel, error); err++; } else ok++;
   }
 
@@ -3365,6 +3367,7 @@ async function importaCompensiBulk() {
         <div style="font-size:48px;margin-bottom:12px;">${err===0?'✅':'⚠️'}</div>
         <div style="font-size:18px;font-weight:700;margin-bottom:6px;">${ok} compensi importati con successo</div>
         ${err ? `<div style="color:var(--orange);font-size:14px;">${err} errori — controlla la console</div>` : ''}
+        <div style="font-size:13px;color:var(--muted);margin-top:8px;">Gli allenatori non ancora registrati verranno collegati automaticamente al momento della registrazione.</div>
         <button class="btn btn-secondary" style="margin-top:16px;" onclick="compensiAdminTab('riepilogo')">📊 Vai al riepilogo</button>
       </div>
     </div>`;
