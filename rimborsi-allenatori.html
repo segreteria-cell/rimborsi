@@ -732,7 +732,13 @@
       <div class="topbar-title">Profilo</div>
       <div class="topbar-sub" id="profilo-email">—</div>
     </div>
-    <div class="avatar" id="profilo-avatar">?</div>
+    <div class="avatar" id="profilo-avatar" onclick="document.getElementById('inp-foto').click()" 
+      style="cursor:pointer;position:relative;overflow:hidden;" title="Clicca per cambiare foto">
+      <span id="profilo-avatar-text">?</span>
+      <img id="profilo-avatar-img" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:50%;">
+      <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.4);color:white;font-size:10px;text-align:center;padding:2px;">📷</div>
+    </div>
+    <input type="file" id="inp-foto" accept="image/*" style="display:none;" onchange="caricaFotoProfilo(this)">
   </div>
   <div class="content">
     <div class="card">
@@ -2140,6 +2146,8 @@ function showProfilo() {
   if (avatar) avatar.textContent = (currentProfilo.nome[0] || '?').toUpperCase();
   document.getElementById('inp-telefono').value = currentProfilo.telefono || '';
   document.getElementById('inp-casa').value = currentProfilo.indirizzo_casa || '';
+  // Mostra foto profilo
+  aggiornaAvatarUI(currentProfilo.foto_url, currentProfilo.nome);
   showScreen('profilo');
 }
 
@@ -2218,6 +2226,56 @@ async function salvaIndirizzoCasa() {
   if (error) { showAlert('casa-alert', 'Errore nel salvataggio', 'error'); return; }
   currentProfilo.indirizzo_casa = casa;
   showAlert('casa-alert', '✅ Indirizzo salvato!', 'success');
+}
+
+function avatarHtml(nome, cognome, fotoUrl, size=36, color='var(--blue)') {
+  const initials = ((nome||'')[0]+(cognome||'')[0]).toUpperCase() || '?';
+  if (fotoUrl) return `<img src="${fotoUrl}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0;">`;
+  return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};color:white;display:flex;align-items:center;justify-content:center;font-size:${Math.floor(size*0.35)}px;font-weight:700;flex-shrink:0;">${initials}</div>`;
+}
+
+function aggiornaAvatarUI(fotoUrl, nome) {
+  const img = document.getElementById('profilo-avatar-img');
+  const txt = document.getElementById('profilo-avatar-text');
+  const avatar = document.getElementById('profilo-avatar');
+  if (fotoUrl) {
+    img.src = fotoUrl;
+    img.style.display = 'block';
+    if (txt) txt.style.display = 'none';
+    if (avatar) avatar.style.background = 'transparent';
+  } else {
+    if (img) img.style.display = 'none';
+    if (txt) { txt.style.display = ''; txt.textContent = (nome?.[0] || '?').toUpperCase(); }
+  }
+}
+
+async function caricaFotoProfilo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { alert('La foto è troppo grande. Max 5MB.'); return; }
+
+  // Preview immediata
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById('profilo-avatar-img');
+    const txt = document.getElementById('profilo-avatar-text');
+    img.src = e.target.result;
+    img.style.display = 'block';
+    if (txt) txt.style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+
+  // Upload su Supabase Storage
+  const ext = file.name.split('.').pop();
+  const path = `foto_profilo/${currentUser.id}.${ext}`;
+  const { error } = await sb.storage.from('allegati').upload(path, file, { upsert: true });
+  if (error) { alert('Errore upload: ' + error.message); return; }
+
+  const { data: urlData } = sb.storage.from('allegati').getPublicUrl(path);
+  const fotoUrl = urlData.publicUrl + '?t=' + Date.now(); // evita cache
+
+  await sb.from('profili').update({ foto_url: fotoUrl }).eq('id', currentUser.id);
+  currentProfilo.foto_url = fotoUrl;
 }
 
 async function salvaTelefono() {
@@ -3342,9 +3400,7 @@ async function loadAdminContent(tab) {
     el.innerHTML = data.map(al => `
       <div class="admin-card" style="margin-bottom:12px;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-          <div style="width:40px;height:40px;border-radius:50%;background:var(--blue);color:white;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0;">
-            ${(al.nome?.[0]||'?').toUpperCase()}${(al.cognome?.[0]||'').toUpperCase()}
-          </div>
+          ${avatarHtml(al.nome, al.cognome, al.foto_url, 44, 'var(--blue)')}
           <div>
             <div style="font-size:16px;font-weight:700;">${al.nome} ${al.cognome}</div>
             <div style="font-size:12px;color:var(--muted)">${al.email}</div>
@@ -3607,7 +3663,7 @@ async function reportPagamentiData() {
   if (!dataSel) { alert('Seleziona una data di pagamento'); return; }
 
   const { data } = await sb.from('richieste')
-    .select('*, gare(nome, data), spese(*), profili(nome, cognome)')
+    .select('*, gare(nome, data), spese(*), profili(nome, cognome, foto_url)')
     .eq('stato', 'approvata')
     .eq('pagata', true)
     .gte('pagata_il', dataSel + 'T00:00:00')
@@ -3649,8 +3705,14 @@ async function reportPagamentiData() {
 
   ${Object.entries(perAllenatore).sort((a,b) => a[0].localeCompare(b[0],'it')).map(([nome, richieste]) => {
     const totAl = richieste.reduce((s,r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo,0) - (r.acconto||0), 0);
-    return `<div class="al-header">
-      <span>👤 ${nome}</span>
+    const foto = richieste[0]?.profili?.foto_url;
+    const initials = nome.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase();
+    const fotoTag = foto 
+      ? `<img src="${foto}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;margin-right:10px;">` 
+      : `<div style="width:36px;height:36px;border-radius:50%;background:#0055CC;color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;margin-right:10px;flex-shrink:0;">${initials}</div>`;
+    return `<div class="al-header" style="display:flex;align-items:center;">
+      ${fotoTag}
+      <span style="flex:1;">${nome}</span>
       <span style="color:#00875A;font-size:15px;">€${totAl.toFixed(2)}</span>
     </div>
     <div class="al-body">
@@ -3693,7 +3755,7 @@ async function reportPagamentiAllenatore() {
   if (!dal || !al) { alert('Seleziona il periodo'); return; }
 
   const { data, error } = await sb.from('richieste')
-    .select('*, gare(nome, data), spese(*), profili(nome, cognome, iban)')
+    .select('*, gare(nome, data), spese(*), profili(nome, cognome, iban, foto_url)')
     .eq('allenatore_id', allenId)
     .eq('stato', 'approvata')
     .eq('pagata', true)
@@ -3706,9 +3768,11 @@ async function reportPagamentiAllenatore() {
   const profilo = data[0].profili;
   const nomeAl = profilo ? `${profilo.nome} ${profilo.cognome}` : '—';
   const iban = profilo?.iban || '—';
+  const fotoUrl = profilo?.foto_url || '';
   const totale = data.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
   const dalStr = new Date(dal).toLocaleDateString('it-IT');
   const alStr = new Date(al).toLocaleDateString('it-IT');
+  const fotoHtml = fotoUrl ? `<img src="${fotoUrl}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;margin-right:16px;flex-shrink:0;">` : `<div style="width:60px;height:60px;border-radius:50%;background:#0055CC;color:white;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;margin-right:16px;flex-shrink:0;">${(profilo?.nome?.[0]||'?').toUpperCase()}${(profilo?.cognome?.[0]||'').toUpperCase()}</div>`;
 
   // Raggruppa per data pagamento
   const perData = {};
@@ -3739,9 +3803,12 @@ async function reportPagamentiAllenatore() {
   <h1>Report Pagamenti Rimborsi</h1>
   <div class="sub">Periodo: ${dalStr} — ${alStr} · Generato il ${new Date().toLocaleDateString('it-IT')}</div>
 
-  <div class="allenatore-box">
-    <div style="font-size:15px;font-weight:700;margin-bottom:4px;">👤 ${nomeAl}</div>
-    <div style="font-size:12px;color:#555;">${data.length} pagamenti · IBAN: ${iban}</div>
+  <div class="allenatore-box" style="display:flex;align-items:center;">
+    ${fotoHtml}
+    <div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px;">👤 ${nomeAl}</div>
+      <div style="font-size:12px;color:#555;">${data.length} pagamenti · IBAN: ${iban}</div>
+    </div>
   </div>
 
   ${Object.entries(perData).map(([dataPag, richieste]) => {
