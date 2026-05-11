@@ -3364,8 +3364,9 @@ async function loadAdminContent(tab) {
 
   if (tab === 'report') {
     el.innerHTML = `
-      <div class="card">
-        <div class="card-title" style="margin-bottom:12px;">📊 Report rimborsi</div>
+      <!-- REPORT RIMBORSI (già esistente) -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title" style="margin-bottom:12px;">📊 Report rimborsi per periodo</div>
         <div class="field">
           <label>Dal</label>
           <input type="date" id="report-dal" value="${new Date(new Date().getFullYear()-1, 9, 1).toISOString().split('T')[0]}">
@@ -3376,7 +3377,52 @@ async function loadAdminContent(tab) {
         </div>
         <button class="btn btn-primary" onclick="generaReport()">Genera report</button>
       </div>
+
+      <!-- REPORT PAGAMENTI -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title" style="margin-bottom:4px;">💰 Report pagamenti effettuati</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Elenco pagamenti effettuati fino alla data selezionata</div>
+        <div class="field">
+          <label>Al giorno del</label>
+          <input type="date" id="report-pag-data" value="${new Date().toISOString().split('T')[0]}">
+        </div>
+        <button class="btn btn-primary" onclick="reportPagamentiData()">🖨️ Stampa PDF pagamenti per data</button>
+      </div>
+
+      <!-- REPORT PER ALLENATORE -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title" style="margin-bottom:4px;">👤 Report pagamenti per allenatore</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Riepilogo completo di tutti i pagamenti ricevuti da un allenatore</div>
+        <div class="field">
+          <label>Allenatore</label>
+          <select id="report-pag-allenatore">
+            <option value="">Seleziona allenatore...</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <div class="field" style="flex:1;">
+            <label>Dal</label>
+            <input type="date" id="report-pag-al-dal" value="${new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0]}">
+          </div>
+          <div class="field" style="flex:1;">
+            <label>Al</label>
+            <input type="date" id="report-pag-al-al" value="${new Date().toISOString().split('T')[0]}">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="reportPagamentiAllenatore()">🖨️ Stampa PDF pagamenti allenatore</button>
+      </div>
+
       <div id="report-output"></div>`;
+
+    // Carica allenatori nella select
+    const { data: allenatori } = await sb.from('profili').select('id, nome, cognome').eq('ruolo','allenatore').order('cognome');
+    const sel = document.getElementById('report-pag-allenatore');
+    (allenatori||[]).forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.id;
+      opt.textContent = `${a.nome} ${a.cognome}`;
+      sel.appendChild(opt);
+    });
     return;
   }
 
@@ -3534,6 +3580,198 @@ async function loadAdminContent(tab) {
     }).join('');
   }
   el.innerHTML = htmlContent;
+}
+
+async function reportPagamentiData() {
+  const al = document.getElementById('report-pag-data').value;
+  if (!al) { alert('Seleziona una data'); return; }
+
+  const { data } = await sb.from('richieste')
+    .select('*, gare(nome, data), profili(nome, cognome)')
+    .eq('stato', 'approvata')
+    .eq('pagata', true)
+    .lte('pagata_il', al + 'T23:59:59')
+    .order('pagata_il', { ascending: true });
+
+  if (!data || !data.length) { alert('Nessun pagamento trovato'); return; }
+
+  // Raggruppa per data pagamento poi per allenatore
+  const perData = {};
+  data.forEach(r => {
+    const dataPag = r.pagata_il ? new Date(r.pagata_il).toLocaleDateString('it-IT') : '—';
+    const nome = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || '—');
+    if (!perData[dataPag]) perData[dataPag] = {};
+    if (!perData[dataPag][nome]) perData[dataPag][nome] = { richieste: [], totale: 0 };
+    const tot = 0; // calcolato dopo
+    perData[dataPag][nome].richieste.push(r);
+  });
+
+  const totGlobale = data.reduce((s, r) => s + (r.spese_tot || 0), 0);
+  const dataReport = new Date(al).toLocaleDateString('it-IT');
+
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Report Pagamenti al ${dataReport}</title>
+  <style>
+    body{font-family:Arial,sans-serif;padding:30px;color:#1a1a2e;max-width:800px;margin:0 auto;font-size:13px;}
+    h1{color:#0055CC;font-size:20px;margin-bottom:4px;}
+    .sub{color:#888;font-size:12px;margin-bottom:20px;}
+    .data-header{background:#EBF2FF;padding:10px 14px;border-radius:6px 6px 0 0;font-weight:700;color:#0055CC;margin-top:16px;display:flex;justify-content:space-between;}
+    .data-body{border:1px solid #e2e6f0;border-top:none;border-radius:0 0 6px 6px;margin-bottom:8px;}
+    table{width:100%;border-collapse:collapse;}
+    th{text-align:left;color:#888;font-size:11px;padding:6px 12px;font-weight:600;background:#f9f9f9;}
+    td{padding:7px 12px;border-top:1px solid #f0f0f0;font-size:12px;}
+    .tot-row td{font-weight:700;background:#f5f5f5;}
+    .grand-total{background:#0055CC;color:white;padding:12px 16px;border-radius:8px;margin-top:20px;display:flex;justify-content:space-between;font-weight:700;font-size:16px;}
+    @media print{button{display:none!important}}
+  </style></head><body>
+  <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png" style="height:35px;margin-bottom:10px;">
+  <h1>Report Pagamenti Rimborsi</h1>
+  <div class="sub">Pagamenti effettuati al ${dataReport} · Generato il ${new Date().toLocaleDateString('it-IT')}</div>
+
+  ${Object.entries(perData).map(([dataPag, allenatori]) => {
+    const totData = Object.values(allenatori).reduce((s, al) => {
+      return s + al.richieste.reduce((ss, r) => ss + (r.km||0)*0.25, 0);
+    }, 0);
+    return `<div class="data-header">
+      <span>📅 Pagamento del ${dataPag}</span>
+      <span>${Object.keys(allenatori).length} allenatori</span>
+    </div>
+    <div class="data-body">
+      <table>
+        <thead><tr>
+          <th>Allenatore</th><th>Gara</th><th>Data gara</th><th style="text-align:right">Importo</th>
+        </tr></thead>
+        <tbody>
+          ${Object.entries(allenatori).map(([nome, al]) => {
+            return al.richieste.map((r, i) => {
+              const imp = ((r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0));
+              return `<tr>
+                <td>${i===0 ? `<strong>${nome}</strong>` : ''}</td>
+                <td>${r.gare?.nome || '—'}</td>
+                <td>${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : '—'}</td>
+                <td style="text-align:right">€${imp.toFixed(2)}</td>
+              </tr>`;
+            }).join('');
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }).join('')}
+
+  <div class="grand-total">
+    <span>TOTALE COMPLESSIVO PAGATO</span>
+    <span>€${data.reduce((s,r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0).toFixed(2)}</span>
+  </div>
+
+  <div style="margin-top:20px;">
+    <button onclick="window.print()" style="padding:10px 24px;background:#0055CC;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;">🖨️ Stampa / Salva PDF</button>
+    <button onclick="window.close()" style="padding:10px 24px;background:#eee;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-left:8px;">Chiudi</button>
+  </div>
+  </body></html>`);
+  w.document.close();
+}
+
+async function reportPagamentiAllenatore() {
+  const allenId = document.getElementById('report-pag-allenatore').value;
+  const dal = document.getElementById('report-pag-al-dal').value;
+  const al = document.getElementById('report-pag-al-al').value;
+  if (!allenId) { alert('Seleziona un allenatore'); return; }
+  if (!dal || !al) { alert('Seleziona il periodo'); return; }
+
+  const { data, error } = await sb.from('richieste')
+    .select('*, gare(nome, data), spese(*), profili(nome, cognome, iban)')
+    .eq('allenatore_id', allenId)
+    .eq('stato', 'approvata')
+    .eq('pagata', true)
+    .gte('pagata_il', dal)
+    .lte('pagata_il', al + 'T23:59:59')
+    .order('pagata_il', { ascending: true });
+
+  if (!data || !data.length) { alert('Nessun pagamento trovato per questo allenatore nel periodo selezionato'); return; }
+
+  const profilo = data[0].profili;
+  const nomeAl = profilo ? `${profilo.nome} ${profilo.cognome}` : '—';
+  const iban = profilo?.iban || '—';
+  const totale = data.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
+  const dalStr = new Date(dal).toLocaleDateString('it-IT');
+  const alStr = new Date(al).toLocaleDateString('it-IT');
+
+  // Raggruppa per data pagamento
+  const perData = {};
+  data.forEach(r => {
+    const dataPag = r.pagata_il ? new Date(r.pagata_il).toLocaleDateString('it-IT') : '—';
+    if (!perData[dataPag]) perData[dataPag] = [];
+    perData[dataPag].push(r);
+  });
+
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Report Pagamenti — ${nomeAl}</title>
+  <style>
+    body{font-family:Arial,sans-serif;padding:30px;color:#1a1a2e;max-width:800px;margin:0 auto;font-size:13px;}
+    h1{color:#0055CC;font-size:20px;margin-bottom:4px;}
+    .sub{color:#888;font-size:12px;margin-bottom:16px;}
+    .allenatore-box{background:#EBF2FF;border-radius:8px;padding:12px 16px;margin-bottom:16px;}
+    .data-header{background:#f5f5f5;padding:8px 12px;border-radius:6px 6px 0 0;font-weight:700;color:#333;margin-top:16px;display:flex;justify-content:space-between;}
+    .data-body{border:1px solid #e2e6f0;border-top:none;border-radius:0 0 6px 6px;margin-bottom:8px;}
+    table{width:100%;border-collapse:collapse;}
+    th{text-align:left;color:#888;font-size:11px;padding:6px 12px;font-weight:600;background:#f9f9f9;}
+    td{padding:7px 12px;border-top:1px solid #f0f0f0;font-size:12px;}
+    .tot-row{background:#f5f5f5;font-weight:700;}
+    .grand-total{background:#0055CC;color:white;padding:12px 16px;border-radius:8px;margin-top:20px;display:flex;justify-content:space-between;font-weight:700;font-size:16px;}
+    @media print{button{display:none!important}}
+  </style></head><body>
+  <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png" style="height:35px;margin-bottom:10px;">
+  <h1>Report Pagamenti Rimborsi</h1>
+  <div class="sub">Periodo: ${dalStr} — ${alStr} · Generato il ${new Date().toLocaleDateString('it-IT')}</div>
+
+  <div class="allenatore-box">
+    <div style="font-size:15px;font-weight:700;margin-bottom:4px;">👤 ${nomeAl}</div>
+    <div style="font-size:12px;color:#555;">${data.length} pagamenti · IBAN: ${iban}</div>
+  </div>
+
+  ${Object.entries(perData).map(([dataPag, richieste]) => {
+    const totPag = richieste.reduce((s,r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
+    return `<div class="data-header">
+      <span>📅 Pagamento del ${dataPag}</span>
+      <span style="color:#00875A;">€${totPag.toFixed(2)}</span>
+    </div>
+    <div class="data-body">
+      <table>
+        <thead><tr>
+          <th>Gara</th><th>Data gara</th><th style="text-align:right">Km</th><th style="text-align:right">Importo</th>
+        </tr></thead>
+        <tbody>
+          ${richieste.map(r => {
+            const imp = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
+            return `<tr>
+              <td>${r.gare?.nome || '—'}</td>
+              <td>${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : '—'}</td>
+              <td style="text-align:right">${r.km||0} km</td>
+              <td style="text-align:right">€${imp.toFixed(2)}</td>
+            </tr>`;
+          }).join('')}
+          <tr class="tot-row">
+            <td colspan="3">Totale pagamento del ${dataPag}</td>
+            <td style="text-align:right;color:#0055CC;">€${totPag.toFixed(2)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
+  }).join('')}
+
+  <div class="grand-total">
+    <span>TOTALE COMPLESSIVO PAGATO A ${nomeAl.toUpperCase()}</span>
+    <span>€${totale.toFixed(2)}</span>
+  </div>
+
+  <div style="margin-top:20px;">
+    <button onclick="window.print()" style="padding:10px 24px;background:#0055CC;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;">🖨️ Stampa / Salva PDF</button>
+    <button onclick="window.close()" style="padding:10px 24px;background:#eee;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-left:8px;">Chiudi</button>
+  </div>
+  </body></html>`);
+  w.document.close();
 }
 
 async function generaReport() {
