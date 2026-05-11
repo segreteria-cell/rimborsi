@@ -3969,13 +3969,6 @@ async function generaReport() {
   w.document.close();
 }
 
-  const { data } = await sb.from('richieste')
-    .select('*, gare(nome, data), profili(nome, cognome), spese(*)')
-    .eq('stato', 'approvata')
-    .gte('creata_il', dal)
-    .lte('creata_il', al + 'T23:59:59')
-    .order('pagata_il', { ascending: true });
-
 async function stampaPDFReport(dal, al) {
   const { data } = await sb.from('richieste')
     .select('*, gare(nome, data), profili(nome, cognome), spese(*)')
