@@ -3392,8 +3392,8 @@ async function importaCompensiBulk(sovrascrivi) {
       anno: r.anno,
       data_incasso: r.dataIncasso
     };
-    if (r.inps > 0) record.inps = r.inps;
-    if (r.irpef > 0) record.irpef = r.irpef;
+    if (r.inps > 0) record.ritenuta_inps = r.inps;
+    if (r.irpef > 0) record.ritenuta_irpef = r.irpef;
     if (r.profilo) record.allenatore_id = r.profilo.id;
 
     const { error } = await sb.from('compensi').insert(record);
