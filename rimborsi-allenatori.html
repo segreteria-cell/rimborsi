@@ -2142,11 +2142,8 @@ function showProfilo() {
   document.getElementById('profilo-nome').textContent = currentProfilo.nome;
   document.getElementById('profilo-cognome').textContent = currentProfilo.cognome;
   document.getElementById('profilo-ruolo').textContent = currentProfilo.ruolo === 'admin' ? '🔐 Amministratore' : '🏊 Allenatore';
-  const avatar = document.getElementById('profilo-avatar');
-  if (avatar) avatar.textContent = (currentProfilo.nome[0] || '?').toUpperCase();
   document.getElementById('inp-telefono').value = currentProfilo.telefono || '';
   document.getElementById('inp-casa').value = currentProfilo.indirizzo_casa || '';
-  // Mostra foto profilo
   aggiornaAvatarUI(currentProfilo.foto_url, currentProfilo.nome);
   showScreen('profilo');
 }
