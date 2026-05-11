@@ -3288,47 +3288,52 @@ async function anteprimaExcel(input) {
     const nonAbbinati = excelImportData.filter(r => !r.profilo);
     const abbinati = excelImportData.filter(r => r.profilo);
 
-    anteprimaEl.innerHTML = `
-      <div class="card" style="margin-bottom:12px;">
-        <div class="card-title" style="margin-bottom:12px;">📋 Anteprima importazione — ${excelImportData.length} righe</div>
-        ${nonAbbinati.length ? `<div style="background:#FFF4E5;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;">
-          <b style="color:var(--orange);">⚠️ ${nonAbbinati.length} allenatori non abbinati</b> (non verranno importati):<br>
-          ${nonAbbinati.map(r=>`<span style="display:inline-block;background:#FFE0A0;border-radius:4px;padding:2px 6px;margin:2px;">${r.nomeExcel}</span>`).join('')}
-          <div style="font-size:11px;color:var(--muted);margin-top:6px;">Assicurati che nel DB il nome sia identico al file Excel (Cognome Nome)</div>
-        </div>` : ''}
-        <div style="overflow-x:auto;">
-          <table style="width:100%;border-collapse:collapse;font-size:13px;">
-            <thead><tr style="background:var(--blue);color:white;">
-              <th style="padding:8px;text-align:left;border-radius:6px 0 0 0;">Allenatore</th>
-              <th style="padding:8px;text-align:right;">Lordo</th>
-              <th style="padding:8px;text-align:right;">Netto</th>
-              <th style="padding:8px;text-align:center;">Mese</th>
-              <th style="padding:8px;text-align:center;border-radius:0 6px 0 0;">Stato</th>
-            </tr></thead>
-            <tbody>
-              ${excelImportData.map((r,i) => `
-                <tr style="background:${i%2?'var(--bg)':'white'};border-bottom:1px solid var(--border);">
-                  <td style="padding:8px;font-weight:500;">${r.nomeExcel}</td>
-                  <td style="padding:8px;text-align:right;">€${r.lordo.toFixed(2)}</td>
-                  <td style="padding:8px;text-align:right;">€${r.netto.toFixed(2)}</td>
-                  <td style="padding:8px;text-align:center;">${r.mese ? mesiNomi[r.mese] : '—'}</td>
-                  <td style="padding:8px;text-align:center;">
-                    ${r.profilo
-                      ? `<span style="color:var(--green);font-weight:600;">✅ Trovato</span>`
-                      : `<span style="color:var(--orange);font-weight:600;">⚠️ N/A</span>`}
-                  </td>
-                </tr>`).join('')}
-            </tbody>
-          </table>
-        </div>
-        ${abbinati.length || nonAbbinati.length ? `
-          <div style="margin-top:16px;padding:12px;background:var(--bg);border-radius:8px;font-size:13px;">
-            <b>${abbinati.length}</b> con profilo collegato
-            ${nonAbbinati.length ? ` · <b>${nonAbbinati.length}</b> senza profilo <span style="color:var(--muted);">(verranno collegati alla registrazione)</span>` : ''}
-          </div>
-          <button class="btn btn-primary" style="margin-top:12px;width:100%;" onclick="importaCompensiBulk()">
-            💾 Importa tutti i ${excelImportData.length} compensi
-          </button>` : '<div style="color:var(--orange);margin-top:12px;text-align:center;">Nessuna riga valida da importare</div>'}
+    const righeHtml = excelImportData.map((r,i) => {
+      const stato = r.profilo
+        ? '<span style="color:var(--green);font-weight:600;">✅ Trovato</span>'
+        : '<span style="color:var(--orange);font-weight:600;">⚠️ N/A</span>';
+      return '<tr style="background:' + (i%2?'var(--bg)':'white') + ';border-bottom:1px solid var(--border);">' +
+        '<td style="padding:8px;font-weight:500;">' + r.nomeExcel + '</td>' +
+        '<td style="padding:8px;text-align:right;">€' + r.lordo.toFixed(2) + '</td>' +
+        '<td style="padding:8px;text-align:right;">€' + r.netto.toFixed(2) + '</td>' +
+        '<td style="padding:8px;text-align:center;">' + (r.mese ? mesiNomi[r.mese] : '—') + '</td>' +
+        '<td style="padding:8px;text-align:center;">' + stato + '</td>' +
+        '</tr>';
+    }).join('');
+
+    const nonAbbinatiHtml = nonAbbinati.length
+      ? '<div style="background:#FFF4E5;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;">' +
+        '<b style="color:var(--orange);">⚠️ ' + nonAbbinati.length + ' allenatori non ancora registrati</b> (verranno importati senza ID):<br>' +
+        nonAbbinati.map(r => '<span style="display:inline-block;background:#FFE0A0;border-radius:4px;padding:2px 6px;margin:2px;">' + r.nomeExcel + '</span>').join('') +
+        '<div style="font-size:11px;color:var(--muted);margin-top:6px;">Verranno collegati automaticamente quando si registreranno</div>' +
+        '</div>'
+      : '';
+
+    const riepilogoHtml = (abbinati.length || nonAbbinati.length)
+      ? '<div style="margin-top:16px;padding:12px;background:var(--bg);border-radius:8px;font-size:13px;">' +
+        '<b>' + abbinati.length + '</b> con profilo collegato' +
+        (nonAbbinati.length ? ' · <b>' + nonAbbinati.length + '</b> senza profilo <span style="color:var(--muted);">(verranno collegati alla registrazione)</span>' : '') +
+        '</div>' +
+        '<button class="btn btn-primary" style="margin-top:12px;width:100%;" onclick="importaCompensiBulk()">💾 Importa tutti i ' + excelImportData.length + ' compensi</button>'
+      : '<div style="color:var(--orange);margin-top:12px;text-align:center;">Nessuna riga valida da importare</div>';
+
+    anteprimaEl.innerHTML =
+      '<div class="card" style="margin-bottom:12px;">' +
+      '<div class="card-title" style="margin-bottom:12px;">📋 Anteprima importazione — ' + excelImportData.length + ' righe</div>' +
+      nonAbbinatiHtml +
+      '<div style="overflow-x:auto;">' +
+      '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+      '<thead><tr style="background:var(--blue);color:white;">' +
+      '<th style="padding:8px;text-align:left;">Allenatore</th>' +
+      '<th style="padding:8px;text-align:right;">Lordo</th>' +
+      '<th style="padding:8px;text-align:right;">Netto</th>' +
+      '<th style="padding:8px;text-align:center;">Mese</th>' +
+      '<th style="padding:8px;text-align:center;">Stato</th>' +
+      '</tr></thead>' +
+      '<tbody>' + righeHtml + '</tbody>' +
+      '</table></div>' +
+      riepilogoHtml +
+      '</div>';
   } catch(e) {
     anteprimaEl.innerHTML = '';
     showAlert('importa-alert', '❌ Errore nella lettura del file: ' + e.message, 'error');
@@ -3361,16 +3366,16 @@ async function importaCompensiBulk() {
   }
 
   excelImportData = [];
-  document.getElementById('importa-anteprima').innerHTML = `
-    <div class="card">
-      <div style="text-align:center;padding:20px;">
-        <div style="font-size:48px;margin-bottom:12px;">${err===0?'✅':'⚠️'}</div>
-        <div style="font-size:18px;font-weight:700;margin-bottom:6px;">${ok} compensi importati con successo</div>
-        ${err ? `<div style="color:var(--orange);font-size:14px;">${err} errori — controlla la console</div>` : ''}
-        <div style="font-size:13px;color:var(--muted);margin-top:8px;">Gli allenatori non ancora registrati verranno collegati automaticamente al momento della registrazione.</div>
-        <button class="btn btn-secondary" style="margin-top:16px;" onclick="compensiAdminTab('riepilogo')">📊 Vai al riepilogo</button>
-      </div>
-    </div>`;
+  const errHtml = err ? '<div style="color:var(--orange);font-size:14px;">' + err + ' errori — controlla la console</div>' : '';
+  document.getElementById('importa-anteprima').innerHTML =
+    '<div class="card">' +
+    '<div style="text-align:center;padding:20px;">' +
+    '<div style="font-size:48px;margin-bottom:12px;">' + (err===0?'✅':'⚠️') + '</div>' +
+    '<div style="font-size:18px;font-weight:700;margin-bottom:6px;">' + ok + ' compensi importati con successo</div>' +
+    errHtml +
+    '<div style="font-size:13px;color:var(--muted);margin-top:8px;">Gli allenatori non ancora registrati verranno collegati automaticamente al momento della registrazione.</div>' +
+    '<button class="btn btn-secondary" style="margin-top:16px;" onclick="compensiAdminTab(\'riepilogo\')">📊 Vai al riepilogo</button>' +
+    '</div></div>';
 }
 
 async function compensiAdminTab(tab) {
@@ -3386,25 +3391,21 @@ async function compensiAdminTab(tab) {
   const { data: esterni } = await sb.from('compensi_esterni').select('*').eq('anno', anno);
 
   if (tab === 'importa') {
-    el.innerHTML = `
-      <div class="card" style="margin-bottom:16px;">
-        <div class="card-title" style="margin-bottom:6px;">📤 Importa compensi da Excel</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">
-          Il file Excel deve avere le colonne: <b>ALLENATORE</b> (Cognome Nome), <b>LORDO</b>, <b>NETTO</b>, <b>MESE</b>, <b>DATA PAGAMENTO</b>
-        </div>
-        <div id="importa-alert"></div>
-        <div class="field">
-          <label>Seleziona file Excel (.xlsx)</label>
-          <div onclick="document.getElementById('inp-excel-import').click()"
-            style="padding:20px;background:var(--bg);border:2px dashed var(--border);border-radius:10px;cursor:pointer;text-align:center;">
-            <div style="font-size:32px;margin-bottom:6px;">📂</div>
-            <div style="font-size:14px;font-weight:600;color:var(--blue);">Tocca per selezionare il file</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:4px;" id="excel-filename">Nessun file selezionato</div>
-          </div>
-          <input type="file" id="inp-excel-import" accept=".xlsx,.xls" style="display:none;">
-        </div>
-      </div>
-      <div id="importa-anteprima"></div>`;
+    el.innerHTML =
+      '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="card-title" style="margin-bottom:6px;">📤 Importa compensi da Excel</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Il file Excel deve avere le colonne: <b>ALLENATORE</b> (Cognome Nome), <b>LORDO</b>, <b>NETTO</b>, <b>MESE</b>, <b>DATA PAGAMENTO</b></div>' +
+      '<div id="importa-alert"></div>' +
+      '<div class="field">' +
+      '<label>Seleziona file Excel (.xlsx)</label>' +
+      '<div onclick="document.getElementById(\'inp-excel-import\').click()" style="padding:20px;background:var(--bg);border:2px dashed var(--border);border-radius:10px;cursor:pointer;text-align:center;">' +
+      '<div style="font-size:32px;margin-bottom:6px;">📂</div>' +
+      '<div style="font-size:14px;font-weight:600;color:var(--blue);">Tocca per selezionare il file</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin-top:4px;" id="excel-filename">Nessun file selezionato</div>' +
+      '</div>' +
+      '<input type="file" id="inp-excel-import" accept=".xlsx,.xls" style="display:none;">' +
+      '</div></div>' +
+      '<div id="importa-anteprima"></div>';
 
     // Attach listener dopo che il DOM è pronto
     setTimeout(() => {
