@@ -3184,7 +3184,7 @@ async function compensiAdminTab(tab) {
           <div style="display:flex;align-items:center;gap:8px;">
             <div style="width:32px;height:32px;border-radius:50%;background:var(--green);color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">${d.profili?.nome?.[0]||'?'}${d.profili?.cognome?.[0]||'?'}</div>
             <div>
-              <div style="font-size:13px;font-weight:500;">${d.profili?.nome} ${d.profili?.cognome}</div>
+              <div style="font-size:13px;font-weight:500;">${d.profili?.cognome} ${d.profili?.nome}</div>
               <div style="font-size:11px;color:var(--muted);">${mesi[d.mese]} ${d.anno} · €${d.tot_lordo.toFixed(0)} · ${new Date(d.data_presentazione).toLocaleDateString('it-IT')}</div>
             </div>
           </div>
@@ -3308,7 +3308,7 @@ async function loadAdminContent(tab) {
     const perAllenatore = {};
     data.forEach(r => {
       const key = r.allenatore_id || r.allenatore_nome || 'sconosciuto';
-      const nomeDisplay = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || 'Sconosciuto');
+      const nomeDisplay = r.allenatore_nome || (r.profili ? `${r.profili.cognome} ${r.profili.nome}` : 'Sconosciuto');
       const emailDisplay = r.profili?.email || '—';
       const telefonoDisplay = r.profili?.telefono || '';
       if (!perAllenatore[key]) perAllenatore[key] = { nome: nomeDisplay, email: emailDisplay, telefono: telefonoDisplay, richieste: [] };
@@ -3598,7 +3598,7 @@ async function loadAdminContent(tab) {
       </button>` : '';
     htmlContent = btnElimina + data.map(r => {
       const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
-      const nomeAl = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || '—');
+      const nomeAl = r.allenatore_nome || (r.profili ? `${r.profili.cognome} ${r.profili.nome}` : '—');
       return `<div class="admin-card" onclick="showDettaglio('${r.id}','admin')">
         <div class="admin-card-top">
           <div>
@@ -3622,7 +3622,7 @@ async function loadAdminContent(tab) {
     const perAllenatore = {};
     data.forEach(r => {
       const key = r.allenatore_id || r.allenatore_nome || 'sconosciuto';
-      const nomeDisplay = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || 'Sconosciuto');
+      const nomeDisplay = r.allenatore_nome || (r.profili ? `${r.profili.cognome} ${r.profili.nome}` : 'Sconosciuto');
       if (!perAllenatore[key]) perAllenatore[key] = { profilo: r.profili, nome: nomeDisplay, richieste: [] };
       perAllenatore[key].richieste.push(r);
     });
@@ -3688,7 +3688,7 @@ async function reportPagamentiData() {
   // Raggruppa per allenatore
   const perAllenatore = {};
   data.forEach(r => {
-    const nome = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || '—');
+    const nome = r.allenatore_nome || (r.profili ? `${r.profili.cognome} ${r.profili.nome}` : '—');
     if (!perAllenatore[nome]) perAllenatore[nome] = [];
     perAllenatore[nome].push(r);
   });
@@ -3987,7 +3987,7 @@ async function stampaPDFReport(dal, al) {
   const perAlDaPagare = {};
   daPagare.forEach(r => {
     const key = r.allenatore_id || r.allenatore_nome;
-    const nome = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || '—');
+    const nome = r.allenatore_nome || (r.profili ? `${r.profili.cognome} ${r.profili.nome}` : '—');
     if (!perAlDaPagare[key]) perAlDaPagare[key] = { nome, richieste: [] };
     perAlDaPagare[key].richieste.push(r);
   });
@@ -3996,7 +3996,7 @@ async function stampaPDFReport(dal, al) {
   pagate.forEach(r => {
     const dataPag = r.pagata_il ? new Date(r.pagata_il).toLocaleDateString('it-IT') : 'Data non specificata';
     const key = r.allenatore_id || r.allenatore_nome;
-    const nome = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || '—');
+    const nome = r.allenatore_nome || (r.profili ? `${r.profili.cognome} ${r.profili.nome}` : '—');
     if (!perData[dataPag]) perData[dataPag] = {};
     if (!perData[dataPag][key]) perData[dataPag][key] = { nome, richieste: [] };
     perData[dataPag][key].richieste.push(r);
