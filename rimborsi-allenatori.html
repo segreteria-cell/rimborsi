@@ -3355,8 +3355,7 @@ async function importaCompensiBulk() {
       netto: r.netto,
       mese: r.mese,
       anno: r.anno,
-      data_incasso: r.dataIncasso,
-      fonte: 'superbanuoto'
+      data_incasso: r.dataIncasso
     };
     // Aggiungi allenatore_id solo se il profilo esiste
     if (r.profilo) record.allenatore_id = r.profilo.id;
