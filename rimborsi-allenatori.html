@@ -1404,14 +1404,19 @@ async function salvaCompensoAdmin() {
   const data = document.getElementById('ca-data').value;
   const note = document.getElementById('ca-note').value.trim();
   if (!allenId || !lordo || !netto) { showAlert('compensi-admin-alert', 'Compila tutti i campi obbligatori', 'error'); return; }
+
+  // Recupera cognome nome allenatore
+  const { data: prof } = await sb.from('profili').select('nome, cognome').eq('id', allenId).single();
+  const allenNome = prof ? `${prof.cognome} ${prof.nome}` : null;
+
   const { error } = await sb.from('compensi').insert({
-    allenatore_id: allenId, mese, anno, lordo,
+    allenatore_id: allenId, allenatore_nome: allenNome, mese, anno, lordo,
     ritenuta_inps: inps, ritenuta_irpef: irpef, netto,
     data_incasso: data || null, note: note || null
   });
   if (error) { showAlert('compensi-admin-alert', 'Errore: ' + error.message, 'error'); return; }
   showAlert('compensi-admin-alert', '✅ Compenso salvato!', 'success');
-  setTimeout(() => loadAdminContent('compensi'), 1500);
+  setTimeout(() => compensiAdminTab('riepilogo'), 1500);
 }
 
 async function loadDichiarazioneStatus(anno, mese) {
