@@ -1186,6 +1186,7 @@ let kmCalcolati = 0;
 let currentRichiestaId = null;
 let prevScreen = 'home';
 let adminCurrentTab = 'attesa';
+let riepilogoAnnoSelezionato = new Date().getFullYear();
 
 // ===== INIT =====
 window.addEventListener('DOMContentLoaded', async () => {
@@ -3419,7 +3420,7 @@ async function compensiAdminTab(tab) {
   });
   const el = document.getElementById('admin-compensi-content');
   el.innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
-  const anno = new Date().getFullYear();
+  const anno = tab === 'riepilogo' ? riepilogoAnnoSelezionato : new Date().getFullYear();
   const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
   const { data: allenatori } = await sb.from('profili').select('*').eq('ruolo','allenatore').order('cognome');
   const { data: tutti } = await sb.from('compensi').select('*').eq('anno', anno);
@@ -3526,7 +3527,16 @@ async function compensiAdminTab(tab) {
   } else {
     // RIEPILOGO
     const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
-    el.innerHTML = `<div class="section-title">Riepilogo allenatori — ${anno}</div>` +
+    const anniDisponibili = [anno-1, anno, anno+1];
+    const seletoreAnnoHtml = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">' +
+      '<div class="section-title" style="margin-bottom:0;">Riepilogo allenatori</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;">' +
+      '<span style="font-size:13px;color:var(--muted);">Anno:</span>' +
+      '<div style="display:flex;gap:4px;">' +
+      anniDisponibili.map(a => '<button onclick="riepilogoAnnoSelezionato=' + a + ';compensiAdminTab(\'riepilogo\')" style="padding:6px 12px;border-radius:8px;border:1.5px solid ' + (a===anno?'var(--blue)':'var(--border)') + ';background:' + (a===anno?'var(--blue)':'white') + ';color:' + (a===anno?'white':'var(--text)') + ';font-weight:' + (a===anno?'700':'400') + ';font-size:13px;cursor:pointer;">' + a + '</button>').join('') +
+      '</div></div></div>';
+
+    el.innerHTML = seletoreAnnoHtml +
       (allenatori||[]).map((al, idx) => {
         const compAl = (tutti||[]).filter(c => c.allenatore_id === al.id).sort((a,b) => b.mese - a.mese);
         const compExt = (esterni||[]).filter(c => c.allenatore_id === al.id);
