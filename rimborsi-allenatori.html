@@ -3865,8 +3865,104 @@ async function generaReport() {
   const al = document.getElementById('report-al').value;
   if (!dal || !al) { alert('Inserisci le date'); return; }
 
-  const out = document.getElementById('report-output');
-  out.innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
+  const { data } = await sb.from('richieste')
+    .select('*, gare(nome, data), profili(nome, cognome, foto_url), spese(*)')
+    .eq('stato', 'approvata')
+    .gte('creata_il', dal)
+    .lte('creata_il', al + 'T23:59:59')
+    .order('allenatore_nome', { ascending: true });
+
+  if (!data || data.length === 0) { alert('Nessuna richiesta nel periodo selezionato'); return; }
+
+  const dalStr = new Date(dal).toLocaleDateString('it-IT');
+  const alStr = new Date(al).toLocaleDateString('it-IT');
+  const daPagare = data.filter(r => !r.pagata);
+  const pagate = data.filter(r => r.pagata);
+  const totDaPagare = daPagare.reduce((s,r) => s+(r.spese||[]).reduce((ss,sp)=>ss+sp.importo,0)-(r.acconto||0), 0);
+  const totPagato = pagate.reduce((s,r) => s+(r.spese||[]).reduce((ss,sp)=>ss+sp.importo,0)-(r.acconto||0), 0);
+
+  // Raggruppa per allenatore
+  const raggruppa = (richieste) => {
+    const map = {};
+    richieste.forEach(r => {
+      const key = r.allenatore_nome || (r.profili ? `${r.profili.cognome} ${r.profili.nome}` : '—');
+      if (!map[key]) map[key] = { nome: key, foto: r.profili?.foto_url, richieste: [] };
+      map[key].richieste.push(r);
+    });
+    return Object.values(map).sort((a,b) => a.nome.localeCompare(b.nome, 'it'));
+  };
+
+  const renderRighe = (richieste) => richieste.map(r => {
+    const tot = (r.spese||[]).reduce((s,sp)=>s+sp.importo,0)-(r.acconto||0);
+    return `<tr>
+      <td>${r.gare?.nome||'—'}</td>
+      <td>${r.gare?.data?new Date(r.gare.data).toLocaleDateString('it-IT'):'—'}</td>
+      <td style="text-align:right">${r.km||0} km</td>
+      <td style="text-align:right;font-weight:600">€${tot.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+
+  const renderGruppo = (gruppo, bg) => gruppo.map(al => {
+    const tot = al.richieste.reduce((s,r)=>s+(r.spese||[]).reduce((ss,sp)=>ss+sp.importo,0)-(r.acconto||0),0);
+    const fotoHtml = al.foto 
+      ? `<img src="${al.foto}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;">` 
+      : `<div style="width:32px;height:32px;border-radius:50%;background:#0055CC;color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-right:8px;">${al.nome.split(' ').map(p=>p[0]).join('').slice(0,2)}</div>`;
+    return `<div style="margin-bottom:12px;border:1px solid #e2e6f0;border-radius:8px;overflow:hidden;">
+      <div style="background:${bg};padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;">${fotoHtml}<strong>${al.nome}</strong></div>
+        <strong style="color:#00875A;">€${tot.toFixed(2)}</strong>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr style="background:#f9f9f9;">
+          <th style="padding:5px 10px;text-align:left;">Gara</th>
+          <th style="padding:5px 10px;text-align:left;">Data</th>
+          <th style="padding:5px 10px;text-align:right;">Km</th>
+          <th style="padding:5px 10px;text-align:right;">Importo</th>
+        </tr></thead>
+        <tbody>${renderRighe(al.richieste)}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Report Rimborsi ${dalStr} — ${alStr}</title>
+  <style>
+    body{font-family:Arial,sans-serif;padding:30px;color:#1a1a2e;max-width:800px;margin:0 auto;font-size:13px;}
+    h1{color:#0055CC;font-size:20px;margin-bottom:4px;}
+    .sub{color:#888;font-size:12px;margin-bottom:20px;}
+    table{width:100%;border-collapse:collapse;}
+    td{padding:6px 10px;border-top:1px solid #f0f0f0;}
+    .totbox{border-radius:8px;padding:12px 16px;display:flex;justify-content:space-between;font-weight:700;font-size:15px;margin-bottom:8px;}
+    @media print{button{display:none!important}}
+  </style></head><body>
+  <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png" style="height:35px;margin-bottom:10px;">
+  <h1>Report Rimborsi</h1>
+  <div class="sub">Periodo: ${dalStr} — ${alStr} · Generato il ${new Date().toLocaleDateString('it-IT')}</div>
+
+  <div class="totbox" style="background:#FFF4E5;color:#FF8C00;">
+    <span>⏳ Da pagare</span><span>€${totDaPagare.toFixed(2)}</span>
+  </div>
+  <div class="totbox" style="background:#E3F5EC;color:#00875A;">
+    <span>✅ Già pagato</span><span>€${totPagato.toFixed(2)}</span>
+  </div>
+  <div class="totbox" style="background:#EBF2FF;color:#0055CC;margin-bottom:24px;">
+    <span>📊 Totale complessivo</span><span>€${(totDaPagare+totPagato).toFixed(2)}</span>
+  </div>
+
+  ${daPagare.length > 0 ? `<h2 style="color:#FF8C00;font-size:15px;margin-bottom:12px;">⏳ Da pagare (${daPagare.length})</h2>
+  ${renderGruppo(raggruppa(daPagare), '#FFF4E5')}` : ''}
+
+  ${pagate.length > 0 ? `<h2 style="color:#00875A;font-size:15px;margin:20px 0 12px;">✅ Già pagati (${pagate.length})</h2>
+  ${renderGruppo(raggruppa(pagate), '#E3F5EC')}` : ''}
+
+  <div style="margin-top:24px;">
+    <button onclick="window.print()" style="padding:10px 24px;background:#0055CC;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;">🖨️ Stampa / Salva PDF</button>
+    <button onclick="window.close()" style="padding:10px 24px;background:#eee;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-left:8px;">Chiudi</button>
+  </div>
+  </body></html>`);
+  w.document.close();
+}
 
   const { data } = await sb.from('richieste')
     .select('*, gare(nome, data), profili(nome, cognome), spese(*)')
@@ -3874,147 +3970,6 @@ async function generaReport() {
     .gte('creata_il', dal)
     .lte('creata_il', al + 'T23:59:59')
     .order('pagata_il', { ascending: true });
-
-  if (!data || data.length === 0) {
-    out.innerHTML = '<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Nessuna richiesta nel periodo selezionato</div></div>';
-    return;
-  }
-
-  // Separa pagate e da pagare
-  const daPagare = data.filter(r => !r.pagata);
-  const pagate = data.filter(r => r.pagata);
-
-  // Totali generali
-  const totDaPagare = daPagare.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
-  const totPagato = pagate.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0) - (r.acconto||0), 0);
-  const totTot = totDaPagare + totPagato;
-
-  // Raggruppa DA PAGARE per allenatore
-  const perAlDaPagare = {};
-  daPagare.forEach(r => {
-    const key = r.allenatore_id || r.allenatore_nome || 'sconosciuto';
-    const nome = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || 'Sconosciuto');
-    if (!perAlDaPagare[key]) perAlDaPagare[key] = { nome, richieste: [] };
-    perAlDaPagare[key].richieste.push(r);
-  });
-  const sortedDaPagare = Object.values(perAlDaPagare).sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
-
-  // Raggruppa PAGATE per data di pagamento poi per allenatore
-  const perData = {};
-  pagate.forEach(r => {
-    const dataPag = r.pagata_il ? new Date(r.pagata_il).toLocaleDateString('it-IT') : 'Data non specificata';
-    const key = r.allenatore_id || r.allenatore_nome || 'sconosciuto';
-    const nome = r.profili ? `${r.profili.nome} ${r.profili.cognome}` : (r.allenatore_nome || 'Sconosciuto');
-    if (!perData[dataPag]) perData[dataPag] = {};
-    if (!perData[dataPag][key]) perData[dataPag][key] = { nome, richieste: [] };
-    perData[dataPag][key].richieste.push(r);
-  });
-  const sortedDate = Object.keys(perData).sort((a, b) => new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-')));
-
-  const renderRichieste = (richieste) => richieste.map(r => {
-    const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
-    return `<tr>
-      <td style="padding:6px 8px;font-size:13px;">${r.gare?.nome || '—'}</td>
-      <td style="padding:6px 8px;font-size:13px;color:var(--muted)">${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : '—'}</td>
-      <td style="padding:6px 8px;font-size:13px;text-align:right;color:var(--muted)">${r.km}</td>
-      <td style="padding:6px 8px;font-size:13px;text-align:right;font-weight:600">€${tot.toFixed(2)}</td>
-    </tr>`;
-  }).join('');
-
-  const renderAllenatore = (al, color, idx, prefix) => {
-    const tot = al.richieste.reduce((s,r) => s+(r.spese||[]).reduce((ss,sp) => ss+sp.importo,0)-(r.acconto||0), 0);
-    const initials = al.nome.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase();
-    const colId = `${prefix}-${idx}`;
-    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;overflow:hidden;">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer;background:var(--white);" onclick="toggleCollapse('${colId}',this)">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="width:32px;height:32px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;">${initials}</div>
-          <div>
-            <div style="font-size:14px;font-weight:600;">${al.nome}</div>
-            <div style="font-size:11px;color:var(--muted)">${al.richieste.length} richieste</div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:15px;font-weight:700;color:${color}">€${tot.toFixed(2)}</span>
-          <span id="arrow-${colId}" style="transition:transform 0.2s;">▼</span>
-        </div>
-      </div>
-      <div id="${colId}" style="display:none;border-top:1px solid var(--border);">
-        <table style="width:100%;border-collapse:collapse;background:var(--bg);">
-          <thead><tr style="font-size:11px;color:var(--muted);">
-            <th style="padding:6px 8px;text-align:left;font-weight:600;">GARA</th>
-            <th style="padding:6px 8px;text-align:left;font-weight:600;">DATA</th>
-            <th style="padding:6px 8px;text-align:right;font-weight:600;">KM</th>
-            <th style="padding:6px 8px;text-align:right;font-weight:600;">IMPORTO</th>
-          </tr></thead>
-          <tbody>${renderRichieste(al.richieste)}</tbody>
-          <tfoot><tr style="border-top:1px solid var(--border);background:var(--white);">
-            <td colspan="3" style="padding:6px 8px;font-weight:700;font-size:13px;">Totale</td>
-            <td style="padding:6px 8px;text-align:right;font-weight:700;font-size:13px;color:${color}">€${tot.toFixed(2)}</td>
-          </tr></tfoot>
-        </table>
-      </div>
-    </div>`;
-  };
-
-  out.innerHTML = `
-    <!-- TOTALI -->
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">
-      <div class="card" style="text-align:center;">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Totale periodo</div>
-        <div style="font-size:20px;font-weight:700;color:var(--blue)">€${totTot.toFixed(2)}</div>
-      </div>
-      <div class="card" style="text-align:center;">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Da pagare</div>
-        <div style="font-size:20px;font-weight:700;color:var(--orange)">€${totDaPagare.toFixed(2)}</div>
-      </div>
-      <div class="card" style="text-align:center;">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Pagato</div>
-        <div style="font-size:20px;font-weight:700;color:var(--green)">€${totPagato.toFixed(2)}</div>
-      </div>
-    </div>
-
-    <button class="btn btn-secondary" onclick="stampaPDFReport('${dal}','${al}')" style="margin-bottom:20px;">
-      🖨️ Stampa / Salva PDF
-    </button>
-
-    <!-- DA PAGARE -->
-    ${sortedDaPagare.length > 0 ? `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-      <div style="width:12px;height:12px;border-radius:50%;background:var(--orange)"></div>
-      <div style="font-size:15px;font-weight:700;">Da pagare</div>
-      <div style="font-size:13px;color:var(--muted)">(${sortedDaPagare.length} allenatori)</div>
-    </div>
-    ${sortedDaPagare.map((al, i) => renderAllenatore(al, 'var(--orange)', i, 'dp')).join('')}
-    ` : '<div class="alert alert-success">✅ Nessun rimborso da pagare nel periodo</div>'}
-
-    <!-- PAGATI per data -->
-    ${sortedDate.length > 0 ? `
-    <div style="display:flex;align-items:center;gap:8px;margin:20px 0 12px;">
-      <div style="width:12px;height:12px;border-radius:50%;background:var(--green)"></div>
-      <div style="font-size:15px;font-weight:700;">Pagati</div>
-    </div>
-    ${sortedDate.map(data => {
-      const allenatori = Object.values(perData[data]).sort((a,b) => a.nome.localeCompare(b.nome,'it'));
-      const totData = allenatori.reduce((s,al) => s + al.richieste.reduce((ss,r) => ss+(r.spese||[]).reduce((sss,sp) => sss+sp.importo,0)-(r.acconto||0),0), 0);
-      // Raccogli tutti gli ID delle richieste di questo gruppo data
-      const ids = allenatori.flatMap(al => al.richieste.map(r => r.id));
-      const idsJson = JSON.stringify(ids).replace(/"/g,'&quot;');
-      return `<div style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--blue-light);border-radius:var(--radius-sm) var(--radius-sm) 0 0;border:1px solid var(--border);">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <div style="font-size:14px;font-weight:700;color:var(--blue)">📅 Pagamento del ${data}</div>
-            <button onclick="modificaDataPagamento('${data}', ${idsJson})" style="background:none;border:1px solid var(--blue);border-radius:6px;padding:2px 8px;font-size:11px;color:var(--blue);cursor:pointer;">✏️ modifica</button>
-          </div>
-          <div style="font-size:15px;font-weight:700;color:var(--green)">€${totData.toFixed(2)}</div>
-        </div>
-        <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius-sm) var(--radius-sm);padding:10px;">
-          ${allenatori.map((al, i) => renderAllenatore(al, 'var(--green)', i, 'pag-' + data.replace(/\//g,''))).join('')}
-        </div>
-      </div>`;
-    }).join('')}
-    ` : ''}`;
-}
 
 async function stampaPDFReport(dal, al) {
   const { data } = await sb.from('richieste')
