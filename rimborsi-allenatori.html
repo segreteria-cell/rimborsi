@@ -741,37 +741,76 @@
     <input type="file" id="inp-foto" accept="image/*" style="display:none;" onchange="caricaFotoProfilo(this)">
   </div>
   <div class="content">
+
+    <!-- DATI ANAGRAFICI (sola lettura) -->
     <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">👤 Dati anagrafici</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">ℹ️ Questi dati sono gestiti dall'amministrazione</div>
       <div class="detail-row"><div class="detail-label">Nome</div><div class="detail-value" id="profilo-nome">—</div></div>
       <div class="detail-row"><div class="detail-label">Cognome</div><div class="detail-value" id="profilo-cognome">—</div></div>
-      <div class="detail-row"><div class="detail-label">Email</div><div class="detail-value" id="profilo-email2">—</div></div>
+      <div class="detail-row"><div class="detail-label">Email</div><div class="detail-value" id="profilo-email2" style="word-break:break-all;">—</div></div>
       <div class="detail-row"><div class="detail-label">Ruolo</div><div class="detail-value" id="profilo-ruolo">—</div></div>
+      <div class="detail-row"><div class="detail-label">Data di nascita</div><div class="detail-value" id="profilo-nascita">—</div></div>
+      <div class="detail-row"><div class="detail-label">Luogo di nascita</div><div class="detail-value" id="profilo-luogo-nascita">—</div></div>
+      <div class="detail-row"><div class="detail-label">Codice fiscale</div><div class="detail-value" id="profilo-cf" style="font-family:monospace;letter-spacing:1px;">—</div></div>
     </div>
 
+    <!-- DATI MODIFICABILI -->
     <div class="card">
-      <div class="card-title" style="margin-bottom:12px;">🏠 Indirizzo di casa</div>
+      <div class="card-title" style="margin-bottom:4px;">✏️ Dati modificabili</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Puoi aggiornare questi dati in qualsiasi momento</div>
+      <div id="dati-edit-alert"></div>
+
+      <div class="field">
+        <label>📱 Cellulare <span style="color:var(--muted);font-weight:400;">(per WhatsApp)</span></label>
+        <input type="tel" id="inp-telefono" placeholder="+39 333 1234567">
+      </div>
+
+      <div class="field">
+        <label>🏠 Indirizzo di residenza</label>
+        <input type="text" id="inp-indirizzo-residenza" placeholder="Es: Via Roma 1">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 80px;gap:8px;">
+        <div class="field" style="margin-bottom:0;">
+          <label>Città</label>
+          <input type="text" id="inp-citta-residenza" placeholder="Es: Genova">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>Prov.</label>
+          <input type="text" id="inp-provincia-residenza" placeholder="GE" maxlength="2" style="text-transform:uppercase;">
+        </div>
+      </div>
+      <div class="field">
+        <label>CAP</label>
+        <input type="text" id="inp-cap" placeholder="Es: 16122" maxlength="5" inputmode="numeric">
+      </div>
+
+      <div class="field">
+        <label>🏦 IBAN</label>
+        <input type="text" id="inp-iban" placeholder="Es: IT60 X054 2811 1010 0000 0123 456" style="font-family:monospace;letter-spacing:1px;" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/(.{4})/g,'$1 ').trim()">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Usato per il bonifico dei rimborsi</div>
+      </div>
+
+      <button class="btn btn-primary" onclick="salvaDatiModificabili()" style="margin-top:4px;">💾 Salva modifiche</button>
+    </div>
+
+    <!-- INDIRIZZO DI CASA (partenza automatica) -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">🗺️ Indirizzo di partenza</div>
       <div id="casa-alert"></div>
       <div class="field">
-        <label>Il tuo indirizzo (verrà usato come partenza automatica)</label>
+        <label>Indirizzo usato come partenza automatica nelle richieste di rimborso</label>
         <div style="position:relative">
           <input type="text" id="inp-casa" placeholder="Es: Via Roma 1, Genova" 
             oninput="autocomplete('casa',this.value)" autocomplete="off">
           <div id="suggestions-casa" class="suggestions"></div>
         </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Può essere diverso dalla residenza (es. piscina, palestra)</div>
       </div>
-      <button class="btn btn-primary" onclick="salvaIndirizzoCasa()">Salva indirizzo</button>
+      <button class="btn btn-primary" onclick="salvaIndirizzoCasa()">Salva indirizzo di partenza</button>
     </div>
 
-    <div class="card">
-      <div class="card-title" style="margin-bottom:12px;">📱 Numero di telefono</div>
-      <div id="telefono-alert"></div>
-      <div class="field">
-        <label>Cellulare (per ricevere messaggi WhatsApp)</label>
-        <input type="tel" id="inp-telefono" placeholder="+39 333 1234567">
-      </div>
-      <button class="btn btn-primary" onclick="salvaTelefono()">Salva numero</button>
-    </div>
-
+    <!-- CAMBIO PASSWORD -->
     <div class="card">
       <div class="card-title" style="margin-bottom:12px;">🔒 Cambia password</div>
       <div id="pwd-alert"></div>
@@ -2147,15 +2186,73 @@ function aggiornaRiepilogo() {
 
 function showProfilo() {
   if (!currentProfilo) return;
-  document.getElementById('profilo-email').textContent = currentProfilo.email;
-  document.getElementById('profilo-email2').textContent = currentProfilo.email;
-  document.getElementById('profilo-nome').textContent = currentProfilo.nome;
-  document.getElementById('profilo-cognome').textContent = currentProfilo.cognome;
-  document.getElementById('profilo-ruolo').textContent = currentProfilo.ruolo === 'admin' ? '🔐 Amministratore' : '🏊 Allenatore';
-  document.getElementById('inp-telefono').value = currentProfilo.telefono || '';
-  document.getElementById('inp-casa').value = currentProfilo.indirizzo_casa || '';
-  aggiornaAvatarUI(currentProfilo.foto_url, currentProfilo.nome);
+  const p = currentProfilo;
+
+  // Dati sola lettura
+  document.getElementById('profilo-email').textContent = p.email;
+  document.getElementById('profilo-email2').textContent = p.email;
+  document.getElementById('profilo-nome').textContent = p.nome || '—';
+  document.getElementById('profilo-cognome').textContent = p.cognome || '—';
+  document.getElementById('profilo-ruolo').textContent = p.ruolo === 'admin' ? '🔐 Amministratore' : '🏊 Allenatore';
+  document.getElementById('profilo-cf').textContent = p.codice_fiscale || '—';
+
+  // Data di nascita formattata
+  if (p.data_nascita) {
+    const d = new Date(p.data_nascita);
+    document.getElementById('profilo-nascita').textContent =
+      d.toLocaleDateString('it-IT', { day:'2-digit', month:'long', year:'numeric' });
+  } else {
+    document.getElementById('profilo-nascita').textContent = '—';
+  }
+
+  // Luogo di nascita
+  const luogo = [p.luogo_nascita, p.provincia_nascita ? `(${p.provincia_nascita})` : ''].filter(Boolean).join(' ');
+  document.getElementById('profilo-luogo-nascita').textContent = luogo || '—';
+
+  // Dati modificabili
+  document.getElementById('inp-telefono').value = p.telefono || '';
+  document.getElementById('inp-indirizzo-residenza').value = p.indirizzo_residenza || '';
+  document.getElementById('inp-citta-residenza').value = p.citta_residenza || '';
+  document.getElementById('inp-provincia-residenza').value = p.provincia_residenza || '';
+  document.getElementById('inp-cap').value = p.cap || '';
+  // IBAN: formatta con spazi ogni 4 caratteri
+  const ibanRaw = (p.iban || '').replace(/\s/g,'');
+  document.getElementById('inp-iban').value = ibanRaw.replace(/(.{4})/g,'$1 ').trim();
+
+  // Indirizzo di partenza
+  document.getElementById('inp-casa').value = p.indirizzo_casa || '';
+
+  aggiornaAvatarUI(p.foto_url, p.nome);
   showScreen('profilo');
+}
+
+async function salvaDatiModificabili() {
+  const telefono = document.getElementById('inp-telefono').value.trim();
+  const indirizzo_residenza = document.getElementById('inp-indirizzo-residenza').value.trim();
+  const citta_residenza = document.getElementById('inp-citta-residenza').value.trim();
+  const provincia_residenza = document.getElementById('inp-provincia-residenza').value.trim().toUpperCase();
+  const cap = document.getElementById('inp-cap').value.trim();
+  const iban = document.getElementById('inp-iban').value.replace(/\s/g,'').toUpperCase();
+
+  // Validazione IBAN base
+  if (iban && (iban.length < 15 || iban.length > 34)) {
+    showAlert('dati-edit-alert', 'IBAN non valido — controlla il formato', 'error'); return;
+  }
+
+  const { error } = await sb.from('profili').update({
+    telefono,
+    indirizzo_residenza,
+    citta_residenza,
+    provincia_residenza,
+    cap,
+    iban
+  }).eq('id', currentUser.id);
+
+  if (error) { showAlert('dati-edit-alert', 'Errore nel salvataggio: ' + error.message, 'error'); return; }
+
+  // Aggiorna profilo in memoria
+  Object.assign(currentProfilo, { telefono, indirizzo_residenza, citta_residenza, provincia_residenza, cap, iban });
+  showAlert('dati-edit-alert', '✅ Dati aggiornati con successo!', 'success');
 }
 
 // ===== AUTH =====
@@ -2305,14 +2402,6 @@ async function caricaFotoProfilo(input) {
 
   await sb.from('profili').update({ foto_url: fotoUrl }).eq('id', currentUser.id);
   currentProfilo.foto_url = fotoUrl;
-}
-
-async function salvaTelefono() {
-  const tel = document.getElementById('inp-telefono').value.trim();
-  const { error } = await sb.from('profili').update({ telefono: tel }).eq('id', currentUser.id);
-  if (error) { showAlert('telefono-alert', 'Errore nel salvataggio', 'error'); return; }
-  currentProfilo.telefono = tel;
-  showAlert('telefono-alert', '✅ Numero salvato!', 'success');
 }
 
 async function cambiaPassword() {
