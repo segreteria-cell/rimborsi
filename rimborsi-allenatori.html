@@ -1133,6 +1133,7 @@
 // ===== SUPABASE CONFIG =====
 const SUPABASE_URL = 'https://qfnczjhbgcpczrweyzzt.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmbmN6amhiZ2NwY3pyd2V5enp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1OTQ0MjEsImV4cCI6MjA5MzE3MDQyMX0.1w6KrNvi9Edt4jDe9BBjW8Wjl7fXHPcGyqMrVLhhygA';
+// SuperbaNuoto App v2.1 - build 20260511
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -1374,13 +1375,17 @@ function calcolaNettoAdmin() {
   document.getElementById('ca-netto').value = (lordo - inps - irpef).toFixed(2);
 }
 
-async function aggiornaSoglieAdmin(allenId, tutti, esterni) {
+async function aggiornaSoglieAdmin(allenId) {
   if (!allenId) { document.getElementById('ca-soglie-info').innerHTML = ''; return; }
-  const anno = parseInt(document.getElementById('ca-anno').value);
-  const compAl = tutti.filter(c => c.allenatore_id === allenId && c.anno === anno);
-  const compExt = esterni.filter(c => c.allenatore_id === allenId && c.anno === anno);
+  const anno = parseInt(document.getElementById('ca-anno')?.value) || new Date().getFullYear();
+  
+  const { data: tutti } = await sb.from('compensi').select('*').eq('anno', anno);
+  const { data: esterni } = await sb.from('compensi_esterni').select('*').eq('anno', anno);
+  
+  const compAl = (tutti||[]).filter(c => c.allenatore_id === allenId && c.anno === anno);
+  const compExt = (esterni||[]).filter(c => c.allenatore_id === allenId && c.anno === anno);
   const totale = compAl.reduce((s,c) => s+c.lordo, 0) + compExt.reduce((s,c) => s+c.lordo, 0);
-  const lordonuovo = parseFloat(document.getElementById('ca-lordo').value) || 0;
+  const lordonuovo = parseFloat(document.getElementById('ca-lordo')?.value) || 0;
   const nuovoTot = totale + lordonuovo;
   const color = nuovoTot >= 5000 ? 'var(--orange)' : 'var(--blue)';
   document.getElementById('ca-soglie-info').innerHTML = `
@@ -3129,7 +3134,7 @@ async function compensiAdminTab(tab) {
         <div class="card-title" style="margin-bottom:12px;">Inserisci compenso mensile</div>
         <div id="compensi-admin-alert"></div>
         <div class="field"><label>Allenatore</label>
-          <select id="ca-allenatore" onchange="aggiornaSoglieAdmin(this.value, ${JSON.stringify(tutti||[]).replace(/"/g,'&quot;')}, ${JSON.stringify(esterni||[]).replace(/"/g,'&quot;')})">
+          <select id="ca-allenatore" onchange="aggiornaSoglieAdmin(this.value)">
             <option value="">Seleziona...</option>
             ${(allenatori||[]).map(a => `<option value="${a.id}">${a.nome} ${a.cognome}</option>`).join('')}
           </select>
