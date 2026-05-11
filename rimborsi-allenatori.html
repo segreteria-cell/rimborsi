@@ -3242,7 +3242,7 @@ async function anteprimaExcel(input) {
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
 
-    // Trova riga header (cerca "ALLENATORE")
+    // Trova riga header
     let headerIdx = rows.findIndex(r => r && r.some(c => String(c||'').trim().toUpperCase() === 'ALLENATORE'));
     if (headerIdx === -1) { anteprimaEl.innerHTML = ''; showAlert('importa-alert','❌ Colonna ALLENATORE non trovata nel file','error'); return; }
 
@@ -3252,8 +3252,13 @@ async function anteprimaExcel(input) {
     const iNe = headers.indexOf('NETTO');
     const iMe = headers.indexOf('MESE');
     const iDa = headers.findIndex(h => h.includes('DATA'));
+    const iInps = headers.findIndex(h => h.includes('INPS'));
+    const iIrpef = headers.findIndex(h => h.includes('IRPEF'));
 
     if (iAl<0||iLo<0||iNe<0) { anteprimaEl.innerHTML=''; showAlert('importa-alert','❌ Colonne mancanti: servono ALLENATORE, LORDO, NETTO','error'); return; }
+
+    const hasInps = iInps >= 0;
+    const hasIrpef = iIrpef >= 0;
 
     // Carica allenatori DB
     const { data: allenatori } = await sb.from('profili').select('id,nome,cognome').eq('ruolo','allenatore');
@@ -3261,9 +3266,11 @@ async function anteprimaExcel(input) {
 
     const righe = rows.slice(headerIdx+1).filter(r => r && r[iAl]);
     excelImportData = righe.map(r => {
-      const nomeExcel = String(r[iAl]||'').trim(); // formato "COGNOME NOME"
+      const nomeExcel = String(r[iAl]||'').trim();
       const lordo = parseFloat(r[iLo]) || 0;
       const netto = parseFloat(r[iNe]) || 0;
+      const inps = hasInps ? (parseFloat(r[iInps]) || 0) : 0;
+      const irpef = hasIrpef ? (parseFloat(r[iIrpef]) || 0) : 0;
       const meseStr = String(r[iMe]||'').trim().toLowerCase();
       const mese = mesiMap[meseStr] || null;
       const anno = new Date().getFullYear();
@@ -3272,29 +3279,41 @@ async function anteprimaExcel(input) {
         const d = r[iDa] instanceof Date ? r[iDa] : new Date(r[iDa]);
         if (!isNaN(d)) dataIncasso = d.toISOString().split('T')[0];
       }
-
-      // Abbina: cerca match per "COGNOME NOME" nel DB
-      const match = allenatori?.find(a => {
-        const dbStr = (a.cognome+' '+a.nome).toUpperCase().trim();
-        return dbStr === nomeExcel.toUpperCase();
-      });
-
-      return { nomeExcel, lordo, netto, mese, anno, dataIncasso, profilo: match||null };
+      const match = allenatori?.find(a => (a.cognome+' '+a.nome).toUpperCase().trim() === nomeExcel.toUpperCase());
+      return { nomeExcel, lordo, netto, inps, irpef, mese, anno, dataIncasso, profilo: match||null };
     }).filter(r => r.lordo > 0 || r.netto > 0);
 
     if (!excelImportData.length) { anteprimaEl.innerHTML=''; showAlert('importa-alert','⚠️ Nessuna riga valida trovata','error'); return; }
+
+    // Controlla duplicati nel DB (stesso mese/anno/allenatore_nome)
+    const mesiPresenti = [...new Set(excelImportData.map(r => r.mese).filter(Boolean))];
+    const anniPresenti = [...new Set(excelImportData.map(r => r.anno))];
+    let duplicati = [];
+    for (const mese of mesiPresenti) {
+      for (const anno of anniPresenti) {
+        const { data: existing } = await sb.from('compensi').select('allenatore_nome,allenatore_id').eq('mese', mese).eq('anno', anno);
+        if (existing && existing.length > 0) {
+          const nomiPresenti = existing.map(e => (e.allenatore_nome||'').toUpperCase());
+          duplicati = excelImportData.filter(r => r.mese===mese && r.anno===anno && nomiPresenti.includes(r.nomeExcel.toUpperCase()));
+        }
+      }
+    }
 
     const mesiNomi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
     const nonAbbinati = excelImportData.filter(r => !r.profilo);
     const abbinati = excelImportData.filter(r => r.profilo);
 
     const righeHtml = excelImportData.map((r,i) => {
+      const isDup = duplicati.some(d => d.nomeExcel === r.nomeExcel && d.mese === r.mese);
       const stato = r.profilo
         ? '<span style="color:var(--green);font-weight:600;">✅ Trovato</span>'
         : '<span style="color:var(--orange);font-weight:600;">⚠️ N/A</span>';
-      return '<tr style="background:' + (i%2?'var(--bg)':'white') + ';border-bottom:1px solid var(--border);">' +
-        '<td style="padding:8px;font-weight:500;">' + r.nomeExcel + '</td>' +
+      const dupBadge = isDup ? '<span style="color:var(--red,#e53);font-size:10px;margin-left:4px;">● già presente</span>' : '';
+      return '<tr style="background:' + (isDup?'#fff5f5':(i%2?'var(--bg)':'white')) + ';border-bottom:1px solid var(--border);">' +
+        '<td style="padding:8px;font-weight:500;">' + r.nomeExcel + dupBadge + '</td>' +
         '<td style="padding:8px;text-align:right;">€' + r.lordo.toFixed(2) + '</td>' +
+        (hasInps ? '<td style="padding:8px;text-align:right;">' + (r.inps>0?'€'+r.inps.toFixed(2):'—') + '</td>' : '') +
+        (hasIrpef ? '<td style="padding:8px;text-align:right;">' + (r.irpef>0?'€'+r.irpef.toFixed(2):'—') + '</td>' : '') +
         '<td style="padding:8px;text-align:right;">€' + r.netto.toFixed(2) + '</td>' +
         '<td style="padding:8px;text-align:center;">' + (r.mese ? mesiNomi[r.mese] : '—') + '</td>' +
         '<td style="padding:8px;text-align:center;">' + stato + '</td>' +
@@ -3303,36 +3322,40 @@ async function anteprimaExcel(input) {
 
     const nonAbbinatiHtml = nonAbbinati.length
       ? '<div style="background:#FFF4E5;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;">' +
-        '<b style="color:var(--orange);">⚠️ ' + nonAbbinati.length + ' allenatori non ancora registrati</b> (verranno importati senza ID):<br>' +
+        '<b style="color:var(--orange);">⚠️ ' + nonAbbinati.length + ' non ancora registrati</b> (importati senza ID, collegati alla registrazione):<br>' +
         nonAbbinati.map(r => '<span style="display:inline-block;background:#FFE0A0;border-radius:4px;padding:2px 6px;margin:2px;">' + r.nomeExcel + '</span>').join('') +
-        '<div style="font-size:11px;color:var(--muted);margin-top:6px;">Verranno collegati automaticamente quando si registreranno</div>' +
-        '</div>'
-      : '';
+        '</div>' : '';
 
-    const riepilogoHtml = (abbinati.length || nonAbbinati.length)
-      ? '<div style="margin-top:16px;padding:12px;background:var(--bg);border-radius:8px;font-size:13px;">' +
-        '<b>' + abbinati.length + '</b> con profilo collegato' +
-        (nonAbbinati.length ? ' · <b>' + nonAbbinati.length + '</b> senza profilo <span style="color:var(--muted);">(verranno collegati alla registrazione)</span>' : '') +
-        '</div>' +
-        '<button class="btn btn-primary" style="margin-top:12px;width:100%;" onclick="importaCompensiBulk()">💾 Importa tutti i ' + excelImportData.length + ' compensi</button>'
-      : '<div style="color:var(--orange);margin-top:12px;text-align:center;">Nessuna riga valida da importare</div>';
+    const dupWarningHtml = duplicati.length
+      ? '<div style="background:#FFF0F0;border:1.5px solid #ffcccc;border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;">' +
+        '<b style="color:#cc0000;">⚠️ ' + duplicati.length + ' compensi già presenti nel DB per questo mese!</b><br>' +
+        '<div style="font-size:12px;color:#555;margin-top:4px;">Scegli come procedere:</div>' +
+        '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">' +
+        '<button class="btn btn-primary" style="flex:1;" onclick="importaCompensiBulk(false)">➕ Aggiungi senza sovrascrivere</button>' +
+        '<button class="btn" style="flex:1;background:#cc0000;color:white;border:none;border-radius:var(--radius);padding:10px;font-weight:600;cursor:pointer;" onclick="importaCompensiBulk(true)">🔄 Sovrascrivi i duplicati</button>' +
+        '</div></div>'
+      : '<button class="btn btn-primary" style="margin-top:12px;width:100%;" onclick="importaCompensiBulk(false)">💾 Importa tutti i ' + excelImportData.length + ' compensi</button>';
 
     anteprimaEl.innerHTML =
       '<div class="card" style="margin-bottom:12px;">' +
-      '<div class="card-title" style="margin-bottom:12px;">📋 Anteprima importazione — ' + excelImportData.length + ' righe</div>' +
+      '<div class="card-title" style="margin-bottom:12px;">📋 Anteprima — ' + excelImportData.length + ' righe' +
+      (!hasInps && !hasIrpef ? ' <span style="font-size:11px;color:var(--muted);font-weight:400;">(INPS/IRPEF non presenti nel file)</span>' : '') + '</div>' +
       nonAbbinatiHtml +
+      dupWarningHtml +
       '<div style="overflow-x:auto;">' +
       '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
       '<thead><tr style="background:var(--blue);color:white;">' +
       '<th style="padding:8px;text-align:left;">Allenatore</th>' +
       '<th style="padding:8px;text-align:right;">Lordo</th>' +
+      (hasInps ? '<th style="padding:8px;text-align:right;">INPS</th>' : '') +
+      (hasIrpef ? '<th style="padding:8px;text-align:right;">IRPEF</th>' : '') +
       '<th style="padding:8px;text-align:right;">Netto</th>' +
       '<th style="padding:8px;text-align:center;">Mese</th>' +
       '<th style="padding:8px;text-align:center;">Stato</th>' +
       '</tr></thead>' +
       '<tbody>' + righeHtml + '</tbody>' +
       '</table></div>' +
-      riepilogoHtml +
+      (!duplicati.length ? '<div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:13px;"><b>' + abbinati.length + '</b> con profilo · <b>' + nonAbbinati.length + '</b> senza profilo</div>' : '') +
       '</div>';
   } catch(e) {
     anteprimaEl.innerHTML = '';
@@ -3340,15 +3363,27 @@ async function anteprimaExcel(input) {
   }
 }
 
-async function importaCompensiBulk() {
-  const righe = excelImportData; // importa TUTTE le righe, anche senza profilo
+async function importaCompensiBulk(sovrascrivi) {
+  const righe = excelImportData;
   if (!righe.length) return;
 
-  const btn = document.querySelector('#importa-anteprima button');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Importazione in corso...'; }
+  const btns = document.querySelectorAll('#importa-anteprima button');
+  btns.forEach(b => { b.disabled = true; });
 
-  let ok = 0, err = 0;
+  let ok = 0, err = 0, sovr = 0;
   for (const r of righe) {
+    // Se sovrascrivi=true, elimina prima il record esistente per questo allenatore/mese/anno
+    if (sovrascrivi) {
+      let delQuery = sb.from('compensi').delete().eq('mese', r.mese).eq('anno', r.anno);
+      if (r.profilo) {
+        delQuery = delQuery.eq('allenatore_id', r.profilo.id);
+      } else {
+        delQuery = delQuery.ilike('allenatore_nome', r.nomeExcel);
+      }
+      const { error: delErr } = await delQuery;
+      if (!delErr) sovr++;
+    }
+
     const record = {
       allenatore_nome: r.nomeExcel,
       lordo: r.lordo,
@@ -3357,7 +3392,8 @@ async function importaCompensiBulk() {
       anno: r.anno,
       data_incasso: r.dataIncasso
     };
-    // Aggiungi allenatore_id solo se il profilo esiste
+    if (r.inps > 0) record.inps = r.inps;
+    if (r.irpef > 0) record.irpef = r.irpef;
     if (r.profilo) record.allenatore_id = r.profilo.id;
 
     const { error } = await sb.from('compensi').insert(record);
@@ -3365,14 +3401,14 @@ async function importaCompensiBulk() {
   }
 
   excelImportData = [];
-  const errHtml = err ? '<div style="color:var(--orange);font-size:14px;">' + err + ' errori — controlla la console</div>' : '';
+  const errHtml = err ? '<div style="color:var(--orange);font-size:14px;margin-top:6px;">' + err + ' errori — controlla la console</div>' : '';
+  const sovrHtml = sovrascrivi && sovr ? '<div style="font-size:13px;color:var(--muted);margin-top:4px;">' + sovr + ' record precedenti sostituiti</div>' : '';
   document.getElementById('importa-anteprima').innerHTML =
-    '<div class="card">' +
-    '<div style="text-align:center;padding:20px;">' +
+    '<div class="card"><div style="text-align:center;padding:20px;">' +
     '<div style="font-size:48px;margin-bottom:12px;">' + (err===0?'✅':'⚠️') + '</div>' +
     '<div style="font-size:18px;font-weight:700;margin-bottom:6px;">' + ok + ' compensi importati con successo</div>' +
-    errHtml +
-    '<div style="font-size:13px;color:var(--muted);margin-top:8px;">Gli allenatori non ancora registrati verranno collegati automaticamente al momento della registrazione.</div>' +
+    sovrHtml + errHtml +
+    '<div style="font-size:13px;color:var(--muted);margin-top:8px;">Gli allenatori non registrati verranno collegati automaticamente alla registrazione.</div>' +
     '<button class="btn btn-secondary" style="margin-top:16px;" onclick="compensiAdminTab(\'riepilogo\')">📊 Vai al riepilogo</button>' +
     '</div></div>';
 }
