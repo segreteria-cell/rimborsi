@@ -1196,7 +1196,7 @@ async function loadCompensi() {
   const { data: compSN } = await sb.from('compensi')
     .select('*')
     .eq('anno', anno)
-    .or(`allenatore_id.eq.${currentUser.id},allenatore_nome.ilike.${currentProfilo?.nome} ${currentProfilo?.cognome}`)
+    .or(`allenatore_id.eq.${currentUser.id},allenatore_nome.ilike.${currentProfilo?.cognome} ${currentProfilo?.nome}`)
     .order('mese', { ascending: false });
 
   // Carica compensi esterni
@@ -2185,9 +2185,13 @@ async function doRegister() {
   const { data, error } = await sb.auth.signUp({ email, password, options: { data: { nome, cognome } } });
   if (error) { showAlert('register-alert', error.message, 'error'); return; }
   
-  // Prova a collegare subito le richieste storiche
+  // Prova a collegare subito le richieste e compensi storici (formato "Cognome Nome")
   const nomeCompleto = cognome + ' ' + nome;
   await sb.from('richieste')
+    .update({ allenatore_id: data.user?.id })
+    .ilike('allenatore_nome', nomeCompleto)
+    .is('allenatore_id', null);
+  await sb.from('compensi')
     .update({ allenatore_id: data.user?.id })
     .ilike('allenatore_nome', nomeCompleto)
     .is('allenatore_id', null);
