@@ -537,8 +537,11 @@
     <div style="padding:16px;overflow-y:auto;max-height:70vh;">
       <div id="firma-riepilogo" style="margin-bottom:16px;"></div>
       <div style="font-size:13px;font-weight:600;margin-bottom:8px;">✍️ Firma qui sotto con il dito</div>
-      <canvas id="firma-canvas" width="340" height="120" 
-        style="border:2px solid var(--border);border-radius:8px;touch-action:none;background:white;display:block;width:100%;"></canvas>
+      <div style="background:white;border-radius:10px;border:2px solid var(--blue);padding:4px;">
+        <canvas id="firma-canvas" width="340" height="120" 
+          style="touch-action:none;background:white;display:block;width:100%;border-radius:8px;"></canvas>
+      </div>
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:4px;">Usa il dito per firmare nello spazio bianco qui sopra</div>
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button class="btn btn-sm btn-secondary" onclick="clearFirma()">🗑️ Cancella firma</button>
         <div style="font-size:11px;color:var(--muted);align-self:center;">La firma certifica la correttezza dei dati</div>
@@ -1089,10 +1092,10 @@
         <option value="">— Seleziona committente salvato o inserisci nuovo —</option>
       </select>
       <input type="text" id="ce-soggetto" placeholder="Es: ASD Nuoto Liguria" oninput="onSoggettoInput()">
-      <div id="ce-salva-committente" style="display:none;margin-top:6px;">
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
-          <input type="checkbox" id="ce-salva-check" checked>
-          Salva questo committente per la prossima volta
+      <div id="ce-salva-committente" style="display:none;margin-top:8px;">
+        <label style="display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;background:var(--blue-light,#EBF2FF);border:1.5px solid var(--blue);border-radius:10px;padding:10px 12px;font-weight:600;color:var(--blue);">
+          <input type="checkbox" id="ce-salva-check" checked style="width:18px;height:18px;accent-color:var(--blue);cursor:pointer;flex-shrink:0;">
+          💾 Salva questo committente per la prossima volta
         </label>
       </div>
     </div>
@@ -1568,10 +1571,12 @@ async function openModalFirma(mese, anno) {
 function initFirmaCanvas() {
   const canvas = document.getElementById('firma-canvas');
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.strokeStyle = '#000033';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
   let drawing = false;
 
   const getPos = (e) => {
@@ -1591,7 +1596,8 @@ function initFirmaCanvas() {
 function clearFirma() {
   const canvas = document.getElementById('firma-canvas');
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
 async function confermaDichiarazione() {
