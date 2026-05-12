@@ -1094,8 +1094,9 @@
       </select>
       <input type="text" id="ce-soggetto" placeholder="Es: ASD Nuoto Liguria" oninput="onSoggettoInput()">
       <div id="ce-salva-committente" style="display:none;margin-top:8px;">
-        <label style="display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;background:var(--blue-light,#EBF2FF);border:1.5px solid var(--blue);border-radius:10px;padding:10px 12px;font-weight:600;color:var(--blue);">
-          <input type="checkbox" id="ce-salva-check" checked style="width:18px;height:18px;accent-color:var(--blue);cursor:pointer;flex-shrink:0;">
+        <label style="display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer;background:var(--blue-light,#EBF2FF);border:1.5px solid var(--blue);border-radius:10px;padding:10px 12px;font-weight:600;color:var(--blue);" onclick="toggleSalvaCommittente()">
+          <span id="ce-salva-check-icon" style="width:22px;height:22px;border-radius:5px;background:var(--blue);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;color:white;">✓</span>
+          <input type="checkbox" id="ce-salva-check" checked style="display:none;">
           💾 Salva questo committente per la prossima volta
         </label>
       </div>
@@ -1866,6 +1867,24 @@ function onCommittenteSelect(val) {
   if (val) {
     document.getElementById('ce-soggetto').value = val;
     document.getElementById('ce-salva-committente').style.display = 'none';
+  }
+}
+
+function toggleSalvaCommittente() {
+  const chk = document.getElementById('ce-salva-check');
+  const icon = document.getElementById('ce-salva-check-icon');
+  const label = icon.closest('label');
+  chk.checked = !chk.checked;
+  if (chk.checked) {
+    icon.textContent = '✓';
+    icon.style.background = 'var(--blue)';
+    label.style.background = 'var(--blue-light,#EBF2FF)';
+    label.style.border = '1.5px solid var(--blue)';
+  } else {
+    icon.textContent = '';
+    icon.style.background = 'white';
+    label.style.background = 'var(--bg,#F4F6FA)';
+    label.style.border = '1.5px solid var(--border)';
   }
 }
 
