@@ -437,27 +437,28 @@
     </div>
   </div>
   <div class="content">
-    <div class="hero-card">
-      <div class="hero-stats">
-        <div class="hero-stat">
-          <div class="hero-stat-num" id="stat-totale">€0</div>
-          <div class="hero-stat-label">Totale</div>
-        </div>
-        <div class="hero-stat">
-          <div class="hero-stat-num" id="stat-approvato">€0</div>
-          <div class="hero-stat-label">✅ Approvato</div>
-        </div>
-        <div class="hero-stat">
-          <div class="hero-stat-num" id="stat-da-pagare">€0</div>
-          <div class="hero-stat-label">⏳ Da pagare</div>
-        </div>
-        <div class="hero-stat">
-          <div class="hero-stat-num" id="stat-pagato">€0</div>
-          <div class="hero-stat-label">💰 Pagato</div>
-        </div>
+    <!-- 2 STAT GRANDI -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+      <div style="background:var(--blue-light,#EBF2FF);border-radius:var(--radius);padding:14px;text-align:center;">
+        <div style="font-size:22px;font-weight:700;color:var(--blue);" id="stat-da-ricevere">€0</div>
+        <div style="font-size:12px;color:var(--blue);margin-top:3px;font-weight:500;">⏳ Da ricevere</div>
+      </div>
+      <div style="background:#E6FBF5;border-radius:var(--radius);padding:14px;text-align:center;">
+        <div style="font-size:22px;font-weight:700;color:#0F6E56;" id="stat-pagato">€0</div>
+        <div style="font-size:12px;color:#0F6E56;margin-top:3px;font-weight:500;">💰 Pagato</div>
       </div>
     </div>
-    <div class="section-title">Le tue richieste</div>
+
+    <!-- CARD IN ATTESA -->
+    <div id="rimborsi-attesa-section" style="display:none;margin-bottom:16px;">
+      <div style="background:#FFF4E5;border:1.5px solid #FFD580;border-radius:var(--radius);padding:12px;">
+        <div style="font-size:11px;font-weight:700;color:#7A4000;margin-bottom:10px;letter-spacing:0.5px;">⏳ IN ATTESA DI ACCETTAZIONE</div>
+        <div id="rimborsi-attesa-list"></div>
+      </div>
+    </div>
+
+    <!-- TUTTE LE RICHIESTE -->
+    <div class="section-title">Tutte le richieste</div>
     <div id="home-richieste">
       <div class="loading"><div class="spinner"></div>Caricamento...</div>
     </div>
@@ -2457,32 +2458,45 @@ async function loadHome() {
 
     if (!richieste || richieste.length === 0) {
       document.getElementById('home-richieste').innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Nessuna richiesta ancora.<br>Tocca + per iniziare!</div></div>`;
-      const st = document.getElementById('stat-totale'); if (st) st.textContent = '€0';
-      const sap = document.getElementById('stat-approvato'); if (sap) sap.textContent = '€0';
-      const sa = document.getElementById('stat-attesa'); if (sa) sa.textContent = '0';
       const sp = document.getElementById('stat-pagato'); if (sp) sp.textContent = '€0';
-      const sd = document.getElementById('stat-da-pagare'); if (sd) sd.textContent = '€0';
+      const sdr = document.getElementById('stat-da-ricevere'); if (sdr) sdr.textContent = '€0';
+      document.getElementById('rimborsi-attesa-section').style.display = 'none';
       return;
     }
 
-    let totale = 0, approvato = 0, pagato = 0, daPagare = 0, attesa = 0;
+    let daPagare = 0, pagato = 0;
+    const inAttesa = [];
+
     richieste.forEach(r => {
       const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
-      totale += tot;
-      if (r.stato === 'approvata' && !r.pagata) daPagare += tot;
-      if (r.stato === 'approvata') approvato += tot;
       if (r.pagata) pagato += tot;
-      if (r.stato === 'in attesa') attesa++;
+      else if (r.stato === 'approvata') daPagare += tot;
+      if (r.stato === 'in attesa') inAttesa.push({ ...r, tot });
     });
 
-    const st = document.getElementById('stat-totale'); if (st) st.textContent = '€' + totale.toFixed(0);
-    const sap = document.getElementById('stat-approvato'); if (sap) sap.textContent = '€' + approvato.toFixed(0);
-    const statAttesa = document.getElementById('stat-attesa');
-    if (statAttesa) statAttesa.textContent = attesa;
-    const statPagato = document.getElementById('stat-pagato');
-    if (statPagato) statPagato.textContent = '€' + pagato.toFixed(0);
-    const statDaPagare = document.getElementById('stat-da-pagare');
-    if (statDaPagare) statDaPagare.textContent = '€' + daPagare.toFixed(0);
+    const sp = document.getElementById('stat-pagato'); if (sp) sp.textContent = '€' + pagato.toFixed(0);
+    const sdr = document.getElementById('stat-da-ricevere'); if (sdr) sdr.textContent = '€' + daPagare.toFixed(0);
+
+    // Card in attesa
+    const attesaSection = document.getElementById('rimborsi-attesa-section');
+    if (inAttesa.length > 0) {
+      attesaSection.style.display = 'block';
+      document.getElementById('rimborsi-attesa-list').innerHTML = inAttesa.map(r => {
+        const gara = r.gare || {};
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #FFD580;" onclick="showDettaglio('${r.id}','rimborsi')">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#5C3300;">${gara.nome || 'Richiesta'}</div>
+            <div style="font-size:11px;color:#7A4000;">${gara.data ? new Date(gara.data).toLocaleDateString('it-IT') : ''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:14px;font-weight:700;color:#5C3300;">€${r.tot.toFixed(0)}</span>
+            <span onclick="event.stopPropagation();showDettaglio('${r.id}','rimborsi')" style="font-size:11px;background:#FF8C00;color:white;padding:3px 8px;border-radius:6px;font-weight:600;cursor:pointer;">Modifica</span>
+          </div>
+        </div>`;
+      }).join('');
+    } else {
+      attesaSection.style.display = 'none';
+    }
 
     document.getElementById('home-richieste').innerHTML = richieste.map(r => {
       const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
@@ -2492,7 +2506,7 @@ async function loadHome() {
       else if (r.stato === 'approvata') { badgeClass = 'badge-paying'; badgeText = '✅ Approvata'; }
       else if (r.stato === 'rifiutata') { badgeClass = 'badge-rejected'; badgeText = '❌ Rifiutata'; }
       else { badgeClass = 'badge-pending'; badgeText = '⏳ In attesa'; }
-      return `<div class="card" onclick="showDettaglio('${r.id}','home')">
+      return `<div class="card" onclick="showDettaglio('${r.id}','rimborsi')">
         <div class="card-header">
           <div>
             <div class="card-title">${gara.nome || 'Gara'}</div>
