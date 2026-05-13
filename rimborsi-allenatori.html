@@ -318,6 +318,11 @@
 <body>
 
 <!-- ===== LOGIN ===== -->
+<div id="banner-impersona" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#FF8C00;color:white;padding:10px 16px;align-items:center;justify-content:space-between;font-size:13px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+  <span>👁️ Operando come: <span id="banner-impersona-nome">—</span></span>
+  <button onclick="tornaAdmin()" style="background:white;color:#FF8C00;border:none;border-radius:6px;padding:5px 12px;font-weight:700;cursor:pointer;font-size:12px;">↩ Torna ad Admin</button>
+</div>
+
 <div id="screen-login" class="screen active">
   <div class="login-logo">
     <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png" style="height:80px;margin-bottom:12px;filter:brightness(0) invert(1);">
@@ -3276,6 +3281,57 @@ async function modificaRichiesta(id) {
   }, 500);
 }
 
+// ===== IMPERSONIFICAZIONE ALLENATORE =====
+let adminProfiloBackup = null;
+let adminUserBackup = null;
+
+async function impersonaAllenatore(allenatore_id) {
+  if (!confirm('Vuoi accedere al profilo di questo allenatore?')) return;
+
+  // Salva contesto admin
+  adminProfiloBackup = { ...currentProfilo };
+  adminUserBackup = { ...currentUser };
+
+  // Carica profilo allenatore
+  const { data: profilo } = await sb.from('profili').select('*').eq('id', allenatore_id).single();
+  if (!profilo) { alert('Profilo non trovato'); return; }
+
+  // Sostituisci contesto corrente
+  currentProfilo = profilo;
+  currentUser = { ...currentUser, id: allenatore_id, email: profilo.email };
+
+  // Mostra banner
+  const banner = document.getElementById('banner-impersona');
+  document.getElementById('banner-impersona-nome').textContent = profilo.nome + ' ' + profilo.cognome;
+  banner.style.display = 'flex';
+
+  // Aggiungi padding-top a tutte le screen per non coprire il contenuto
+  document.querySelectorAll('.screen').forEach(s => s.style.paddingTop = '48px');
+
+  // Vai alla home allenatore
+  await loadHome();
+  showScreen('home');
+}
+
+function tornaAdmin() {
+  if (!adminProfiloBackup) return;
+
+  // Ripristina contesto admin
+  currentProfilo = { ...adminProfiloBackup };
+  currentUser = { ...adminUserBackup };
+  adminProfiloBackup = null;
+  adminUserBackup = null;
+
+  // Nascondi banner
+  const banner = document.getElementById('banner-impersona');
+  banner.style.display = 'none';
+  document.querySelectorAll('.screen').forEach(s => s.style.paddingTop = '');
+
+  // Torna al pannello admin
+  showAdminSezione('rimborsi');
+  adminTab('allenatori');
+}
+
 async function aggiornaStato(id, stato) {
   await sb.from('richieste').update({ stato }).eq('id', id);
   if (currentProfilo?.ruolo === 'admin') {
@@ -3875,6 +3931,9 @@ async function loadAdminContent(tab) {
         <div style="display:flex;gap:8px;">
           <button class="btn btn-sm btn-secondary" onclick="openModalModificaAllenatore('${al.id}','${(al.nome||'').replace(/'/g,"\\'")}','${(al.cognome||'').replace(/'/g,"\\'")}','${(al.email||'').replace(/'/g,"\\'")}','${(al.telefono||'').replace(/'/g,"\\'")}')">
             ✏️ Modifica
+          </button>
+          <button class="btn btn-sm" style="background:var(--orange,#FF8C00);color:white;border:none;" onclick="impersonaAllenatore('${al.id}')">
+            👁️ Accedi come
           </button>
         </div>
       </div>`).join('');
