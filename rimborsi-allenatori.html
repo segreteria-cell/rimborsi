@@ -2789,7 +2789,8 @@ async function inviaRichiesta() {
       await sb.from('richieste').update({
         gara_id: garaId,
         partenza: partenza || '—', arrivo: arrivo || '—',
-        km: kmTotali, note, mezzo, acconto
+        km: kmTotali, note, mezzo, acconto,
+        percorsi_aggiuntivi: kmExtraList.filter(e => e.km > 0)
       }).eq('id', ridId);
 
       // Elimina spese vecchie e ricrea
@@ -2825,7 +2826,8 @@ async function inviaRichiesta() {
       gara_id: garaId,
       partenza: partenza || '—', arrivo: arrivo || '—',
       km: kmTotali, note, stato: 'in attesa',
-      mezzo, acconto
+      mezzo, acconto,
+      percorsi_aggiuntivi: kmExtraList.filter(e => e.km > 0)
     }).select().single();
 
     if (errR) throw errR;
@@ -3001,25 +3003,46 @@ async function stampaPDF(id) {
   const totale = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
   const daRimborsare = totale - (r.acconto || 0);
   const statoLabel = r.stato === 'approvata' ? '✅ Approvata' : r.stato === 'rifiutata' ? '❌ Rifiutata' : '⏳ In attesa';
+  const percorsiAgg = r.percorsi_aggiuntivi || [];
+  const kmPrincipale = r.km - percorsiAgg.reduce((s, p) => s + (p.km || 0), 0);
+
+  const percorsiHtml = percorsiAgg.length > 0
+    ? percorsiAgg.map(p =>
+        `<div class="row"><span class="label" style="padding-left:16px;">↳ ${p.descrizione || 'Percorso aggiuntivo'}</span><span>${p.km} km</span></div>`
+      ).join('')
+    : '';
+
   const w = window.open('', '_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Rimborso — ${r.profili?.nome} ${r.profili?.cognome}</title>
   <style>
     body { font-family: Arial, sans-serif; padding: 40px; max-width: 700px; margin: 0 auto; color: #1a1a2e; }
-    h1 { color: #0066FF; font-size: 22px; margin-bottom: 4px; }
-    .sub { color: #888; font-size: 14px; margin-bottom: 30px; }
+    .header { display: flex; align-items: center; gap: 16px; margin-bottom: 6px; }
+    .header img { height: 52px; width: auto; }
+    .header-text h1 { color: #0066FF; font-size: 22px; margin: 0; }
+    .header-text .org { color: #888; font-size: 13px; margin-top: 2px; }
+    .sub { color: #888; font-size: 14px; margin-bottom: 20px; margin-top: 16px; }
     .section { margin-bottom: 20px; }
     .section h2 { font-size: 13px; text-transform: uppercase; color: #888; letter-spacing: 1px; border-bottom: 1px solid #eee; padding-bottom: 6px; margin-bottom: 10px; }
     .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
     .row:last-child { border-bottom: none; }
     .label { color: #666; }
+    .km-detail { background: #F4F6FA; border-radius: 8px; padding: 10px 12px; margin-top: 6px; font-size: 13px; }
+    .km-detail .km-row { display: flex; justify-content: space-between; padding: 3px 0; color: #555; }
+    .km-detail .km-row.total { font-weight: 700; color: #0066FF; border-top: 1px solid #ddd; margin-top: 4px; padding-top: 6px; }
     .total-box { background: #EBF2FF; border-radius: 10px; padding: 16px; margin-top: 20px; display: flex; justify-content: space-between; align-items: center; }
     .total-label { font-size: 15px; font-weight: 600; }
     .total-val { font-size: 24px; font-weight: 700; color: #0066FF; }
     .stato { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; background: #E6FBF5; color: #00C48C; margin-bottom: 20px; }
     @media print { button { display: none; } }
   </style></head><body>
-  <h1>🏊 SuperbaNuoto — Rimborso Spese</h1>
+  <div class="header">
+    <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/logo_S-removebg-preview%20(2).png" alt="SuperbaNuoto">
+    <div class="header-text">
+      <h1>SuperbaNuoto — Rimborso Spese</h1>
+      <div class="org">SuperbaNuoto SSD RL — Via Serra 6/5, 16122 Genova</div>
+    </div>
+  </div>
   <div class="sub">Richiesta del ${new Date(r.creata_il).toLocaleDateString('it-IT')}</div>
   <div class="stato">${statoLabel}</div>
   <div class="section"><h2>Allenatore</h2>
@@ -3035,7 +3058,13 @@ async function stampaPDF(id) {
     <div class="row"><span class="label">Mezzo</span><span>${r.mezzo || 'Auto propria'}</span></div>
     <div class="row"><span class="label">Partenza</span><span>${r.partenza}</span></div>
     <div class="row"><span class="label">Arrivo</span><span>${r.arrivo}</span></div>
-    <div class="row"><span class="label">Km percorsi</span><span>${r.km} km</span></div>
+    <div class="row"><span class="label">Km percorsi</span><span><strong>${r.km} km</strong></span></div>
+    ${percorsiAgg.length > 0 ? `
+    <div class="km-detail">
+      <div class="km-row"><span>🚗 Percorso principale (${r.arrivo})</span><span>${kmPrincipale} km</span></div>
+      ${percorsiAgg.map(p => `<div class="km-row"><span>↳ ${p.descrizione || 'Percorso aggiuntivo'}</span><span>${p.km} km</span></div>`).join('')}
+      <div class="km-row total"><span>Totale km</span><span>${r.km} km</span></div>
+    </div>` : ''}
   </div>
   <div class="section"><h2>Spese</h2>
     ${(r.spese || []).map(s => {
