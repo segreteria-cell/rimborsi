@@ -2920,7 +2920,23 @@ async function showDettaglio(id, from) {
       <div class="detail-row"><div class="detail-label">Mezzo</div><div class="detail-value">${r.mezzo || 'auto_propria'}</div></div>
       <div class="detail-row"><div class="detail-label">Partenza</div><div class="detail-value">${r.partenza}</div></div>
       <div class="detail-row"><div class="detail-label">Arrivo</div><div class="detail-value">${r.arrivo}</div></div>
-      <div class="detail-row"><div class="detail-label">Km</div><div class="detail-value">🚗 ${r.km} km</div></div>
+      <div class="detail-row"><div class="detail-label">Km totali</div><div class="detail-value">🚗 <strong>${r.km} km</strong></div></div>
+      ${(r.percorsi_aggiuntivi && r.percorsi_aggiuntivi.length > 0) ? (() => {
+        const extra = r.percorsi_aggiuntivi;
+        const totExtra = extra.reduce((s, p) => s + (p.km || 0), 0);
+        const kmBase = r.km - totExtra;
+        return `<div style="background:var(--bg);border-radius:8px;padding:10px 12px;margin-top:8px;font-size:13px;">
+          <div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--muted);">
+            <span>🚗 Percorso principale</span><span>${kmBase} km</span>
+          </div>
+          ${extra.map(p => `<div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--muted);">
+            <span>↳ ${p.descrizione || 'Percorso aggiuntivo'}</span><span>${p.km} km</span>
+          </div>`).join('')}
+          <div style="display:flex;justify-content:space-between;padding:5px 0;margin-top:4px;border-top:1px solid var(--border);font-weight:700;color:var(--blue);">
+            <span>Totale</span><span>${r.km} km</span>
+          </div>
+        </div>`;
+      })() : ''}
     </div>
     <div class="card">
       <div class="section-title">Spese</div>
