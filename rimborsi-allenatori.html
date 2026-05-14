@@ -3387,6 +3387,28 @@ function tornaAdmin() {
 
 async function aggiornaStato(id, stato) {
   await sb.from('richieste').update({ stato }).eq('id', id);
+
+  // Notifica email all'allenatore per approvazione o rifiuto
+  if (stato === 'approvata' || stato === 'rifiutata') {
+    try {
+      const { data: r } = await sb.from('richieste')
+        .select('*, gare(nome, data), profili(nome, cognome, email), spese(*)')
+        .eq('id', id).single();
+      if (r && r.profili?.email) {
+        const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
+        const tipoEmail = stato === 'approvata' ? 'approvazione' : 'rifiuto';
+        inviaEmailAdmin(tipoEmail, {
+          email_allenatore: r.profili.email,
+          nome: r.profili.nome,
+          cognome: r.profili.cognome,
+          gara: r.gare?.nome || '—',
+          data_gara: r.gare?.data || null,
+          totale: tot
+        });
+      }
+    } catch(e) { console.warn('Notifica stato non inviata:', e.message); }
+  }
+
   if (currentProfilo?.ruolo === 'admin') {
     showScreen('admin-rimborsi');
     loadAdminContent(adminCurrentTab);
@@ -4704,6 +4726,30 @@ async function segnaComePagati() {
     pagata: true,
     pagata_il: new Date(dataISO).toISOString()
   }).in('id', ids);
+
+  // Notifica email a ogni allenatore pagato
+  try {
+    const { data: richieste } = await sb.from('richieste')
+      .select('*, gare(nome, data), profili(nome, cognome, email), spese(*)')
+      .in('id', ids);
+    if (richieste) {
+      for (const r of richieste) {
+        if (r.profili?.email) {
+          const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
+          inviaEmailAdmin('pagamento', {
+            email_allenatore: r.profili.email,
+            nome: r.profili.nome,
+            cognome: r.profili.cognome,
+            gara: r.gare?.nome || '—',
+            data_gara: r.gare?.data || null,
+            totale: tot,
+            data_pagamento: new Date(dataISO).toISOString()
+          });
+        }
+      }
+    }
+  } catch(e) { console.warn('Notifica pagamento non inviata:', e.message); }
+
   loadAdminContent('pagamenti');
 }
 
