@@ -1188,6 +1188,124 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ===== RESEND EMAIL CONFIG =====
+// Ottieni la tua API key su https://resend.com → API Keys → Create API Key
+// Il dominio mittente deve essere verificato su Resend (o usa onboarding@resend.dev per test)
+const RESEND_API_KEY = 're_fPzkiJFF_8rwFnSE9huaqokvoHB5JKX2e';
+const EMAIL_ADMIN = 'segreteria@superbanuoto.it';
+const EMAIL_FROM = 'rimborsi@superbanuoto.it'; // deve essere un dominio verificato su Resend
+
+async function inviaEmailAdmin(tipo, dati) {
+  // Non blocca l'app se fallisce: errori silenziosi
+  try {
+    if (!RESEND_API_KEY || RESEND_API_KEY.startsWith('INSERISCI')) return;
+
+    let subject = '';
+    let htmlBody = '';
+    const ora = new Date().toLocaleString('it-IT', { dateStyle: 'long', timeStyle: 'short' });
+
+    if (tipo === 'rimborso') {
+      const { nome, cognome, gara, data_gara, luogo, km, totale, mezzo } = dati;
+      subject = `🧾 Nuova richiesta rimborso — ${nome} ${cognome}`;
+      htmlBody = `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a2e;">
+          <div style="background:linear-gradient(135deg,#0055DD,#0088FF);padding:24px 28px;border-radius:12px 12px 0 0;">
+            <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png"
+              style="height:36px;filter:brightness(0) invert(1);margin-bottom:12px;display:block;">
+            <h1 style="color:white;font-size:20px;margin:0;">Nuova richiesta di rimborso</h1>
+            <p style="color:rgba(255,255,255,0.8);margin:6px 0 0;font-size:13px;">${ora}</p>
+          </div>
+          <div style="background:#f4f6fa;padding:24px 28px;border-radius:0 0 12px 12px;">
+            <div style="background:white;border-radius:10px;padding:20px;margin-bottom:16px;border:1px solid #e2e6f0;">
+              <h2 style="font-size:15px;color:#0066FF;margin:0 0 14px;text-transform:uppercase;letter-spacing:0.5px;">👤 Allenatore</h2>
+              <p style="margin:0;font-size:17px;font-weight:700;">${nome} ${cognome}</p>
+            </div>
+            <div style="background:white;border-radius:10px;padding:20px;margin-bottom:16px;border:1px solid #e2e6f0;">
+              <h2 style="font-size:15px;color:#0066FF;margin:0 0 14px;text-transform:uppercase;letter-spacing:0.5px;">🏆 Dettagli trasferta</h2>
+              <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                <tr><td style="padding:6px 0;color:#666;width:40%;">Gara</td><td style="padding:6px 0;font-weight:600;">${gara || '—'}</td></tr>
+                <tr style="border-top:1px solid #f0f0f0;"><td style="padding:6px 0;color:#666;">Data gara</td><td style="padding:6px 0;">${data_gara ? new Date(data_gara).toLocaleDateString('it-IT') : '—'}</td></tr>
+                <tr style="border-top:1px solid #f0f0f0;"><td style="padding:6px 0;color:#666;">Luogo</td><td style="padding:6px 0;">${luogo || '—'}</td></tr>
+                <tr style="border-top:1px solid #f0f0f0;"><td style="padding:6px 0;color:#666;">Km percorsi</td><td style="padding:6px 0;">🚗 ${km} km</td></tr>
+                <tr style="border-top:1px solid #f0f0f0;"><td style="padding:6px 0;color:#666;">Mezzo</td><td style="padding:6px 0;">${mezzo === 'si' || mezzo === 'auto_propria' ? 'Auto propria' : 'Mezzo pubblico'}</td></tr>
+              </table>
+            </div>
+            <div style="background:#EBF2FF;border-radius:10px;padding:20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:15px;font-weight:600;color:#0055DD;">Totale richiesto</span>
+              <span style="font-size:26px;font-weight:800;color:#0055DD;">€ ${parseFloat(totale).toFixed(2)}</span>
+            </div>
+            <a href="https://rimborsi.superbanuoto.it/rimborsi-allenatori.html"
+              style="display:block;background:#0066FF;color:white;text-align:center;padding:14px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;">
+              ✅ Vai al pannello admin →
+            </a>
+            <p style="text-align:center;font-size:11px;color:#999;margin-top:16px;">
+              SuperbaNuoto SSD RL — Via Serra 6/5, 16122 Genova
+            </p>
+          </div>
+        </div>`;
+
+    } else if (tipo === 'dichiarazione') {
+      const { nome, cognome, mese_nome, anno, tot_lordo, tot_lordo_sn, tot_lordo_altri } = dati;
+      subject = `📋 Nuova dichiarazione compensi — ${nome} ${cognome} (${mese_nome} ${anno})`;
+      htmlBody = `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a2e;">
+          <div style="background:linear-gradient(135deg,#0055DD,#0088FF);padding:24px 28px;border-radius:12px 12px 0 0;">
+            <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png"
+              style="height:36px;filter:brightness(0) invert(1);margin-bottom:12px;display:block;">
+            <h1 style="color:white;font-size:20px;margin:0;">Nuova dichiarazione compensi</h1>
+            <p style="color:rgba(255,255,255,0.8);margin:6px 0 0;font-size:13px;">${ora}</p>
+          </div>
+          <div style="background:#f4f6fa;padding:24px 28px;border-radius:0 0 12px 12px;">
+            <div style="background:white;border-radius:10px;padding:20px;margin-bottom:16px;border:1px solid #e2e6f0;">
+              <h2 style="font-size:15px;color:#0066FF;margin:0 0 14px;text-transform:uppercase;letter-spacing:0.5px;">👤 Allenatore</h2>
+              <p style="margin:0;font-size:17px;font-weight:700;">${nome} ${cognome}</p>
+              <p style="margin:4px 0 0;font-size:13px;color:#666;">Periodo: <strong>${mese_nome} ${anno}</strong></p>
+            </div>
+            <div style="background:white;border-radius:10px;padding:20px;margin-bottom:16px;border:1px solid #e2e6f0;">
+              <h2 style="font-size:15px;color:#0066FF;margin:0 0 14px;text-transform:uppercase;letter-spacing:0.5px;">💶 Riepilogo compensi dichiarati</h2>
+              <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                <tr><td style="padding:6px 0;color:#666;width:55%;">SuperbaNuoto</td><td style="padding:6px 0;font-weight:600;text-align:right;">€ ${parseFloat(tot_lordo_sn).toFixed(2)}</td></tr>
+                <tr style="border-top:1px solid #f0f0f0;"><td style="padding:6px 0;color:#666;">Altri soggetti sportivi</td><td style="padding:6px 0;font-weight:600;text-align:right;">€ ${parseFloat(tot_lordo_altri).toFixed(2)}</td></tr>
+              </table>
+            </div>
+            <div style="background:#EBF2FF;border-radius:10px;padding:20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:15px;font-weight:600;color:#0055DD;">Totale lordo dichiarato</span>
+              <span style="font-size:26px;font-weight:800;color:#0055DD;">€ ${parseFloat(tot_lordo).toFixed(2)}</span>
+            </div>
+            ${parseFloat(tot_lordo) >= 5000 ? `
+            <div style="background:#FFF4E5;border:1.5px solid #FFD580;border-radius:10px;padding:14px 18px;margin-bottom:16px;">
+              <p style="margin:0;font-size:13px;color:#7A4000;font-weight:600;">⚠️ Attenzione: soglia INPS (€5.000) raggiunta o superata</p>
+            </div>` : ''}
+            <a href="https://rimborsi.superbanuoto.it/rimborsi-allenatori.html"
+              style="display:block;background:#0066FF;color:white;text-align:center;padding:14px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;">
+              📋 Vai al pannello admin →
+            </a>
+            <p style="text-align:center;font-size:11px;color:#999;margin-top:16px;">
+              SuperbaNuoto SSD RL — Via Serra 6/5, 16122 Genova
+            </p>
+          </div>
+        </div>`;
+    }
+
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: `SuperbaNuoto Rimborsi <${EMAIL_FROM}>`,
+        to: [EMAIL_ADMIN],
+        subject,
+        html: htmlBody
+      })
+    });
+    // Non aspettiamo risposta né mostriamo errori — è fire-and-forget
+  } catch(e) {
+    console.warn('Email notifica non inviata:', e.message);
+  }
+}
+
 // ===== STATE =====
 let currentUser = null;
 let currentProfilo = null;
@@ -1647,6 +1765,19 @@ async function confermaDichiarazione() {
 
   document.getElementById('modal-firma').classList.remove('open');
   stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl);
+
+  // Notifica email all'admin (fire-and-forget)
+  const mesiNomi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+  inviaEmailAdmin('dichiarazione', {
+    nome: currentProfilo?.nome || '',
+    cognome: currentProfilo?.cognome || '',
+    mese_nome: mesiNomi[mese],
+    anno,
+    tot_lordo: tots.totLordo,
+    tot_lordo_sn: tots.totSN,
+    tot_lordo_altri: tots.totExt
+  });
+
   loadCompensi();
 }
 
@@ -2564,7 +2695,7 @@ async function loadGare() {
     const altro = data.filter(g => g.categoria && g.categoria !== 'nuoto' && g.categoria !== 'salvamento');
 
     let html = '<option value="">Seleziona una gara...</option>';
-    const optHtml = (g) => `<option value="${g.id}" data-data="${g.data}" data-piscina="${g.indirizzo_piscina||''}">${g.nome} — ${new Date(g.data).toLocaleDateString('it-IT')} · ${g.luogo}</option>`;
+    const optHtml = (g) => `<option value="${g.id}" data-data="${g.data}" data-piscina="${g.indirizzo_piscina||''}" data-luogo="${(g.luogo||'').replace(/"/g,'&quot;')}">${g.nome} — ${new Date(g.data).toLocaleDateString('it-IT')} · ${g.luogo}</option>`;
     if (nuoto.length) { html += '<optgroup label="🏊 Nuoto">'; html += nuoto.map(optHtml).join(''); html += '</optgroup>'; }
     if (salvamento.length) { html += '<optgroup label="🛟 Salvamento">'; html += salvamento.map(optHtml).join(''); html += '</optgroup>'; }
     if (altro.length) { html += '<optgroup label="📋 Altro">'; html += altro.map(optHtml).join(''); html += '</optgroup>'; }
@@ -2879,6 +3010,23 @@ async function inviaRichiesta() {
     }
 
     showAlert('nuova-alert', '✅ Richiesta inviata con successo!', 'success');
+
+    // Notifica email all'admin (fire-and-forget)
+    const garaSelezionata = document.getElementById('sel-gara');
+    const garaOpt = garaSelezionata?.options[garaSelezionata.selectedIndex];
+    const totaleSpese = speseTemp.reduce((s, sp) => s + sp.importo, 0);
+    const accontoVal = parseFloat(document.getElementById('inp-acconto')?.value || 0) || 0;
+    inviaEmailAdmin('rimborso', {
+      nome: currentProfilo?.nome || '',
+      cognome: currentProfilo?.cognome || '',
+      gara: garaOpt?.text || '—',
+      data_gara: garaOpt?.dataset?.data || null,
+      luogo: garaOpt?.dataset?.luogo || '—',
+      km: kmTotali,
+      totale: totaleSpese - accontoVal,
+      mezzo
+    });
+
     speseTemp = []; kmCalcolati = 0;
     setTimeout(() => { showTab('home'); }, 1500);
 
