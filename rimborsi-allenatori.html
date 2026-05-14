@@ -1191,116 +1191,21 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 // ===== RESEND EMAIL CONFIG =====
 // Ottieni la tua API key su https://resend.com → API Keys → Create API Key
 // Il dominio mittente deve essere verificato su Resend (o usa onboarding@resend.dev per test)
-const RESEND_API_KEY = 're_fPzkiJFF_8rwFnSE9huaqokvoHB5JKX2e';
-const EMAIL_ADMIN = 'segreteria@superbanuoto.it';
-const EMAIL_FROM = 'rimborsi@superbanuoto.it'; // deve essere un dominio verificato su Resend
+// ===== EMAIL NOTIFICHE via Supabase Edge Function =====
+// La Edge Function "smooth-action" gira lato server e chiama Resend senza problemi di CORS
+const EDGE_FUNCTION_URL = 'https://qfnczjhbgcpczrweyzzt.supabase.co/functions/v1/smooth-action';
 
 async function inviaEmailAdmin(tipo, dati) {
-  // Non blocca l'app se fallisce: errori silenziosi
+  // Fire-and-forget: non blocca l'app se fallisce
   try {
-    if (!RESEND_API_KEY || RESEND_API_KEY.startsWith('INSERISCI')) return;
-
-    let subject = '';
-    let htmlBody = '';
-    const ora = new Date().toLocaleString('it-IT', { dateStyle: 'long', timeStyle: 'short' });
-
-    if (tipo === 'rimborso') {
-      const { nome, cognome, gara, data_gara, luogo, km, totale, mezzo } = dati;
-      subject = `🧾 Nuova richiesta rimborso — ${nome} ${cognome}`;
-      htmlBody = `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a2e;">
-          <div style="background:linear-gradient(135deg,#0055DD,#0088FF);padding:24px 28px;border-radius:12px 12px 0 0;">
-            <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png"
-              style="height:36px;filter:brightness(0) invert(1);margin-bottom:12px;display:block;">
-            <h1 style="color:white;font-size:20px;margin:0;">Nuova richiesta di rimborso</h1>
-            <p style="color:rgba(255,255,255,0.8);margin:6px 0 0;font-size:13px;">${ora}</p>
-          </div>
-          <div style="background:#f4f6fa;padding:24px 28px;border-radius:0 0 12px 12px;">
-            <div style="background:white;border-radius:10px;padding:20px;margin-bottom:16px;border:1px solid #e2e6f0;">
-              <h2 style="font-size:15px;color:#0066FF;margin:0 0 14px;text-transform:uppercase;letter-spacing:0.5px;">👤 Allenatore</h2>
-              <p style="margin:0;font-size:17px;font-weight:700;">${nome} ${cognome}</p>
-            </div>
-            <div style="background:white;border-radius:10px;padding:20px;margin-bottom:16px;border:1px solid #e2e6f0;">
-              <h2 style="font-size:15px;color:#0066FF;margin:0 0 14px;text-transform:uppercase;letter-spacing:0.5px;">🏆 Dettagli trasferta</h2>
-              <table style="width:100%;border-collapse:collapse;font-size:14px;">
-                <tr><td style="padding:6px 0;color:#666;width:40%;">Gara</td><td style="padding:6px 0;font-weight:600;">${gara || '—'}</td></tr>
-                <tr style="border-top:1px solid #f0f0f0;"><td style="padding:6px 0;color:#666;">Data gara</td><td style="padding:6px 0;">${data_gara ? new Date(data_gara).toLocaleDateString('it-IT') : '—'}</td></tr>
-                <tr style="border-top:1px solid #f0f0f0;"><td style="padding:6px 0;color:#666;">Luogo</td><td style="padding:6px 0;">${luogo || '—'}</td></tr>
-                <tr style="border-top:1px solid #f0f0f0;"><td style="padding:6px 0;color:#666;">Km percorsi</td><td style="padding:6px 0;">🚗 ${km} km</td></tr>
-                <tr style="border-top:1px solid #f0f0f0;"><td style="padding:6px 0;color:#666;">Mezzo</td><td style="padding:6px 0;">${mezzo === 'si' || mezzo === 'auto_propria' ? 'Auto propria' : 'Mezzo pubblico'}</td></tr>
-              </table>
-            </div>
-            <div style="background:#EBF2FF;border-radius:10px;padding:20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-size:15px;font-weight:600;color:#0055DD;">Totale richiesto</span>
-              <span style="font-size:26px;font-weight:800;color:#0055DD;">€ ${parseFloat(totale).toFixed(2)}</span>
-            </div>
-            <a href="https://rimborsi.superbanuoto.it/rimborsi-allenatori.html"
-              style="display:block;background:#0066FF;color:white;text-align:center;padding:14px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;">
-              ✅ Vai al pannello admin →
-            </a>
-            <p style="text-align:center;font-size:11px;color:#999;margin-top:16px;">
-              SuperbaNuoto SSD RL — Via Serra 6/5, 16122 Genova
-            </p>
-          </div>
-        </div>`;
-
-    } else if (tipo === 'dichiarazione') {
-      const { nome, cognome, mese_nome, anno, tot_lordo, tot_lordo_sn, tot_lordo_altri } = dati;
-      subject = `📋 Nuova dichiarazione compensi — ${nome} ${cognome} (${mese_nome} ${anno})`;
-      htmlBody = `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a2e;">
-          <div style="background:linear-gradient(135deg,#0055DD,#0088FF);padding:24px 28px;border-radius:12px 12px 0 0;">
-            <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png"
-              style="height:36px;filter:brightness(0) invert(1);margin-bottom:12px;display:block;">
-            <h1 style="color:white;font-size:20px;margin:0;">Nuova dichiarazione compensi</h1>
-            <p style="color:rgba(255,255,255,0.8);margin:6px 0 0;font-size:13px;">${ora}</p>
-          </div>
-          <div style="background:#f4f6fa;padding:24px 28px;border-radius:0 0 12px 12px;">
-            <div style="background:white;border-radius:10px;padding:20px;margin-bottom:16px;border:1px solid #e2e6f0;">
-              <h2 style="font-size:15px;color:#0066FF;margin:0 0 14px;text-transform:uppercase;letter-spacing:0.5px;">👤 Allenatore</h2>
-              <p style="margin:0;font-size:17px;font-weight:700;">${nome} ${cognome}</p>
-              <p style="margin:4px 0 0;font-size:13px;color:#666;">Periodo: <strong>${mese_nome} ${anno}</strong></p>
-            </div>
-            <div style="background:white;border-radius:10px;padding:20px;margin-bottom:16px;border:1px solid #e2e6f0;">
-              <h2 style="font-size:15px;color:#0066FF;margin:0 0 14px;text-transform:uppercase;letter-spacing:0.5px;">💶 Riepilogo compensi dichiarati</h2>
-              <table style="width:100%;border-collapse:collapse;font-size:14px;">
-                <tr><td style="padding:6px 0;color:#666;width:55%;">SuperbaNuoto</td><td style="padding:6px 0;font-weight:600;text-align:right;">€ ${parseFloat(tot_lordo_sn).toFixed(2)}</td></tr>
-                <tr style="border-top:1px solid #f0f0f0;"><td style="padding:6px 0;color:#666;">Altri soggetti sportivi</td><td style="padding:6px 0;font-weight:600;text-align:right;">€ ${parseFloat(tot_lordo_altri).toFixed(2)}</td></tr>
-              </table>
-            </div>
-            <div style="background:#EBF2FF;border-radius:10px;padding:20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-size:15px;font-weight:600;color:#0055DD;">Totale lordo dichiarato</span>
-              <span style="font-size:26px;font-weight:800;color:#0055DD;">€ ${parseFloat(tot_lordo).toFixed(2)}</span>
-            </div>
-            ${parseFloat(tot_lordo) >= 5000 ? `
-            <div style="background:#FFF4E5;border:1.5px solid #FFD580;border-radius:10px;padding:14px 18px;margin-bottom:16px;">
-              <p style="margin:0;font-size:13px;color:#7A4000;font-weight:600;">⚠️ Attenzione: soglia INPS (€5.000) raggiunta o superata</p>
-            </div>` : ''}
-            <a href="https://rimborsi.superbanuoto.it/rimborsi-allenatori.html"
-              style="display:block;background:#0066FF;color:white;text-align:center;padding:14px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;">
-              📋 Vai al pannello admin →
-            </a>
-            <p style="text-align:center;font-size:11px;color:#999;margin-top:16px;">
-              SuperbaNuoto SSD RL — Via Serra 6/5, 16122 Genova
-            </p>
-          </div>
-        </div>`;
-    }
-
-    await fetch('https://api.resend.com/emails', {
+    await fetch(EDGE_FUNCTION_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_KEY}`
       },
-      body: JSON.stringify({
-        from: `SuperbaNuoto Rimborsi <${EMAIL_FROM}>`,
-        to: [EMAIL_ADMIN],
-        subject,
-        html: htmlBody
-      })
+      body: JSON.stringify({ tipo, dati })
     });
-    // Non aspettiamo risposta né mostriamo errori — è fire-and-forget
   } catch(e) {
     console.warn('Email notifica non inviata:', e.message);
   }
