@@ -2558,6 +2558,43 @@ async function loadHome() {
       attesaSection.style.display = 'none';
     }
 
+    // Riepilogo totali annuali
+    const annoCorrente = new Date().getFullYear();
+    const perAnno = {};
+    richieste.forEach(r => {
+      const anno = r.creata_il ? new Date(r.creata_il).getFullYear() : annoCorrente;
+      if (!perAnno[anno]) perAnno[anno] = { pagato: 0, approvato: 0, inAttesa: 0, rifiutato: 0, count: 0 };
+      const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
+      perAnno[anno].count++;
+      if (r.pagata) perAnno[anno].pagato += tot;
+      else if (r.stato === 'approvata') perAnno[anno].approvato += tot;
+      else if (r.stato === 'rifiutata') perAnno[anno].rifiutato += tot;
+      else perAnno[anno].inAttesa += tot;
+    });
+
+    const anniOrdinati = Object.keys(perAnno).sort((a, b) => b - a);
+    const storicoHtml = anniOrdinati.length > 0 ? `
+      <div style="margin-top:20px;">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;padding:0 4px;">📊 RIEPILOGO ANNUALE</div>
+        ${anniOrdinati.map(anno => {
+          const d = perAnno[anno];
+          const totTot = d.pagato + d.approvato + d.inAttesa;
+          return `<div style="background:var(--white);border-radius:12px;padding:14px 16px;margin-bottom:8px;border:1px solid var(--border);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <span style="font-size:15px;font-weight:700;">${anno}</span>
+              <span style="font-size:16px;font-weight:700;color:var(--blue);">€ ${totTot.toFixed(2)}</span>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              ${d.pagato > 0 ? `<span style="font-size:11px;background:#E8F8F2;color:#0F6E56;border-radius:6px;padding:3px 8px;font-weight:600;">💰 Pagato €${d.pagato.toFixed(0)}</span>` : ''}
+              ${d.approvato > 0 ? `<span style="font-size:11px;background:#EBF2FF;color:var(--blue);border-radius:6px;padding:3px 8px;font-weight:600;">✅ Approvato €${d.approvato.toFixed(0)}</span>` : ''}
+              ${d.inAttesa > 0 ? `<span style="font-size:11px;background:#FFF4E5;color:#7A4000;border-radius:6px;padding:3px 8px;font-weight:600;">⏳ In attesa €${d.inAttesa.toFixed(0)}</span>` : ''}
+              ${d.rifiutato > 0 ? `<span style="font-size:11px;background:#FFF0F0;color:var(--red);border-radius:6px;padding:3px 8px;font-weight:600;">❌ Rifiutato €${d.rifiutato.toFixed(0)}</span>` : ''}
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:6px;">${d.count} richieste</div>
+          </div>`;
+        }).join('')}
+      </div>` : '';
+
     document.getElementById('home-richieste').innerHTML = richieste.map(r => {
       const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
       const gara = r.gare || {};
@@ -2579,7 +2616,7 @@ async function loadHome() {
           <span style="font-size:17px;font-weight:700;color:${r.pagata ? 'var(--green)' : 'var(--blue)'}">€ ${tot.toFixed(2)}</span>
         </div>
       </div>`;
-    }).join('');
+    }).join('') + storicoHtml;
   } catch(e) {
     document.getElementById('home-richieste').innerHTML = `<div class="alert alert-error">Errore imprevisto: ${e.message}</div>`;
   }
@@ -3041,7 +3078,7 @@ async function showDettaglio(id, from) {
     ${r.note ? `<div class="card"><div class="section-title">Note</div><p style="font-size:14px;line-height:1.6">${r.note}</p></div>` : ''}
     ${isAdmin && r.stato === 'in attesa' ? `
     <div style="display:flex;gap:10px;margin-top:8px;">
-      <button class="btn btn-danger" onclick="aggiornaStato('${id}','rifiutata')">❌ Rifiuta</button>
+      <button class="btn btn-danger" onclick="rifiutaConMotivo('${id}')">❌ Rifiuta</button>
       <button class="btn btn-green" onclick="aggiornaStato('${id}','approvata')">✅ Approva</button>
     </div>` : ''}
     ${!isAdmin && r.stato === 'in attesa' ? `
@@ -3385,7 +3422,34 @@ function tornaAdmin() {
   adminTab('allenatori');
 }
 
-async function aggiornaStato(id, stato) {
+function rifiutaConMotivo(id) {
+  const modal = document.createElement('div');
+  modal.id = 'modal-rifiuto';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  modal.innerHTML = `
+    <div style="background:white;border-radius:16px;padding:24px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+      <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;">❌ Rifiuta richiesta</h3>
+      <p style="font-size:14px;color:#666;margin-bottom:16px;">Inserisci il motivo del rifiuto — verrà inviato via email all'allenatore.</p>
+      <textarea id="motivo-rifiuto" placeholder="Es: documentazione incompleta, importi non corrispondenti..." 
+        style="width:100%;padding:12px;border:1.5px solid #E2E6F0;border-radius:10px;font-size:14px;font-family:inherit;min-height:100px;resize:vertical;outline:none;"></textarea>
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button onclick="document.getElementById('modal-rifiuto').remove()" 
+          style="flex:1;padding:12px;background:#f4f6fa;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">Annulla</button>
+        <button onclick="confermaRifiuto('` + id + `')"
+          style="flex:1;padding:12px;background:#FF4444;color:white;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">❌ Rifiuta</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('motivo-rifiuto')?.focus(), 100);
+}
+
+async function confermaRifiuto(id) {
+  const motivo = document.getElementById('motivo-rifiuto')?.value.trim() || '';
+  document.getElementById('modal-rifiuto')?.remove();
+  await aggiornaStato(id, 'rifiutata', motivo);
+}
+
+async function aggiornaStato(id, stato, motivo = '') {
   await sb.from('richieste').update({ stato }).eq('id', id);
 
   // Notifica email all'allenatore per approvazione o rifiuto
@@ -3403,7 +3467,8 @@ async function aggiornaStato(id, stato) {
           cognome: r.profili.cognome,
           gara: r.gare?.nome || '—',
           data_gara: r.gare?.data || null,
-          totale: tot
+          totale: tot,
+          motivo: motivo
         });
       }
     } catch(e) { console.warn('Notifica stato non inviata:', e.message); }
@@ -3416,6 +3481,83 @@ async function aggiornaStato(id, stato) {
     showScreen('rimborsi');
     loadHome();
   }
+}
+
+// ===== FILTRI ADMIN =====
+function applicaFiltriAdmin() {
+  const data = window._adminRichiesteData;
+  const tab = window._adminRichiesteTab;
+  if (!data) return;
+
+  const filtroAl = document.getElementById('filtro-allenatore')?.value || '';
+  const filtroDal = document.getElementById('filtro-dal')?.value || '';
+  const filtroAl2 = document.getElementById('filtro-al')?.value || '';
+  const filtroMin = parseFloat(document.getElementById('filtro-min')?.value) || 0;
+  const filtroMax = parseFloat(document.getElementById('filtro-max')?.value) || Infinity;
+
+  let filtered = data.filter(r => {
+    const nomeAl = r.allenatore_nome || (r.profili ? `${r.profili.cognome} ${r.profili.nome}` : '');
+    const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
+    const dataR = r.creata_il ? r.creata_il.split('T')[0] : '';
+
+    if (filtroAl && nomeAl !== filtroAl) return false;
+    if (filtroDal && dataR < filtroDal) return false;
+    if (filtroAl2 && dataR > filtroAl2) return false;
+    if (tot < filtroMin) return false;
+    if (tot > filtroMax) return false;
+    return true;
+  });
+
+  const countEl = document.getElementById('admin-filtri-count');
+  if (countEl) {
+    const totFiltrato = filtered.reduce((s, r) => s + (r.spese||[]).reduce((ss,sp) => ss+sp.importo, 0), 0);
+    const hasFiltri = filtroAl || filtroDal || filtroAl2 || filtroMin || filtroMax < Infinity;
+    countEl.textContent = hasFiltri
+      ? `${filtered.length} di ${data.length} richieste · Totale filtrato: € ${totFiltrato.toFixed(2)}`
+      : `${data.length} richieste totali · € ${totFiltrato.toFixed(2)}`;
+  }
+
+  const listEl = document.getElementById('admin-filtri-list');
+  if (!listEl) return;
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">Nessuna richiesta corrisponde ai filtri</div></div>';
+    return;
+  }
+
+  const btnElimina = tab === 'rifiutate' ? `<button class="btn btn-danger" onclick="eliminaTutte('rifiutata')" style="margin-bottom:16px;">🗑️ Elimina tutte le rifiutate</button>` : '';
+
+  listEl.innerHTML = btnElimina + filtered.map(r => {
+    const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
+    const nomeAl = r.allenatore_nome || (r.profili ? `${r.profili.cognome} ${r.profili.nome}` : '—');
+    return `<div class="admin-card" onclick="showDettaglio('${r.id}','admin')">
+      <div class="admin-card-top">
+        <div>
+          <div class="card-title">${nomeAl}</div>
+          <div class="card-sub">${r.gare?.nome} · ${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''}</div>
+        </div>
+        <div style="font-size:18px;font-weight:700;color:var(--blue)">€ ${tot.toFixed(2)}</div>
+      </div>
+      <div style="font-size:13px;color:var(--muted)">🚗 ${r.km} km · ${new Date(r.creata_il).toLocaleDateString('it-IT')}</div>
+      ${r.note ? `<div style="font-size:12px;color:var(--blue);margin-top:4px;background:var(--blue-light);border-radius:6px;padding:4px 8px;">📝 ${r.note}</div>` : ''}
+      ${tab === 'attesa' ? `<div class="admin-actions">
+        <button class="btn btn-danger" onclick="event.stopPropagation();rifiutaConMotivo('${r.id}')">❌ Rifiuta</button>
+        <button class="btn btn-green" onclick="event.stopPropagation();aggiornaStato('${r.id}','approvata')">✅ Approva</button>
+      </div>` : ''}
+      ${tab === 'rifiutate' ? `<div style="margin-top:8px;">
+        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();eliminaRichiesta('${r.id}')">🗑️ Elimina</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function resetFiltriAdmin() {
+  const ids = ['filtro-allenatore','filtro-dal','filtro-al','filtro-min','filtro-max'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = el.tagName === 'SELECT' ? '' : '';
+  });
+  applicaFiltriAdmin();
 }
 
 // ===== ADMIN =====
@@ -4171,38 +4313,61 @@ async function loadAdminContent(tab) {
     .eq('stato', statoMap[tab])
     .order('creata_il', { ascending: false });
 
+  // Nomi unici allenatori per il filtro
+  const nomiAllenatori = [...new Set((data||[]).map(r =>
+    r.allenatore_nome || (r.profili ? `${r.profili.cognome} ${r.profili.nome}` : null)).filter(Boolean))].sort();
+
+  const filtriBarra = `
+    <div id="admin-filtri" style="background:var(--white);border-radius:12px;padding:12px;margin-bottom:14px;border:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">
+      <div style="flex:1;min-width:140px;">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px;">👤 ALLENATORE</div>
+        <select id="filtro-allenatore" onchange="applicaFiltriAdmin()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);">
+          <option value="">Tutti</option>
+          ${nomiAllenatori.map(n => `<option value="${n}">${n}</option>`).join('')}
+        </select>
+      </div>
+      <div style="flex:1;min-width:120px;">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px;">📅 DAL</div>
+        <input type="date" id="filtro-dal" onchange="applicaFiltriAdmin()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);">
+      </div>
+      <div style="flex:1;min-width:120px;">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px;">📅 AL</div>
+        <input type="date" id="filtro-al" onchange="applicaFiltriAdmin()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);">
+      </div>
+      <div style="flex:1;min-width:100px;">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px;">💶 MIN €</div>
+        <input type="number" id="filtro-min" placeholder="0" onchange="applicaFiltriAdmin()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);">
+      </div>
+      <div style="flex:1;min-width:100px;">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px;">💶 MAX €</div>
+        <input type="number" id="filtro-max" placeholder="∞" onchange="applicaFiltriAdmin()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);">
+      </div>
+      <button onclick="resetFiltriAdmin()" style="padding:8px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);">✕ Reset</button>
+    </div>
+    <div id="admin-filtri-count" style="font-size:12px;color:var(--muted);margin-bottom:8px;"></div>
+    <div id="admin-filtri-list"></div>`;
+
   if (!data || data.length === 0) {
     el.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Nessuna richiesta</div></div>';
     return;
   }
 
-  let htmlContent = '';
+  // Salva dati globalmente per il filtraggio lato client
+  window._adminRichiesteData = data;
+  window._adminRichiesteTab = tab;
+
+  let htmlContent = filtriBarra;
   if (tab !== 'approvate') {
     const btnElimina = tab === 'rifiutate' ? `
       <button class="btn btn-danger" onclick="eliminaTutte('rifiutata')" style="margin-bottom:16px;">
         🗑️ Elimina tutte le rifiutate
       </button>` : '';
-    htmlContent = btnElimina + data.map(r => {
-      const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0);
-      const nomeAl = r.allenatore_nome || (r.profili ? `${r.profili.cognome} ${r.profili.nome}` : '—');
-      return `<div class="admin-card" onclick="showDettaglio('${r.id}','admin')">
-        <div class="admin-card-top">
-          <div>
-            <div class="card-title">${nomeAl}</div>
-            <div class="card-sub">${r.gare?.nome} · ${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''}</div>
-          </div>
-          <div style="font-size:18px;font-weight:700;color:var(--blue)">€ ${tot.toFixed(2)}</div>
-        </div>
-        <div style="font-size:13px;color:var(--muted)">🚗 ${r.km} km · ${new Date(r.creata_il).toLocaleDateString('it-IT')}</div>
-        ${tab === 'attesa' ? `<div class="admin-actions">
-          <button class="btn btn-danger" onclick="event.stopPropagation();aggiornaStato('${r.id}','rifiutata')">❌ Rifiuta</button>
-          <button class="btn btn-green" onclick="event.stopPropagation();aggiornaStato('${r.id}','approvata')">✅ Approva</button>
-        </div>` : ''}
-        ${tab === 'rifiutate' ? `<div style="margin-top:8px;">
-          <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();eliminaRichiesta('${r.id}')">🗑️ Elimina</button>
-        </div>` : ''}
-      </div>`;
-    }).join('');
+    htmlContent = filtriBarra + btnElimina;
+
+    // Render iniziale senza filtri
+    window._adminRichiesteData = data;
+    window._adminRichiesteTab = tab;
+    setTimeout(() => applicaFiltriAdmin(), 50);
   } else {
     // Vista APPROVATE raggruppata per allenatore
     const perAllenatore = {};
