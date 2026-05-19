@@ -1121,6 +1121,16 @@ input[type="file"] { display: none; }
         <div class="kpi-card-sub">Gestione stipendi</div>
       </div>
     </div>
+    <div class="kpi-grid" style="margin-top:0;">
+      <div class="kpi-card" onclick="showAdminSezione('gestione')" style="grid-column:1/-1;display:flex;align-items:center;gap:14px;text-align:left;">
+        <div style="font-size:30px;flex-shrink:0;">⚙️</div>
+        <div>
+          <div class="kpi-card-label">Gestione</div>
+          <div style="font-size:14px;font-weight:700;color:var(--navy);margin-top:1px;">Allenatori · Gare · Tariffe km</div>
+          <div class="kpi-card-sub" id="admin-badge-gestione">Anagrafica e configurazione</div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1135,14 +1145,11 @@ input[type="file"] { display: none; }
   </div>
   <div class="content">
     <div class="tabs" style="flex-wrap:wrap;gap:6px;">
-      <button class="tab active" onclick="adminTab('attesa')">In attesa</button>
-      <button class="tab" onclick="adminTab('approvate')">Approvate</button>
-      <button class="tab" onclick="adminTab('rifiutate')">Rifiutate</button>
-      <button class="tab" onclick="adminTab('pagamenti')">💰 Pagamenti</button>
-      <button class="tab" onclick="adminTab('report')">📊 Report</button>
-      <button class="tab" onclick="adminTab('allenatori')">👥 Allenatori</button>
-      <button class="tab" onclick="adminTab('gare')">Gare</button>
-      <button class="tab" onclick="adminTab('tariffe')">€/km</button>
+      <button class="tab active" id="admintab-attesa" onclick="adminTab('attesa')">In attesa</button>
+      <button class="tab" id="admintab-approvate" onclick="adminTab('approvate')">Approvate</button>
+      <button class="tab" id="admintab-rifiutate" onclick="adminTab('rifiutate')">Rifiutate</button>
+      <button class="tab" id="admintab-pagamenti" onclick="adminTab('pagamenti')">💰 Pagamenti</button>
+      <button class="tab" id="admintab-report" onclick="adminTab('report')">📊 Report</button>
     </div>
     <div id="admin-content">
       <div class="loading"><div class="spinner"></div>Caricamento...</div>
@@ -1167,6 +1174,27 @@ input[type="file"] { display: none; }
       <button class="tab" onclick="compensiAdminTab('dichiarazioni')">📋 Dichiarazioni</button>
     </div>
     <div id="admin-compensi-content">
+      <div class="loading"><div class="spinner"></div>Caricamento...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ADMIN GESTIONE ===== -->
+<div id="screen-admin-gestione" class="screen">
+  <div class="topbar">
+    <button class="back-btn" onclick="showScreen('admin')">←</button>
+    <div>
+      <div class="topbar-title">Gestione</div>
+      <div class="topbar-sub">Allenatori · Gare · Tariffe km</div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="tabs" style="margin-bottom:18px;">
+      <button class="tab active" id="gestab-allenatori" onclick="gestioneTab('allenatori')">👥 Allenatori</button>
+      <button class="tab" id="gestab-gare" onclick="gestioneTab('gare')">🏆 Gare</button>
+      <button class="tab" id="gestab-tariffe" onclick="gestioneTab('tariffe')">📏 Tariffe km</button>
+    </div>
+    <div id="gestione-content">
       <div class="loading"><div class="spinner"></div>Caricamento...</div>
     </div>
   </div>
@@ -1491,14 +1519,17 @@ window.addEventListener('DOMContentLoaded', async () => {
 // Admin home KPI loader
 async function loadAdminHomeKPI() {
   try {
-    const [{ count: attesa }, { count: pagare }, { count: allenatori }] = await Promise.all([
+    const [{ count: attesa }, { count: pagare }, { count: allenatori }, { count: gare }] = await Promise.all([
       sb.from('richieste').select('id', { count: 'exact', head: true }).eq('stato','in attesa'),
       sb.from('richieste').select('id', { count: 'exact', head: true }).eq('stato','approvata').eq('pagata', false),
-      sb.from('profili').select('id', { count: 'exact', head: true }).eq('ruolo','allenatore')
+      sb.from('profili').select('id', { count: 'exact', head: true }).eq('ruolo','allenatore'),
+      sb.from('gare').select('id', { count: 'exact', head: true }).eq('attiva', true)
     ]);
     const a = document.getElementById('admin-kpi-attesa'); if (a) a.textContent = attesa || '0';
     const p = document.getElementById('admin-kpi-pagare'); if (p) p.textContent = pagare || '0';
     const al = document.getElementById('admin-kpi-allenatori'); if (al) al.textContent = allenatori || '0';
+    const bg = document.getElementById('admin-badge-gestione');
+    if (bg) bg.textContent = `${allenatori||0} allenatori · ${gare||0} gare attive`;
   } catch(e) {}
 }
 
@@ -3852,10 +3883,185 @@ function showAdminSezione(sezione) {
 
 function adminTab(tab) {
   adminCurrentTab = tab;
-  document.querySelectorAll('#screen-admin-rimborsi .tab').forEach((t, i) => {
-    t.classList.toggle('active', ['attesa','approvate','rifiutate','pagamenti','report','allenatori','gare','tariffe'][i] === tab);
+  ['attesa','approvate','rifiutate','pagamenti','report'].forEach(t => {
+    const el = document.getElementById('admintab-' + t);
+    if (el) el.classList.toggle('active', t === tab);
   });
   loadAdminContent(tab);
+}
+
+let gestioneCurrentTab = 'allenatori';
+function gestioneTab(tab) {
+  gestioneCurrentTab = tab;
+  ['allenatori','gare','tariffe'].forEach(t => {
+    const el = document.getElementById('gestab-' + t);
+    if (el) el.classList.toggle('active', t === tab);
+  });
+  loadGestioneContent(tab);
+}
+
+async function loadGestioneContent(tab) {
+  const el = document.getElementById('gestione-content');
+  if (!el) return;
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
+
+  if (tab === 'allenatori') {
+    const [{ data: allenatori }, { data: dichMap }] = await Promise.all([
+      sb.from('profili').select('*').eq('ruolo','allenatore').order('cognome', { ascending: true }),
+      sb.from('dichiarazioni_compensi').select('allenatore_id').eq('anno', new Date().getFullYear())
+    ]);
+
+    if (!allenatori || !allenatori.length) {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">👥</div><div class="empty-text">Nessun allenatore registrato</div></div>';
+      return;
+    }
+
+    const dichIds = new Set((dichMap||[]).map(d => d.allenatore_id));
+    const totale = allenatori.length;
+    const mancanti = allenatori.filter(al => !dichIds.has(al.id)).length;
+    const incompleti = allenatori.filter(al => !al.iban || !al.codice_fiscale).length;
+
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
+        <div class="stat-mini aqua"><div class="stat-mini-num">${totale}</div><div class="stat-mini-label">Totale</div></div>
+        <div class="stat-mini" style="background:var(--amber-pale);"><div class="stat-mini-num" style="color:#92400E;">${mancanti}</div><div class="stat-mini-label" style="color:#92400E;">Dich. mancanti</div></div>
+        <div class="stat-mini" style="background:var(--red-pale);"><div class="stat-mini-num" style="color:var(--red);">${incompleti}</div><div class="stat-mini-label" style="color:var(--red);">Incompleti</div></div>
+      </div>
+      ${allenatori.map(al => {
+        const haDich = dichIds.has(al.id);
+        const ibanOk = !!al.iban;
+        const cfOk = !!al.codice_fiscale;
+        let badgeHtml = '';
+        if (!ibanOk || !cfOk) {
+          badgeHtml = `<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:var(--red-pale);color:var(--red);">Incompleto</span>`;
+        } else if (!haDich) {
+          badgeHtml = `<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:var(--amber-pale);color:#92400E;">Dich. mancante</span>`;
+        } else {
+          badgeHtml = `<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:var(--green-pale);color:#065F46;">OK</span>`;
+        }
+        return `<div class="admin-card" style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+            ${avatarHtml(al.nome, al.cognome, al.foto_url, 42, 'var(--aqua-dark)')}
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:15px;font-weight:700;color:var(--navy);">${al.cognome} ${al.nome}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px;">${al.email}</div>
+            </div>
+            ${badgeHtml}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin-bottom:10px;background:var(--bg);border-radius:10px;padding:10px;">
+            <div>
+              <div style="color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;font-size:10px;">CF</div>
+              <div style="font-family:monospace;color:var(--navy);margin-top:2px;">${al.codice_fiscale || '⚠️ mancante'}</div>
+            </div>
+            <div>
+              <div style="color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;font-size:10px;">IBAN</div>
+              <div style="color:${ibanOk ? 'var(--green)' : 'var(--red)'};margin-top:2px;font-family:monospace;">${ibanOk ? '✓ impostato' : '⚠️ mancante'}</div>
+            </div>
+            <div>
+              <div style="color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;font-size:10px;">Telefono</div>
+              <div style="margin-top:2px;">${al.telefono || '—'}</div>
+            </div>
+            <div>
+              <div style="color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;font-size:10px;">Dichiarazione</div>
+              <div style="color:${haDich ? 'var(--green)' : 'var(--amber)'};margin-top:2px;">${haDich ? '✓ presentata' : '⚠️ mancante'}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm btn-secondary" onclick="openModalModificaAllenatore('${al.id}','${(al.nome||'').replace(/'/g,"\'")}','${(al.cognome||'').replace(/'/g,"\'")}','${(al.email||'').replace(/'/g,"\'")}','${(al.telefono||'').replace(/'/g,"\'")}')">✏️ Modifica</button>
+            <button class="btn btn-sm" style="background:var(--amber);color:white;border:none;" onclick="impersonaAllenatore('${al.id}')">👁️ Accedi come</button>
+          </div>
+        </div>`;
+      }).join('')}`;
+    return;
+  }
+
+  if (tab === 'gare') {
+    const { data } = await sb.from('gare').select('*').order('data', { ascending: true });
+    const nuoto = (data||[]).filter(g => !g.categoria || g.categoria === 'nuoto');
+    const salvamento = (data||[]).filter(g => g.categoria === 'salvamento');
+    const altro = (data||[]).filter(g => g.categoria && g.categoria !== 'nuoto' && g.categoria !== 'salvamento');
+
+    const totGare = (data||[]).length;
+    const prossime = (data||[]).filter(g => {
+      const d = new Date(g.data);
+      const ora = new Date();
+      const fra30 = new Date(ora); fra30.setDate(fra30.getDate()+30);
+      return d >= ora && d <= fra30;
+    }).length;
+    const senzaIndirizzo = (data||[]).filter(g => !g.indirizzo_piscina).length;
+
+    const renderGareNew = (list, titolo, emoji, catClass) => {
+      if (!list.length) return '';
+      return `<div class="section-title" style="margin-top:16px;">${emoji} ${titolo}</div>` +
+        list.map(g => {
+          const dataFmt = new Date(g.data).toLocaleDateString('it-IT',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+          const isPast = new Date(g.data) < new Date();
+          return `<div class="admin-card" style="margin-bottom:10px;${isPast ? 'opacity:0.7;' : ''}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+                  <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${catClass};letter-spacing:0.3px;">${titolo}</span>
+                  ${!g.attiva ? '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--red-pale);color:var(--red);">Disattiva</span>' : ''}
+                </div>
+                <div style="font-size:15px;font-weight:700;color:var(--navy);">${g.nome}</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px;">📅 ${dataFmt}</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:1px;">📍 ${g.luogo}</div>
+              </div>
+            </div>
+            <div style="background:${g.indirizzo_piscina ? 'var(--aqua-pale)' : 'var(--amber-pale)'};border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:10px;">
+              ${g.indirizzo_piscina
+                ? `<span style="color:var(--aqua-dark);">🏊 ${g.indirizzo_piscina}</span>`
+                : `<span style="color:#92400E;font-weight:600;">⚠️ Indirizzo piscina mancante — il calcolo km automatico non funzionerà</span>`}
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm btn-secondary" onclick="openModalModificaGara('${g.id}','${g.nome.replace(/'/g,"\'")}','${g.data}','${g.luogo.replace(/'/g,"\'")}','${g.categoria||'nuoto'}','${(g.indirizzo_piscina||'').replace(/'/g,"\'")}')">✏️ Modifica</button>
+              <button class="btn btn-sm ${g.attiva ? 'btn-secondary' : 'btn-green'}" onclick="toggleGara('${g.id}', ${!g.attiva})">${g.attiva ? 'Disattiva' : 'Riattiva'}</button>
+              <button class="btn btn-sm btn-danger" onclick="eliminaGara('${g.id}','${g.nome.replace(/'/g,"\'")}')">🗑️</button>
+            </div>
+          </div>`;
+        }).join('');
+    };
+
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
+        <div class="stat-mini aqua"><div class="stat-mini-num">${totGare}</div><div class="stat-mini-label">Totale</div></div>
+        <div class="stat-mini green"><div class="stat-mini-num">${prossime}</div><div class="stat-mini-label">Prossime 30gg</div></div>
+        <div class="stat-mini" style="background:var(--amber-pale);"><div class="stat-mini-num" style="color:#92400E;">${senzaIndirizzo}</div><div class="stat-mini-label" style="color:#92400E;">Senza indirizzo</div></div>
+      </div>
+      <button class="btn btn-primary" onclick="openModalGara()" style="margin-bottom:16px;">+ Aggiungi gara</button>
+      ${renderGareNew(nuoto, 'Nuoto', '🏊', 'var(--aqua-pale); color:var(--aqua-dark)')}
+      ${renderGareNew(salvamento, 'Salvamento', '🛟', 'var(--green-pale); color:#065F46')}
+      ${renderGareNew(altro, 'Altro', '📋', 'var(--bg); color:var(--muted)')}
+      ${!data || !data.length ? '<div class="empty"><div class="empty-icon">🏆</div><div class="empty-text">Nessuna gara</div></div>' : ''}`;
+    return;
+  }
+
+  if (tab === 'tariffe') {
+    const { data: tariffe } = await sb.from('tariffe_km').select('*').order('data_inizio', { ascending: false });
+
+    el.innerHTML = `
+      <div style="background:var(--aqua-pale);border:1px solid rgba(0,174,239,0.2);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--aqua-dark);">
+        ℹ️ Il sistema seleziona automaticamente la tariffa attiva in base alla data della gara quando si calcola un rimborso km.
+      </div>
+      <button class="btn btn-primary" onclick="openModalTariffa()" style="margin-bottom:16px;">+ Nuova stagione</button>
+      ${(tariffe||[]).map(t => {
+        const isAttiva = t.attiva;
+        return `<div class="admin-card" style="margin-bottom:10px;${isAttiva ? 'border:1.5px solid var(--aqua-dark);' : ''}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div style="font-size:16px;font-weight:800;color:var(--navy);">${t.stagione}</div>
+            <span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:12px;background:${isAttiva ? 'var(--green-pale)' : 'var(--bg)'};color:${isAttiva ? '#065F46' : 'var(--muted)'};">${isAttiva ? '✓ Attiva' : 'Archiviata'}</span>
+          </div>
+          <div style="font-size:26px;font-weight:800;color:${isAttiva ? 'var(--aqua-dark)' : 'var(--muted)'};">€ ${parseFloat(t.tariffa_km).toFixed(3)} <span style="font-size:14px;font-weight:500;">/ km</span></div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px;">📅 ${new Date(t.data_inizio).toLocaleDateString('it-IT')} → ${new Date(t.data_fine).toLocaleDateString('it-IT')}</div>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <button class="btn btn-sm btn-secondary" onclick="openModalModificaTariffa('${t.id}','${t.stagione}','${t.data_inizio}','${t.data_fine}',${t.tariffa_km},${t.attiva})">✏️ Modifica</button>
+            <button class="btn btn-sm btn-danger" onclick="eliminaTariffa('${t.id}','${t.stagione}')">🗑️ Elimina</button>
+          </div>
+        </div>`;
+      }).join('')}
+      ${!tariffe || !tariffe.length ? '<div class="empty"><div class="empty-icon">💰</div><div class="empty-text">Nessuna tariffa configurata</div></div>' : ''}`;
+    return;
+  }
 }
 
 // ===== IMPORT EXCEL COMPENSI =====
