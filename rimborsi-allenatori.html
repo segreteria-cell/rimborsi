@@ -2311,10 +2311,7 @@ async function eliminaCompensoEsterno(id) {
 function goToApp() {
   if (currentProfilo?.ruolo === 'admin') {
     showScreen('admin');
-    // Aggiorna badge rimborsi in attesa
-    sb.from('richieste').select('id').eq('stato','in attesa').then(({data}) => {
-      if (data) document.getElementById('admin-badge-rimborsi').textContent = data.length > 0 ? `${data.length} in attesa` : 'Gestione trasferte';
-    });
+    loadAdminHomeKPI();
   } else {
     showScreen('home');
     document.getElementById('home-name').textContent = currentProfilo?.nome || 'Allenatore';
@@ -5319,7 +5316,7 @@ function toggleCollapse(id, card) {
 
 async function toggleGara(id, attiva) {
   await sb.from('gare').update({ attiva }).eq('id', id);
-  loadAdminContent('gare');
+  if(document.getElementById('screen-admin-gestione').classList.contains('active')){loadGestioneContent('gare');}else{loadAdminContent('gare');}
 }
 
 function updateSelezione() {
@@ -5405,13 +5402,13 @@ async function segnaComePagati() {
 async function eliminaGara(id, nome) {
   if (!confirm(`Eliminare definitivamente la gara "${nome}"?\nAttenzione: le richieste collegate perderanno il riferimento alla gara.`)) return;
   await sb.from('gare').delete().eq('id', id);
-  loadAdminContent('gare');
+  if(document.getElementById('screen-admin-gestione').classList.contains('active')){loadGestioneContent('gare');}else{loadAdminContent('gare');}
 }
 
 async function eliminaTariffa(id, stagione) {
   if (!confirm(`Eliminare definitivamente la stagione "${stagione}"?`)) return;
   await sb.from('tariffe_km').delete().eq('id', id);
-  loadAdminContent('tariffe');
+  if(document.getElementById('screen-admin-gestione').classList.contains('active')){loadGestioneContent('tariffe');}else{loadAdminContent('tariffe');}
 }
 
 function openModalModificaAllenatore(id, nome, cognome, email, telefono) {
@@ -5432,7 +5429,7 @@ async function salvaModificaAllenatore() {
   if (!nome || !cognome) { alert('Nome e cognome sono obbligatori'); return; }
   await sb.from('profili').update({ nome, cognome, email, telefono }).eq('id', id);
   document.getElementById('modal-modifica-allenatore').classList.remove('open');
-  loadAdminContent('allenatori');
+  if(document.getElementById('screen-admin-gestione').classList.contains('active')){loadGestioneContent('allenatori');}else{loadAdminContent('allenatori');}
 }
 
 function openModalModificaGara(id, nome, data, luogo, categoria, piscina) {
@@ -5456,7 +5453,7 @@ async function salvaModificaGara() {
   if (!nome || !data || !luogo) { alert('Compila tutti i campi'); return; }
   await sb.from('gare').update({ nome, data, luogo, categoria, indirizzo_piscina: piscina }).eq('id', id);
   document.getElementById('modal-modifica-gara').classList.remove('open');
-  loadAdminContent('gare');
+  if(document.getElementById('screen-admin-gestione').classList.contains('active')){loadGestioneContent('gare');}else{loadAdminContent('gare');}
 }
 
 function openModalModificaTariffa(id, stagione, inizio, fine, valore, attiva) {
@@ -5479,7 +5476,7 @@ async function salvaModificaTariffa() {
   if (!stagione || !inizio || !fine || !valore) { alert('Compila tutti i campi'); return; }
   await sb.from('tariffe_km').update({ stagione, data_inizio: inizio, data_fine: fine, tariffa_km: valore, attiva }).eq('id', id);
   document.getElementById('modal-modifica-tariffa').classList.remove('open');
-  loadAdminContent('tariffe');
+  if(document.getElementById('screen-admin-gestione').classList.contains('active')){loadGestioneContent('tariffe');}else{loadAdminContent('tariffe');}
 }
 
 function openModalTariffa() {
@@ -5499,7 +5496,7 @@ async function addTariffa() {
   if (!stagione || !inizio || !fine || !valore) { alert('Compila tutti i campi'); return; }
   await sb.from('tariffe_km').insert({ stagione, data_inizio: inizio, data_fine: fine, tariffa_km: valore, attiva: true });
   closeModalTariffa();
-  loadAdminContent('tariffe');
+  if(document.getElementById('screen-admin-gestione').classList.contains('active')){loadGestioneContent('tariffe');}else{loadAdminContent('tariffe');}
 }
 
 function openModalGara() {
@@ -5519,7 +5516,12 @@ async function addGara() {
   if (!nome || !data || !luogo) { alert('Compila tutti i campi'); return; }
   await sb.from('gare').insert({ nome, data, luogo, attiva: true, categoria, indirizzo_piscina: piscina });
   closeModalGara();
-  loadAdminContent('gare');
+  // Se siamo nella sezione Gestione, ricarica lì; altrimenti fallback
+  if (document.getElementById('screen-admin-gestione').classList.contains('active')) {
+    loadGestioneContent('gare');
+  } else {
+    if(document.getElementById('screen-admin-gestione').classList.contains('active')){loadGestioneContent('gare');}else{loadAdminContent('gare');}
+  }
 }
 
 // ===== UTILS =====
