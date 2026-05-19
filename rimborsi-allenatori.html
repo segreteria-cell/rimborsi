@@ -3,316 +3,521 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Rimborsi Allenatori — SuperbaNuoto</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<title>Superba Portal — Rimborsi Allenatori</title>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
-  :root {
-    --blue: #0066FF;
-    --blue-dark: #0044CC;
-    --blue-light: #EBF2FF;
-    --green: #00C48C;
-    --red: #FF4444;
-    --orange: #FF8C00;
-    --bg: #F4F6FA;
-    --white: #FFFFFF;
-    --text: #1A1A2E;
-    --muted: #8A8FA8;
-    --border: #E2E6F0;
-    --card: #FFFFFF;
-    --shadow: 0 2px 12px rgba(0,0,255,0.08);
-    --radius: 16px;
-    --radius-sm: 10px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; background: var(--bg); font-family: 'DM Sans', sans-serif; color: var(--text); overflow-x: hidden; }
+/* ====================================
+   SUPERBA PORTAL — BLUE ARENA UI
+   Palette:
+   Navy   #061B3A
+   Aqua   #00AEEF
+   White  #FFFFFF
+   Light  #F0F5FF
+   Green  #16A673
+   Amber  #F59E0B
+   Red    #EF4444
+==================================== */
 
-  /* SCREENS */
-  .screen { display: none; min-height: 100vh; flex-direction: column; }
-  .screen.active { display: flex; }
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
 
-  /* TOP BAR */
-  .topbar {
-    background: var(--white);
-    padding: 16px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--border);
-    position: sticky; top: 0; z-index: 100;
-  }
-  .topbar-logo {
-    height: 32px; width: auto; margin-right: 10px; flex-shrink: 0;
-  }
-  .topbar-title { font-size: 17px; font-weight: 600; }
-  .topbar-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
-  .avatar {
-    width: 36px; height: 36px; border-radius: 50%;
-    background: var(--blue); color: white;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 600; font-size: 14px; cursor: pointer;
-  }
-  .back-btn {
-    background: none; border: none; font-size: 24px; cursor: pointer;
-    color: var(--blue); padding: 0 8px 0 0;
-  }
+:root {
+  --navy:      #061B3A;
+  --navy-mid:  #0D2D5E;
+  --navy-soft: #1A3F70;
+  --aqua:      #00AEEF;
+  --aqua-dark: #0090CC;
+  --aqua-glow: rgba(0,174,239,0.18);
+  --aqua-pale: #E6F7FF;
+  --white:     #FFFFFF;
+  --bg:        #F0F5FF;
+  --card:      #FFFFFF;
+  --text:      #0D2040;
+  --muted:     #6B7A99;
+  --border:    #D8E4F0;
+  --green:     #16A673;
+  --green-pale:#E6F7F1;
+  --amber:     #F59E0B;
+  --amber-pale:#FEF3C7;
+  --red:       #EF4444;
+  --red-pale:  #FEE2E2;
+  --shadow-sm: 0 1px 4px rgba(6,27,58,0.08);
+  --shadow:    0 4px 20px rgba(6,27,58,0.10);
+  --shadow-lg: 0 12px 40px rgba(6,27,58,0.16);
+  --radius:    16px;
+  --radius-sm: 10px;
+  --radius-xs: 6px;
 
-  /* SCROLLABLE CONTENT */
-  .content { flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 100px; }
+  /* Legacy compat */
+  --blue:      var(--aqua);
+  --blue-dark: var(--aqua-dark);
+  --blue-light:var(--aqua-pale);
+  --orange:    var(--amber);
+}
 
-  /* LOGIN SCREEN */
-  #screen-login {
-    background: linear-gradient(160deg, #0044CC 0%, #0066FF 50%, #3399FF 100%);
-    align-items: center; justify-content: center; padding: 40px 24px;
-  }
-  .login-logo { text-align: center; margin-bottom: 40px; }
-  .login-logo .wave { font-size: 64px; margin-bottom: 12px; }
-  .login-logo h1 { color: white; font-size: 26px; font-weight: 600; }
-  .login-logo p { color: rgba(255,255,255,0.75); font-size: 14px; margin-top: 6px; }
-  .login-card {
-    background: white; border-radius: 24px; padding: 32px 24px; width: 100%; max-width: 400px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-  }
-  .login-card h2 { font-size: 20px; font-weight: 600; margin-bottom: 24px; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-  /* FORM ELEMENTS */
-  .field { margin-bottom: 16px; }
-  .field label { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .field input, .field select, .field textarea {
-    width: 100%; padding: 14px 16px; border: 1.5px solid var(--border);
-    border-radius: var(--radius-sm); font-size: 16px; font-family: 'DM Sans', sans-serif;
-    background: var(--bg); color: var(--text); outline: none; transition: border-color 0.2s;
-    -webkit-appearance: none;
-  }
-  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--blue); background: white; }
-  .field textarea { resize: none; height: 80px; }
+html, body {
+  height: 100%;
+  background: var(--bg);
+  font-family: 'Figtree', sans-serif;
+  color: var(--text);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
 
-  /* BUTTONS */
-  .btn {
-    width: 100%; padding: 16px; border: none; border-radius: var(--radius-sm);
-    font-size: 16px; font-weight: 600; font-family: 'DM Sans', sans-serif;
-    cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px;
-  }
-  .btn-primary { background: var(--blue); color: white; }
-  .btn-primary:active { background: var(--blue-dark); transform: scale(0.98); }
-  .btn-secondary { background: var(--blue-light); color: var(--blue); }
-  .btn-danger { background: #FFF0F0; color: var(--red); }
-  .btn-green { background: #E6FBF5; color: var(--green); }
-  .btn-sm { padding: 10px 16px; font-size: 14px; width: auto; }
-  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* ===== SCREENS ===== */
+.screen { display: none; min-height: 100vh; flex-direction: column; }
+.screen.active { display: flex; }
 
-  /* CARDS */
-  .card {
-    background: var(--card); border-radius: var(--radius);
-    padding: 18px; margin-bottom: 14px;
-    box-shadow: var(--shadow); border: 1px solid var(--border);
-  }
-  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-  .card-title { font-size: 16px; font-weight: 600; }
-  .card-sub { font-size: 13px; color: var(--muted); margin-top: 3px; }
+/* ===== TOP BAR ===== */
+.topbar {
+  background: var(--white);
+  padding: 13px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: var(--shadow-sm);
+}
+.topbar-logo { height: 30px; width: auto; margin-right: 10px; flex-shrink: 0; }
+.topbar-title { font-size: 17px; font-weight: 700; color: var(--navy); letter-spacing: -0.2px; }
+.topbar-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--aqua), var(--navy-mid));
+  color: white;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 14px; cursor: pointer;
+  box-shadow: 0 2px 8px var(--aqua-glow);
+}
+.back-btn {
+  background: none; border: none; font-size: 22px; cursor: pointer;
+  color: var(--aqua); padding: 0 8px 0 0;
+  font-weight: 700; transition: opacity 0.15s;
+}
+.back-btn:active { opacity: 0.6; }
 
-  /* BADGES */
-  .badge {
-    padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
-    white-space: nowrap;
-  }
-  .badge-pending { background: #FFF4E5; color: var(--orange); }   /* In attesa = arancione */
-  .badge-approved { background: #E6FBF5; color: var(--green); }   /* Pagato = verde */
-  .badge-rejected { background: #FFF0F0; color: var(--red); }     /* Rifiutata / Da pagare = rosso */
-  .badge-paying { background: var(--blue-light); color: var(--blue); } /* Approvato = blu */
+/* ===== SCROLLABLE CONTENT ===== */
+.content { flex: 1; overflow-y: auto; padding: 18px 16px; padding-bottom: 100px; }
 
-  /* BOTTOM NAV */
-  .bottom-nav {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: white; border-top: 1px solid var(--border);
-    display: flex; padding: 8px 0 20px;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
-    z-index: 200;
-  }
-  .nav-item {
-    flex: 1; display: flex; flex-direction: column; align-items: center;
-    padding: 8px; cursor: pointer; border: none; background: none;
-    font-family: 'DM Sans', sans-serif;
-  }
-  .nav-icon { font-size: 22px; margin-bottom: 3px; }
-  .nav-label { font-size: 11px; color: var(--muted); font-weight: 500; }
-  .nav-item.active .nav-label { color: var(--blue); }
-  .nav-item.active .nav-icon { filter: none; }
+/* ===== LOGIN SCREEN ===== */
+#screen-login {
+  background: linear-gradient(160deg, var(--navy) 0%, var(--navy-mid) 45%, var(--navy-soft) 100%);
+  align-items: center; justify-content: center; padding: 40px 24px;
+  position: relative; overflow: hidden;
+}
+#screen-login::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 70% 50% at 50% 80%, rgba(0,174,239,0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+.login-logo { text-align: center; margin-bottom: 36px; position: relative; z-index: 1; }
+.login-logo .wave { font-size: 60px; margin-bottom: 12px; }
+.login-logo h1 { color: white; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+.login-logo p { color: rgba(255,255,255,0.65); font-size: 14px; margin-top: 6px; }
+.login-card {
+  background: white;
+  border-radius: 24px;
+  padding: 30px 24px;
+  width: 100%; max-width: 400px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.28);
+  position: relative; z-index: 1;
+}
+.login-card h2 { font-size: 21px; font-weight: 800; color: var(--navy); margin-bottom: 22px; }
 
-  /* HERO CARD */
-  .hero-card {
-    background: linear-gradient(135deg, #0055DD, #0088FF);
-    border-radius: var(--radius); padding: 22px; margin-bottom: 20px; color: white;
-  }
-  .hero-greeting { font-size: 14px; opacity: 0.8; margin-bottom: 4px; }
-  .hero-name { font-size: 22px; font-weight: 600; margin-bottom: 16px; }
-  .hero-stats { display: flex; gap: 16px; }
-  .hero-stat { flex: 1; background: rgba(255,255,255,0.15); border-radius: 10px; padding: 12px; }
-  .hero-stat-num { font-size: 22px; font-weight: 700; }
-  .hero-stat-label { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+/* ===== FORM ELEMENTS ===== */
+.field { margin-bottom: 14px; }
+.field label {
+  display: block; font-size: 11px; font-weight: 700;
+  color: var(--muted); margin-bottom: 5px;
+  text-transform: uppercase; letter-spacing: 0.7px;
+}
+.field input, .field select, .field textarea {
+  width: 100%; padding: 13px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 15px; font-family: 'Figtree', sans-serif;
+  background: var(--bg); color: var(--text);
+  outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+  -webkit-appearance: none;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  border-color: var(--aqua);
+  background: white;
+  box-shadow: 0 0 0 3px var(--aqua-glow);
+}
+.field textarea { resize: none; height: 80px; }
 
-  /* SECTION TITLE */
-  .section-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; margin-top: 4px; }
+/* ===== BUTTONS ===== */
+.btn {
+  width: 100%; padding: 15px;
+  border: none; border-radius: var(--radius-sm);
+  font-size: 15px; font-weight: 700; font-family: 'Figtree', sans-serif;
+  cursor: pointer; transition: all 0.18s;
+  letter-spacing: 0.2px;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--aqua) 0%, var(--aqua-dark) 100%);
+  color: white;
+  box-shadow: 0 4px 16px rgba(0,174,239,0.35);
+}
+.btn-primary:active { transform: scale(0.98); box-shadow: 0 2px 8px rgba(0,174,239,0.25); }
+.btn-secondary { background: var(--aqua-pale); color: var(--aqua-dark); border: 1.5px solid rgba(0,174,239,0.2); }
+.btn-danger { background: var(--red-pale); color: var(--red); }
+.btn-green { background: var(--green-pale); color: var(--green); }
+.btn-sm { padding: 9px 14px; font-size: 13px; width: auto; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-  /* ROUTE DISPLAY */
-  .route-display {
-    background: var(--blue-light); border-radius: var(--radius-sm); padding: 14px;
-    display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
-  }
-  .route-icon { font-size: 24px; }
-  .route-info { flex: 1; }
-  .route-km { font-size: 18px; font-weight: 700; color: var(--blue); }
-  .route-path { font-size: 12px; color: var(--muted); margin-top: 2px; }
+/* ===== CARDS ===== */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+  transition: box-shadow 0.2s;
+}
+.card[onclick]:active { box-shadow: var(--shadow); transform: scale(0.995); }
+.card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.card-title { font-size: 16px; font-weight: 700; color: var(--navy); }
+.card-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
-  /* SPESE LIST */
-  .spesa-item {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 0; border-bottom: 1px solid var(--border);
-  }
-  .spesa-item:last-child { border-bottom: none; }
-  .spesa-left { display: flex; align-items: center; gap: 12px; }
-  .spesa-icon { font-size: 22px; }
-  .spesa-name { font-size: 15px; font-weight: 500; }
-  .spesa-desc { font-size: 12px; color: var(--muted); }
-  .spesa-amount { font-size: 16px; font-weight: 700; color: var(--blue); }
-  .spesa-del { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--red); padding: 4px; }
+/* ===== BADGES ===== */
+.badge {
+  padding: 4px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 700;
+  white-space: nowrap; letter-spacing: 0.2px;
+}
+.badge-pending  { background: var(--amber-pale); color: #92400E; }
+.badge-approved { background: var(--green-pale);  color: #065F46; }
+.badge-rejected { background: var(--red-pale);    color: #B91C1C; }
+.badge-paying   { background: var(--aqua-pale);   color: var(--aqua-dark); }
 
-  /* UPLOAD AREA */
-  .upload-area {
-    border: 2px dashed var(--border); border-radius: var(--radius-sm);
-    padding: 24px; text-align: center; cursor: pointer; background: var(--bg);
-    transition: border-color 0.2s;
-  }
-  .upload-area:active { border-color: var(--blue); }
-  .upload-icon { font-size: 36px; margin-bottom: 8px; }
-  .upload-text { font-size: 14px; color: var(--muted); }
+/* ===== BOTTOM NAV ===== */
+.bottom-nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--white);
+  border-top: 1px solid var(--border);
+  display: flex; padding: 8px 0 20px;
+  box-shadow: 0 -4px 24px rgba(6,27,58,0.10);
+  z-index: 200;
+}
+.nav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  padding: 6px; cursor: pointer; border: none; background: none;
+  font-family: 'Figtree', sans-serif; transition: opacity 0.15s;
+}
+.nav-icon { font-size: 20px; margin-bottom: 3px; }
+.nav-label { font-size: 10px; color: var(--muted); font-weight: 600; letter-spacing: 0.3px; }
+.nav-item.active .nav-label { color: var(--aqua); }
+.nav-item.active .nav-icon { filter: drop-shadow(0 0 4px var(--aqua)); }
 
-  /* TOTAL ROW */
-  .total-row {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 14px 0; border-top: 2px solid var(--border); margin-top: 4px;
-  }
-  .total-label { font-size: 15px; font-weight: 600; }
-  .total-amount { font-size: 22px; font-weight: 700; color: var(--blue); }
+/* ===== HERO CARD ===== */
+.hero-card {
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-soft) 60%, rgba(0,174,239,0.4) 100%);
+  border-radius: var(--radius); padding: 20px; margin-bottom: 18px; color: white;
+  position: relative; overflow: hidden;
+  box-shadow: 0 8px 32px rgba(6,27,58,0.25);
+}
+.hero-card::after {
+  content: '';
+  position: absolute; right: -20px; top: -20px;
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,174,239,0.25) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-greeting { font-size: 13px; opacity: 0.75; margin-bottom: 3px; font-weight: 500; }
+.hero-name { font-size: 22px; font-weight: 800; margin-bottom: 16px; letter-spacing: -0.3px; }
+.hero-stats { display: flex; gap: 10px; }
+.hero-stat {
+  flex: 1;
+  background: rgba(255,255,255,0.12);
+  border-radius: 10px; padding: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(4px);
+}
+.hero-stat-num { font-size: 20px; font-weight: 800; }
+.hero-stat-label { font-size: 10px; opacity: 0.75; margin-top: 2px; font-weight: 600; letter-spacing: 0.3px; }
 
-  /* ALERT */
-  .alert {
-    padding: 14px 16px; border-radius: var(--radius-sm); margin-bottom: 16px;
-    font-size: 14px; font-weight: 500;
-  }
-  .alert-error { background: #FFF0F0; color: var(--red); border: 1px solid #FFCCCC; }
-  .alert-success { background: #E6FBF5; color: var(--green); border: 1px solid #B3F0DC; }
-  .alert-info { background: var(--blue-light); color: var(--blue); border: 1px solid #C0D8FF; }
+/* ===== SECTION TITLE ===== */
+.section-title {
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.9px;
+  margin-bottom: 10px; margin-top: 4px;
+}
 
-  /* LOADING */
-  .loading { text-align: center; padding: 40px; color: var(--muted); }
-  .spinner {
-    width: 32px; height: 32px; border: 3px solid var(--border);
-    border-top-color: var(--blue); border-radius: 50%;
-    animation: spin 0.8s linear infinite; margin: 0 auto 12px;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+/* ===== KPI GRID (home allenatore) ===== */
+.kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+.kpi-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 16px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  text-align: left;
+}
+.kpi-card:active { transform: scale(0.97); box-shadow: var(--shadow); }
+.kpi-card-icon { font-size: 28px; margin-bottom: 8px; }
+.kpi-card-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+.kpi-card-value { font-size: 20px; font-weight: 800; color: var(--navy); margin-top: 2px; }
+.kpi-card-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.kpi-card.primary { border-color: rgba(0,174,239,0.3); background: var(--aqua-pale); }
+.kpi-card.primary .kpi-card-value { color: var(--aqua-dark); }
 
-  /* EMPTY STATE */
-  .empty { text-align: center; padding: 50px 20px; color: var(--muted); }
-  .empty-icon { font-size: 48px; margin-bottom: 12px; }
-  .empty-text { font-size: 15px; }
+/* ===== ROUTE DISPLAY ===== */
+.route-display {
+  background: var(--aqua-pale);
+  border-radius: var(--radius-sm); padding: 12px;
+  display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
+  border: 1px solid rgba(0,174,239,0.2);
+}
+.route-icon { font-size: 22px; }
+.route-info { flex: 1; }
+.route-km { font-size: 17px; font-weight: 800; color: var(--aqua-dark); }
+.route-path { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
-  /* TABS */
-  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
-  .tab {
-    flex: 1; padding: 10px; border: none; border-radius: var(--radius-sm);
-    font-size: 13px; font-weight: 600; font-family: 'DM Sans', sans-serif;
-    cursor: pointer; background: var(--border); color: var(--muted); transition: all 0.2s;
-  }
-  .tab.active { background: var(--blue); color: white; }
+/* ===== SPESE LIST ===== */
+.spesa-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 0; border-bottom: 1px solid var(--border);
+}
+.spesa-item:last-child { border-bottom: none; }
+.spesa-left { display: flex; align-items: center; gap: 12px; }
+.spesa-icon { font-size: 20px; }
+.spesa-name { font-size: 14px; font-weight: 600; color: var(--navy); }
+.spesa-desc { font-size: 11px; color: var(--muted); }
+.spesa-amount { font-size: 15px; font-weight: 800; color: var(--aqua-dark); }
+.spesa-del { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--red); padding: 4px; }
 
-  /* DETAIL ROWS */
-  .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
-  .detail-row:last-child { border-bottom: none; }
-  .detail-label { color: var(--muted); }
-  .detail-value { font-weight: 500; text-align: right; max-width: 60%; }
+/* ===== UPLOAD AREA ===== */
+.upload-area {
+  border: 2px dashed var(--border); border-radius: var(--radius-sm);
+  padding: 22px; text-align: center; cursor: pointer; background: var(--bg);
+  transition: border-color 0.2s, background 0.2s;
+}
+.upload-area:active { border-color: var(--aqua); background: var(--aqua-pale); }
+.upload-icon { font-size: 32px; margin-bottom: 8px; }
+.upload-text { font-size: 13px; color: var(--muted); }
 
-  /* DIVIDER */
-  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+/* ===== TOTAL ROW ===== */
+.total-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 13px 0; border-top: 2px solid var(--border); margin-top: 4px;
+}
+.total-label { font-size: 14px; font-weight: 700; color: var(--navy); }
+.total-amount { font-size: 20px; font-weight: 800; color: var(--aqua-dark); }
 
-  /* FAB */
-  .fab {
-    position: fixed; bottom: 90px; right: 20px;
-    width: 56px; height: 56px; border-radius: 50%;
-    background: var(--blue); color: white; border: none;
-    font-size: 28px; cursor: pointer; box-shadow: 0 4px 20px rgba(0,102,255,0.4);
-    display: flex; align-items: center; justify-content: center;
-    transition: transform 0.2s;
-  }
-  .fab:active { transform: scale(0.92); }
+/* ===== ALERT ===== */
+.alert {
+  padding: 13px 15px; border-radius: var(--radius-sm); margin-bottom: 14px;
+  font-size: 13px; font-weight: 600;
+}
+.alert-error   { background: var(--red-pale);   color: #B91C1C; border: 1px solid rgba(239,68,68,0.2); }
+.alert-success { background: var(--green-pale);  color: #065F46; border: 1px solid rgba(22,166,115,0.2); }
+.alert-info    { background: var(--aqua-pale);   color: var(--aqua-dark); border: 1px solid rgba(0,174,239,0.2); }
 
-  /* ADMIN CARDS */
-  .admin-card { background: white; border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
-  .admin-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-  .admin-actions { display: flex; gap: 8px; margin-top: 12px; }
-  .admin-actions .btn { flex: 1; }
+/* ===== LOADING ===== */
+.loading { text-align: center; padding: 40px; color: var(--muted); }
+.spinner {
+  width: 30px; height: 30px;
+  border: 3px solid var(--border);
+  border-top-color: var(--aqua);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  margin: 0 auto 10px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
-  /* MODAL */
-  .modal-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-    display: none; align-items: flex-end; z-index: 1000;
-    backdrop-filter: blur(2px);
-  }
-  .modal-overlay.open { display: flex; }
-  .modal {
-    background: white; border-radius: 24px 24px 0 0; padding: 24px;
-    width: 100%; max-height: 85vh; overflow-y: auto;
-  }
-  .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 20px; }
-  .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+/* ===== EMPTY STATE ===== */
+.empty { text-align: center; padding: 48px 20px; color: var(--muted); }
+.empty-icon { font-size: 44px; margin-bottom: 10px; }
+.empty-text { font-size: 14px; line-height: 1.5; }
 
-  /* MAPS BUTTON */
-  .maps-btn {
-    display: flex; align-items: center; gap: 10px;
-    padding: 14px 16px; border: 1.5px solid var(--border);
-    border-radius: var(--radius-sm); background: var(--bg); cursor: pointer;
-    font-size: 15px; color: var(--text); font-family: 'DM Sans', sans-serif;
-    width: 100%; text-align: left; transition: border-color 0.2s;
-  }
-  .maps-btn:active { border-color: var(--blue); }
+/* ===== TABS ===== */
+.tabs { display: flex; gap: 6px; margin-bottom: 18px; }
+.tab {
+  flex: 1; padding: 9px 8px;
+  border: none; border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 700; font-family: 'Figtree', sans-serif;
+  cursor: pointer; background: var(--border); color: var(--muted);
+  transition: all 0.18s; letter-spacing: 0.2px;
+}
+.tab.active { background: var(--navy); color: white; }
 
-  /* PHOTO PREVIEW */
-  .photo-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-  .photo-thumb {
-    width: 72px; height: 72px; object-fit: cover;
-    border-radius: 8px; border: 2px solid var(--border);
-  }
+/* ===== DETAIL ROWS ===== */
+.detail-row {
+  display: flex; justify-content: space-between;
+  padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 14px;
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-label { color: var(--muted); font-weight: 500; }
+.detail-value { font-weight: 600; text-align: right; max-width: 60%; color: var(--navy); }
 
-  input[type="file"] { display: none; }
+/* ===== DIVIDER ===== */
+.divider { height: 1px; background: var(--border); margin: 14px 0; }
 
-  /* MEZZO BUTTONS */
-  .mezzo-btn {
-    padding: 10px 14px; border-radius: 20px; border: 2px solid var(--border);
-    background: white; color: var(--muted); font-size: 13px; font-weight: 600;
-    cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.2s;
-  }
-  .mezzo-btn.active {
-    background: var(--blue); color: white; border-color: var(--blue);
-  }
+/* ===== FAB ===== */
+.fab {
+  position: fixed; bottom: 88px; right: 18px;
+  width: 54px; height: 54px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--aqua), var(--aqua-dark));
+  color: white; border: none;
+  font-size: 26px; cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0,174,239,0.45);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.2s;
+}
+.fab:active { transform: scale(0.9); }
 
-  /* KM EXTRA */
-  .km-extra-row {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
-  }
-  .km-extra-row input { flex: 1; }
-  .suggestions {
-    position: absolute; top: 100%; left: 0; right: 0; z-index: 500;
-    background: white; border: 1.5px solid var(--border); border-top: none;
-    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-height: 200px; overflow-y: auto;
-  }
-  .suggestion-item {
-    padding: 12px 14px; font-size: 14px; cursor: pointer; border-bottom: 1px solid var(--border);
-  }
-  .suggestion-item:last-child { border-bottom: none; }
-  .suggestion-item:active { background: var(--blue-light); }
+/* ===== ADMIN CARDS ===== */
+.admin-card {
+  background: white; border-radius: var(--radius);
+  padding: 14px; margin-bottom: 10px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.15s;
+}
+.admin-card[onclick]:active { box-shadow: var(--shadow); }
+.admin-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.admin-actions { display: flex; gap: 8px; margin-top: 10px; }
+.admin-actions .btn { flex: 1; }
+
+/* ===== MODAL ===== */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(6,27,58,0.55);
+  display: none; align-items: flex-end; z-index: 1000;
+  backdrop-filter: blur(3px);
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: white; border-radius: 24px 24px 0 0; padding: 22px;
+  width: 100%; max-height: 85vh; overflow-y: auto;
+}
+.modal-handle {
+  width: 38px; height: 4px;
+  background: var(--border); border-radius: 2px;
+  margin: 0 auto 18px;
+}
+.modal-title { font-size: 18px; font-weight: 800; color: var(--navy); margin-bottom: 18px; }
+
+/* ===== MAPS BUTTON ===== */
+.maps-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 14px; border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--bg); cursor: pointer;
+  font-size: 14px; color: var(--text); font-family: 'Figtree', sans-serif;
+  width: 100%; text-align: left; transition: border-color 0.2s, background 0.2s;
+}
+.maps-btn:active { border-color: var(--aqua); background: var(--aqua-pale); }
+
+/* ===== PHOTO PREVIEW ===== */
+.photo-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.photo-thumb {
+  width: 68px; height: 68px; object-fit: cover;
+  border-radius: 8px; border: 2px solid var(--border);
+}
+input[type="file"] { display: none; }
+
+/* ===== MEZZO BUTTONS ===== */
+.mezzo-btn {
+  padding: 9px 13px; border-radius: 20px;
+  border: 2px solid var(--border);
+  background: white; color: var(--muted);
+  font-size: 13px; font-weight: 700;
+  cursor: pointer; font-family: 'Figtree', sans-serif;
+  transition: all 0.18s;
+}
+.mezzo-btn.active { background: var(--aqua); color: white; border-color: var(--aqua); }
+
+/* ===== KM EXTRA ===== */
+.km-extra-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.km-extra-row input { flex: 1; }
+
+/* ===== SUGGESTIONS ===== */
+.suggestions {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 500;
+  background: white; border: 1.5px solid var(--border); border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  box-shadow: var(--shadow); max-height: 200px; overflow-y: auto;
+}
+.suggestion-item {
+  padding: 11px 13px; font-size: 13px; cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.suggestion-item:last-child { border-bottom: none; }
+.suggestion-item:active { background: var(--aqua-pale); }
+
+/* ===== STAT MINI CARDS ===== */
+.stat-mini {
+  background: white; border-radius: var(--radius-sm);
+  padding: 14px; text-align: center;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.stat-mini-num { font-size: 20px; font-weight: 800; }
+.stat-mini-label { font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 600; }
+.stat-mini.aqua { background: var(--aqua-pale); border-color: rgba(0,174,239,0.25); }
+.stat-mini.aqua .stat-mini-num { color: var(--aqua-dark); }
+.stat-mini.green { background: var(--green-pale); border-color: rgba(22,166,115,0.25); }
+.stat-mini.green .stat-mini-num { color: var(--green); }
+
+/* ===== STEPPER ===== */
+.stepper {
+  display: flex; gap: 4px; margin-bottom: 18px; align-items: center;
+}
+.step-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--border); flex-shrink: 0;
+  transition: background 0.2s, transform 0.2s;
+}
+.step-dot.active { background: var(--aqua); transform: scale(1.3); }
+.step-dot.done { background: var(--green); }
+.step-line {
+  flex: 1; height: 2px; background: var(--border); border-radius: 1px;
+}
+.step-line.done { background: var(--green); }
+
+/* ===== PROGRESS BAR ===== */
+.progress-track {
+  background: var(--border); border-radius: 4px; height: 8px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%; border-radius: 4px; transition: width 0.5s ease;
+}
+
+/* ===== ADMIN KPI STRIP ===== */
+.admin-kpi-strip {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px;
+}
+.admin-kpi {
+  background: white; border-radius: 12px; padding: 14px;
+  border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+}
+.admin-kpi-num { font-size: 22px; font-weight: 800; }
+.admin-kpi-label { font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.admin-kpi.navy  .admin-kpi-num { color: var(--navy); }
+.admin-kpi.aqua  .admin-kpi-num { color: var(--aqua-dark); }
+.admin-kpi.amber .admin-kpi-num { color: var(--amber); }
+.admin-kpi.green .admin-kpi-num { color: var(--green); }
+
+/* ===== WATER WAVE DECORATION ===== */
+.wave-decoration {
+  width: 100%; height: 4px; margin-bottom: 16px;
+  background: linear-gradient(90deg, var(--aqua), var(--navy), var(--aqua));
+  border-radius: 2px;
+  opacity: 0.4;
+}
+
 </style>
 </head>
 <body>
@@ -343,7 +548,7 @@
     <button class="btn btn-primary" onclick="doLogin()" id="btn-login">Accedi</button>
     <div style="text-align:center;margin-top:16px;">
       <span style="font-size:14px;color:var(--muted)">Prima volta? </span>
-      <span style="font-size:14px;color:var(--blue);font-weight:600;cursor:pointer" onclick="showRegister()">Registrati</span>
+      <span style="font-size:14px;color:var(--aqua-dark);font-weight:700;cursor:pointer" onclick="showRegister()">Registrati</span>
     </div>
     <div style="text-align:center;margin-top:10px;">
       <span style="font-size:13px;color:var(--muted);cursor:pointer;text-decoration:underline;" onclick="showResetPassword()">Password dimenticata?</span>
@@ -352,7 +557,7 @@
 </div>
 
 <!-- ===== RESET PASSWORD ===== -->
-<div id="screen-reset" class="screen" style="background:linear-gradient(160deg,#0044CC 0%,#0066FF 50%,#3399FF 100%);align-items:center;justify-content:center;padding:40px 24px;">
+<div id="screen-reset" class="screen" style="background:linear-gradient(160deg,var(--navy) 0%,var(--navy-mid) 50%,var(--navy-soft) 100%);align-items:center;justify-content:center;padding:40px 24px;">
   <div class="login-logo">
     <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png" style="height:80px;margin-bottom:12px;filter:brightness(0) invert(1);">
     <h1 style="color:white;">SuperbaNuoto</h1>
@@ -368,14 +573,14 @@
     </div>
     <button class="btn btn-primary" onclick="doResetPassword()">Invia link di reset</button>
     <div style="text-align:center;margin-top:16px;">
-      <span style="font-size:14px;color:var(--blue);font-weight:600;cursor:pointer" onclick="showLogin()">← Torna al login</span>
+      <span style="font-size:14px;color:var(--aqua-dark);font-weight:700;cursor:pointer" onclick="showLogin()">← Torna al login</span>
     </div>
   </div>
 </div>
 
 <!-- ===== REGISTER ===== -->
 <div id="screen-register" class="screen">
-  <div style="background:var(--blue);padding:50px 24px 24px;color:white;">
+  <div style="background:linear-gradient(135deg,var(--navy),var(--navy-soft));padding:50px 24px 24px;color:white;">
     <button class="back-btn" style="color:white" onclick="showLogin()">←</button>
     <h2 style="font-size:22px;font-weight:700;margin-top:8px;">Crea account</h2>
     <p style="opacity:0.75;font-size:14px;margin-top:4px;">Inserisci i tuoi dati</p>
@@ -404,23 +609,33 @@
       <button onclick="showScreen('admin');loadAdminContent('attesa')" style="background:white;color:var(--blue);border:none;border-radius:6px;padding:6px 12px;font-weight:600;font-size:13px;cursor:pointer;">← Torna Admin</button>
     </div>
 
-    <div class="hero-card" style="margin-bottom:24px;">
-      <div class="hero-greeting">Benvenuto 👋</div>
+    <div class="hero-card" style="margin-bottom:20px;">
+      <div class="hero-greeting">Bentornato 👋</div>
       <div class="hero-name" id="home-name">Allenatore</div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <div class="hero-stat-num" id="home-stat-da-ricevere">—</div>
+          <div class="hero-stat-label">Da ricevere</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-num" id="home-stat-pagato">—</div>
+          <div class="hero-stat-label">Pagato</div>
+        </div>
+      </div>
     </div>
 
-    <div style="font-size:14px;color:var(--muted);margin-bottom:12px;text-align:center;">Cosa vuoi gestire oggi?</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;">Sezioni principali</div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;">
-      <div onclick="showSezione('rimborsi')" style="background:var(--white);border:2px solid var(--blue);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;">
-        <div style="font-size:36px;margin-bottom:8px;">🧾</div>
-        <div style="font-size:15px;font-weight:700;color:var(--blue);">Rimborsi</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px;" id="home-badge-rimborsi">Le tue trasferte</div>
+    <div class="kpi-grid" style="margin-bottom:20px;">
+      <div class="kpi-card primary" onclick="showSezione('rimborsi')">
+        <div class="kpi-card-icon">🧾</div>
+        <div class="kpi-card-label">Rimborsi</div>
+        <div class="kpi-card-sub" id="home-badge-rimborsi">Trasferte</div>
       </div>
-      <div onclick="showSezione('compensi')" style="background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;">
-        <div style="font-size:36px;margin-bottom:8px;">💶</div>
-        <div style="font-size:15px;font-weight:700;color:var(--text);">Compensi</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px;" id="home-badge-compensi">Anno 2026</div>
+      <div class="kpi-card" onclick="showSezione('compensi')">
+        <div class="kpi-card-icon">💶</div>
+        <div class="kpi-card-label">Compensi</div>
+        <div class="kpi-card-sub" id="home-badge-compensi">Anno 2026</div>
       </div>
     </div>
   </div>
@@ -444,19 +659,19 @@
   <div class="content">
     <!-- 2 STAT GRANDI -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
-      <div style="background:var(--blue-light,#EBF2FF);border-radius:var(--radius);padding:14px;text-align:center;">
-        <div style="font-size:22px;font-weight:700;color:var(--blue);" id="stat-da-ricevere">€0</div>
-        <div style="font-size:12px;color:var(--blue);margin-top:3px;font-weight:500;">⏳ Da ricevere</div>
+      <div class="stat-mini aqua">
+        <div class="stat-mini-num" id="stat-da-ricevere">€0</div>
+        <div class="stat-mini-label">⏳ Da ricevere</div>
       </div>
-      <div style="background:#E6FBF5;border-radius:var(--radius);padding:14px;text-align:center;">
-        <div style="font-size:22px;font-weight:700;color:#0F6E56;" id="stat-pagato">€0</div>
-        <div style="font-size:12px;color:#0F6E56;margin-top:3px;font-weight:500;">💰 Pagato</div>
+      <div class="stat-mini green">
+        <div class="stat-mini-num" id="stat-pagato">€0</div>
+        <div class="stat-mini-label">💰 Pagato</div>
       </div>
     </div>
 
     <!-- CARD IN ATTESA -->
     <div id="rimborsi-attesa-section" style="display:none;margin-bottom:16px;">
-      <div style="background:#FFF4E5;border:1.5px solid #FFD580;border-radius:var(--radius);padding:12px;">
+      <div style="background:var(--amber-pale);border:1.5px solid rgba(245,158,11,0.35);border-radius:var(--radius);padding:12px;">
         <div style="font-size:11px;font-weight:700;color:#7A4000;margin-bottom:10px;letter-spacing:0.5px;">⏳ IN ATTESA DI ACCETTAZIONE</div>
         <div id="rimborsi-attesa-list"></div>
       </div>
@@ -491,17 +706,17 @@
     <div class="section-title">Soglie anno <span id="compensi-anno">2026</span></div>
     <div class="card" style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-        <span style="font-size:13px;font-weight:600;">INPS</span>
+        <span style="font-size:13px;font-weight:700;color:var(--navy);">INPS</span>
         <span style="font-size:12px;color:var(--muted);" id="inps-label">€0 / €5.000</span>
       </div>
       <div style="background:var(--border);border-radius:4px;height:10px;overflow:hidden;margin-bottom:4px;">
-        <div id="inps-bar" style="width:0%;height:100%;background:var(--blue);border-radius:4px;transition:width 0.5s;"></div>
+        <div id="inps-bar" style="width:0%;height:100%;background:var(--aqua);border-radius:4px;transition:width 0.5s;"></div>
       </div>
       <div style="font-size:11px;color:var(--muted);" id="inps-note">Esente da contributi INPS</div>
     </div>
     <div class="card" style="margin-bottom:20px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-        <span style="font-size:13px;font-weight:600;">IRPEF</span>
+        <span style="font-size:13px;font-weight:700;color:var(--navy);">IRPEF</span>
         <span style="font-size:12px;color:var(--muted);" id="irpef-label">€0 / €15.000</span>
       </div>
       <div style="background:var(--border);border-radius:4px;height:10px;overflow:hidden;margin-bottom:4px;">
@@ -593,9 +808,23 @@
   <div class="content">
     <div id="nuova-alert"></div>
 
+    <!-- STEPPER -->
+    <div class="stepper" style="padding: 0 4px; margin-bottom: 20px;">
+      <div class="step-dot active" id="step-dot-1"></div>
+      <div class="step-line" id="step-line-1"></div>
+      <div class="step-dot" id="step-dot-2"></div>
+      <div class="step-line" id="step-line-2"></div>
+      <div class="step-dot" id="step-dot-3"></div>
+      <div class="step-line" id="step-line-3"></div>
+      <div class="step-dot" id="step-dot-4"></div>
+      <div class="step-line" id="step-line-4"></div>
+      <div class="step-dot" id="step-dot-5"></div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:16px;text-align:center;" id="step-label">Passo 1 — Gara</div>
+
     <!-- STEP 1: Gara -->
     <div class="card">
-      <div class="card-title" style="margin-bottom:12px;">🏆 Gara / Trasferta</div>
+      <div class="card-title" style="margin-bottom:12px;">🏆 Gara / Trasferta <span style="font-size:11px;color:var(--muted);font-weight:500;margin-left:6px;">Passo 1 di 5</span></div>
       <div class="field">
         <label>Seleziona gara</label>
         <select id="sel-gara" onchange="onGaraChange()">
@@ -606,7 +835,7 @@
 
     <!-- STEP 2: Auto privata -->
     <div class="card">
-      <div class="card-title" style="margin-bottom:12px;">🚗 Utilizzo auto privata</div>
+      <div class="card-title" style="margin-bottom:12px;">🚗 Auto privata <span style="font-size:11px;color:var(--muted);font-weight:500;margin-left:6px;">Passo 2 di 5</span></div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <span style="font-size:15px;">Hai utilizzato l'auto privata?</span>
         <div style="display:flex;gap:8px;">
@@ -625,7 +854,7 @@
 
     <!-- STEP 3: Percorso auto (solo se auto privata) -->
     <div class="card" id="card-percorso">
-      <div class="card-title" style="margin-bottom:4px;">🗺️ Percorso principale</div>
+      <div class="card-title" style="margin-bottom:4px;">🗺️ Percorso <span style="font-size:11px;color:var(--muted);font-weight:500;margin-left:6px;">Passo 3 di 5</span></div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Inserisci il percorso casa → sede gara</div>
       <div class="field">
         <label>Indirizzo di partenza</label>
@@ -688,7 +917,7 @@
 
     <!-- STEP 4: Spese -->
     <div class="card">
-      <div class="card-title" style="margin-bottom:12px;">💰 Spese sostenute</div>
+      <div class="card-title" style="margin-bottom:12px;">💰 Spese sostenute <span style="font-size:11px;color:var(--muted);font-weight:500;margin-left:6px;">Passo 4 di 5</span></div>
       <div id="spese-list"></div>
       <button class="btn btn-secondary" onclick="openAddSpesa()" style="margin-top:8px;">+ Aggiungi spesa</button>
       <div class="total-row">
@@ -715,17 +944,17 @@
     </div>
 
     <!-- RIEPILOGO -->
-    <div class="card" id="card-riepilogo" style="background:var(--blue-light);border:1.5px solid var(--blue);">
-      <div class="card-title" style="margin-bottom:12px;color:var(--blue);">📋 Riepilogo rimborso</div>
-      <div class="detail-row"><div class="detail-label">Totale spese</div><div class="detail-value" id="riepilogo-spese" style="color:var(--blue);font-weight:700;">€ 0,00</div></div>
-      <div class="detail-row"><div class="detail-label">Acconto percepito</div><div class="detail-value" id="riepilogo-acconto" style="color:var(--orange);font-weight:700;">€ 0,00</div></div>
-      <div class="detail-row" style="border-top:2px solid var(--blue);margin-top:4px;padding-top:12px;">
-        <div class="detail-label" style="font-weight:700;font-size:15px;">Da rimborsare</div>
-        <div class="detail-value" id="riepilogo-totale" style="color:var(--blue);font-size:20px;font-weight:700;">€ 0,00</div>
+    <div class="card" id="card-riepilogo" style="background:var(--navy);border:none;color:white;">
+      <div style="font-size:15px;font-weight:800;margin-bottom:14px;color:white;">📋 Riepilogo rimborso</div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.12);font-size:13px;"><div style="color:rgba(255,255,255,0.7);">Totale spese</div><div id="riepilogo-spese" style="font-weight:700;color:white;">€ 0,00</div></div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.12);font-size:13px;"><div style="color:rgba(255,255,255,0.7);">Acconto percepito</div><div id="riepilogo-acconto" style="font-weight:700;color:var(--amber);">€ 0,00</div></div>
+      <div style="display:flex;justify-content:space-between;padding:12px 0 2px;margin-top:4px;border-top:1px solid rgba(255,255,255,0.2);">
+        <div style="font-weight:700;font-size:14px;color:rgba(255,255,255,0.9);">Da rimborsare</div>
+        <div id="riepilogo-totale" style="color:white;font-size:20px;font-weight:800;">€ 0,00</div>
       </div>
     </div>
 
-    <button class="btn btn-primary" onclick="inviaRichiesta()" id="btn-invia">Invia richiesta</button>
+    <button class="btn btn-primary" onclick="inviaRichiesta()" id="btn-invia" style="font-size:17px;padding:18px;letter-spacing:0.3px;">Invia richiesta →</button>
   </div>
   <div class="bottom-nav">
     <button class="nav-item" onclick="showTab('home')"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></button>
@@ -854,28 +1083,42 @@
       <div class="topbar-sub">SuperbaNuoto</div>
     </div>
     <div style="display:flex;gap:8px;">
-      <button class="btn btn-sm btn-secondary" onclick="switchToAllenatoreView()">🏊 Vista allenatore</button>
-      <button class="btn btn-sm btn-danger" onclick="doLogout()">Esci</button>
+      <button class="btn btn-sm btn-secondary" onclick="switchToAllenatoreView()" style="font-size:12px;">Vista all.</button>
+      <button class="btn btn-sm btn-danger" onclick="doLogout()" style="font-size:12px;">Esci</button>
     </div>
   </div>
   <div class="content">
-    <div class="hero-card" style="margin-bottom:24px;">
+    <div class="hero-card" style="margin-bottom:20px;">
       <div class="hero-greeting">Pannello Admin 🔐</div>
       <div class="hero-name">SuperbaNuoto</div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <div class="hero-stat-num" id="admin-kpi-attesa">—</div>
+          <div class="hero-stat-label">In attesa</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-num" id="admin-kpi-pagare">—</div>
+          <div class="hero-stat-label">Da pagare</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-num" id="admin-kpi-allenatori">—</div>
+          <div class="hero-stat-label">Allenatori</div>
+        </div>
+      </div>
     </div>
 
-    <div style="font-size:14px;color:var(--muted);margin-bottom:12px;text-align:center;">Seleziona la sezione</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">Sezioni</div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      <div onclick="showAdminSezione('rimborsi')" style="background:var(--white);border:2px solid var(--blue);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;">
-        <div style="font-size:36px;margin-bottom:8px;">🧾</div>
-        <div style="font-size:15px;font-weight:700;color:var(--blue);">Rimborsi</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px;" id="admin-badge-rimborsi">Gestione trasferte</div>
+    <div class="kpi-grid">
+      <div class="kpi-card primary" onclick="showAdminSezione('rimborsi')">
+        <div class="kpi-card-icon">🧾</div>
+        <div class="kpi-card-label">Rimborsi</div>
+        <div class="kpi-card-sub" id="admin-badge-rimborsi">Gestione trasferte</div>
       </div>
-      <div onclick="showAdminSezione('compensi')" style="background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;">
-        <div style="font-size:36px;margin-bottom:8px;">💶</div>
-        <div style="font-size:15px;font-weight:700;color:var(--text);">Compensi</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px;">Gestione stipendi</div>
+      <div class="kpi-card" onclick="showAdminSezione('compensi')">
+        <div class="kpi-card-icon">💶</div>
+        <div class="kpi-card-label">Compensi</div>
+        <div class="kpi-card-sub">Gestione stipendi</div>
       </div>
     </div>
   </div>
@@ -1244,6 +1487,38 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   });
 });
+
+// Admin home KPI loader
+async function loadAdminHomeKPI() {
+  try {
+    const [{ count: attesa }, { count: pagare }, { count: allenatori }] = await Promise.all([
+      sb.from('richieste').select('id', { count: 'exact', head: true }).eq('stato','in attesa'),
+      sb.from('richieste').select('id', { count: 'exact', head: true }).eq('stato','approvata').eq('pagata', false),
+      sb.from('profili').select('id', { count: 'exact', head: true }).eq('ruolo','allenatore')
+    ]);
+    const a = document.getElementById('admin-kpi-attesa'); if (a) a.textContent = attesa || '0';
+    const p = document.getElementById('admin-kpi-pagare'); if (p) p.textContent = pagare || '0';
+    const al = document.getElementById('admin-kpi-allenatori'); if (al) al.textContent = allenatori || '0';
+  } catch(e) {}
+}
+
+// Home allenatore stat loader
+async function loadHomeStats() {
+  try {
+    const { data } = await sb.from('richieste')
+      .select('spese(*), stato, pagata, acconto')
+      .eq('allenatore_id', currentUser.id);
+    if (!data) return;
+    let daRicevere = 0, pagato = 0;
+    data.forEach(r => {
+      const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
+      if (r.pagata) pagato += tot;
+      else if (r.stato === 'approvata') daRicevere += tot;
+    });
+    const e1 = document.getElementById('home-stat-da-ricevere'); if (e1) e1.textContent = '€' + daRicevere.toFixed(0);
+    const e2 = document.getElementById('home-stat-pagato'); if (e2) e2.textContent = '€' + pagato.toFixed(0);
+  } catch(e) {}
+}
 
 // ===== SCREENS =====
 function showScreen(id) {
@@ -2251,7 +2526,7 @@ function aggiornaRiepilogo() {
   document.getElementById('riepilogo-spese').textContent = '€ ' + totSpese.toFixed(2);
   document.getElementById('riepilogo-acconto').textContent = '€ ' + acconto.toFixed(2);
   document.getElementById('riepilogo-totale').textContent = '€ ' + daRimborsare.toFixed(2);
-  document.getElementById('riepilogo-totale').style.color = daRimborsare < 0 ? 'var(--red)' : 'var(--blue)';
+  document.getElementById('riepilogo-totale').style.color = daRimborsare < 0 ? 'var(--amber)' : 'white';
 }
 
 function showProfilo() {
