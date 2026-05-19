@@ -1092,17 +1092,17 @@ input[type="file"] { display: none; }
       <div class="hero-greeting">Pannello Admin 🔐</div>
       <div class="hero-name">SuperbaNuoto</div>
       <div class="hero-stats">
-        <div class="hero-stat">
+        <div class="hero-stat" onclick="showAdminSezione('rimborsi');adminTab('attesa')" style="cursor:pointer;">
           <div class="hero-stat-num" id="admin-kpi-attesa">—</div>
-          <div class="hero-stat-label">In attesa</div>
+          <div class="hero-stat-label">Rimborsi in attesa</div>
         </div>
-        <div class="hero-stat">
+        <div class="hero-stat" onclick="showAdminSezione('rimborsi');adminTab('pagamenti')" style="cursor:pointer;">
           <div class="hero-stat-num" id="admin-kpi-pagare">—</div>
-          <div class="hero-stat-label">Da pagare</div>
+          <div class="hero-stat-label">Approvati da pagare</div>
         </div>
-        <div class="hero-stat">
+        <div class="hero-stat" onclick="showAdminSezione('gestione')" style="cursor:pointer;">
           <div class="hero-stat-num" id="admin-kpi-allenatori">—</div>
-          <div class="hero-stat-label">Allenatori</div>
+          <div class="hero-stat-label">Allenatori attivi</div>
         </div>
       </div>
     </div>
@@ -1521,7 +1521,7 @@ async function loadAdminHomeKPI() {
   try {
     const [{ count: attesa }, { count: pagare }, { count: allenatori }, { count: gare }] = await Promise.all([
       sb.from('richieste').select('id', { count: 'exact', head: true }).eq('stato','in attesa'),
-      sb.from('richieste').select('id', { count: 'exact', head: true }).eq('stato','approvata').eq('pagata', false),
+      sb.from('richieste').select('id', { count: 'exact', head: true }).eq('stato','approvata').or('pagata.is.null,pagata.eq.false'),
       sb.from('profili').select('id', { count: 'exact', head: true }).eq('ruolo','allenatore'),
       sb.from('gare').select('id', { count: 'exact', head: true }).eq('attiva', true)
     ]);
@@ -3871,10 +3871,13 @@ function showAdminSezione(sezione) {
   if (sezione === 'rimborsi') {
     showScreen('admin-rimborsi');
     loadAdminContent(adminCurrentTab || 'attesa');
-    // Aggiorna badge
     sb.from('richieste').select('id').eq('stato','in attesa').then(({data}) => {
-      if (data) document.getElementById('admin-badge-rimborsi').textContent = data.length > 0 ? `${data.length} in attesa` : 'Gestione trasferte';
+      const el = document.getElementById('admin-badge-rimborsi');
+      if (el) el.textContent = (data?.length > 0) ? `${data.length} in attesa` : 'Gestione trasferte';
     });
+  } else if (sezione === 'gestione') {
+    showScreen('admin-gestione');
+    gestioneTab('allenatori');
   } else {
     showScreen('admin-compensi');
     compensiAdminTab('inserisci');
