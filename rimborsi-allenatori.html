@@ -685,15 +685,6 @@ input[type="file"] { display: none; }
       <div style="font-size:20px;color:rgba(255,255,255,0.5);">›</div>
     </div>
 
-    <!-- ATTIVITÀ RECENTI -->
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <div style="font-size:16px;font-weight:800;color:var(--navy);">Attività recenti</div>
-      <div onclick="showSezione('rimborsi')" style="font-size:13px;color:var(--aqua-dark);font-weight:600;cursor:pointer;">Vedi tutte</div>
-    </div>
-    <div id="home-feed" style="margin-bottom:18px;">
-      <div class="loading"><div class="spinner"></div></div>
-    </div>
-
     <!-- ACCESSO RAPIDO -->
     <div style="font-size:16px;font-weight:800;color:var(--navy);margin-bottom:12px;">Accesso rapido</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:24px;">
@@ -830,9 +821,9 @@ input[type="file"] { display: none; }
     </div>
 
     <!-- ALTRI COMPENSI -->
-    <div style="display:flex;justify-content:space-between;align-items:center;margin:20px 0 8px;">
+    <button class="btn btn-primary" onclick="openModalCompensoeEsterno()" style="margin-bottom:14px;">+ Aggiungi compenso da altro soggetto</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 8px;">
       <div class="section-title" style="margin:0;">Altri soggetti sportivi</div>
-      <button class="btn btn-sm btn-secondary" onclick="openModalCompensoeEsterno()">+ Aggiungi</button>
     </div>
     <div id="compensi-esterni-list">
       <div class="loading"><div class="spinner"></div>Caricamento...</div>
