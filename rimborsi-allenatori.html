@@ -612,8 +612,9 @@ input[type="file"] { display: none; }
         <div style="font-size:22px;">🔔</div>
         <div id="home-notif-badge" style="display:none;position:absolute;top:-2px;right:-2px;background:var(--red);color:white;font-size:9px;font-weight:800;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;" id="notif-count">0</div>
       </div>
-      <div onclick="showTab('profilo')" style="width:38px;height:38px;border-radius:50%;background:var(--aqua-pale);border:2px solid var(--aqua);overflow:hidden;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+      <div onclick="showTab('profilo')" style="width:38px;height:38px;border-radius:50%;background:var(--aqua-pale);border:2px solid var(--aqua);overflow:hidden;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative;">
         <div style="font-size:16px;font-weight:800;color:var(--aqua-dark);" id="home-avatar-initials">?</div>
+        <img id="home-avatar-img-topbar" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;">
       </div>
     </div>
   </div>
@@ -629,8 +630,7 @@ input[type="file"] { display: none; }
       <button onclick="showScreen('admin');loadAdminContent('attesa')" style="background:white;color:var(--navy);border:none;border-radius:6px;padding:5px 12px;font-weight:700;font-size:12px;cursor:pointer;">← Admin</button>
     </div>
     <div style="position:relative;z-index:1;">
-      <div style="font-size:14px;color:rgba(255,255,255,0.7);font-weight:500;margin-bottom:4px;">Ciao,</div>
-      <div style="font-size:26px;font-weight:800;color:white;letter-spacing:-0.5px;margin-bottom:4px;" id="home-name">Allenatore</div>
+      <div style="font-size:22px;font-weight:800;color:white;letter-spacing:-0.3px;margin-bottom:4px;">Ciao, <span id="home-name">Allenatore</span> 👋</div>
       <div style="font-size:13px;color:rgba(255,255,255,0.6);">Ecco la tua situazione aggiornata</div>
     </div>
   </div>
@@ -2425,7 +2425,17 @@ function goToApp() {
   } else {
     showScreen('home');
     document.getElementById('home-name').textContent = currentProfilo?.nome || 'Allenatore';
-    loadHomeBadges();
+    // Avatar topbar
+    const initials = ((currentProfilo?.nome||'?')[0] + (currentProfilo?.cognome||'')[0]).toUpperCase();
+    const avatarTxt = document.getElementById('home-avatar-initials');
+    const avatarImg = document.getElementById('home-avatar-img-topbar');
+    if (avatarTxt) avatarTxt.textContent = initials;
+    if (currentProfilo?.foto_url && avatarImg) {
+      avatarImg.src = currentProfilo.foto_url;
+      avatarImg.style.display = 'block';
+      if (avatarTxt) avatarTxt.style.display = 'none';
+    }
+    loadHome();
   }
 }
 
@@ -2847,11 +2857,15 @@ function aggiornaAvatarUI(fotoUrl, nome) {
   const img = document.getElementById('profilo-avatar-img');
   const txt = document.getElementById('profilo-avatar-text');
   const avatar = document.getElementById('profilo-avatar');
+  // Topbar home
+  const topbarImg = document.getElementById('home-avatar-img-topbar');
+  const topbarTxt = document.getElementById('home-avatar-initials');
   if (fotoUrl) {
-    img.src = fotoUrl;
-    img.style.display = 'block';
+    if (img) { img.src = fotoUrl; img.style.display = 'block'; }
     if (txt) txt.style.display = 'none';
     if (avatar) avatar.style.background = 'transparent';
+    if (topbarImg) { topbarImg.src = fotoUrl; topbarImg.style.display = 'block'; }
+    if (topbarTxt) topbarTxt.style.display = 'none';
   } else {
     if (img) img.style.display = 'none';
     if (txt) { txt.style.display = ''; txt.textContent = (nome?.[0] || '?').toUpperCase(); }
@@ -2871,6 +2885,11 @@ async function caricaFotoProfilo(input) {
     img.src = e.target.result;
     img.style.display = 'block';
     if (txt) txt.style.display = 'none';
+    // Aggiorna anche topbar home
+    const topbarImg = document.getElementById('home-avatar-img-topbar');
+    const topbarTxt = document.getElementById('home-avatar-initials');
+    if (topbarImg) { topbarImg.src = e.target.result; topbarImg.style.display = 'block'; }
+    if (topbarTxt) topbarTxt.style.display = 'none';
   };
   reader.readAsDataURL(file);
 
