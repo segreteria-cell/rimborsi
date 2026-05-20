@@ -2936,137 +2936,93 @@ async function loadProfilo() {
 
 // ===== HOME =====
 async function loadHome() {
-  document.getElementById('home-feed').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-  // Inizializza avatar iniziali
-  if (currentProfilo) {
-    const initials = ((currentProfilo.nome||'?')[0] + (currentProfilo.cognome||'')[0]).toUpperCase();
-    const el = document.getElementById('home-avatar-initials');
-    if (el) el.textContent = initials;
-  }
-
   try {
-    const { data: richieste, error } = await sb.from('richieste')
+    const { data: richieste } = await sb.from('richieste')
       .select('*, gare(nome, data, luogo), spese(*)')
       .eq('allenatore_id', currentUser.id)
       .order('creata_il', { ascending: false });
 
-    if (error) {
-      document.getElementById('home-feed').innerHTML = `<div class="alert alert-error">Errore: ${error.message}</div>`;
-      return;
-    }
-
     // Calcola KPI
     let daPagare = 0, pagato = 0, nAttesa = 0, nApprovare = 0;
-    richieste?.forEach(r => {
+    (richieste||[]).forEach(r => {
       const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
       if (r.pagata) pagato += tot;
       else if (r.stato === 'approvata') { daPagare += tot; nApprovare++; }
       if (r.stato === 'in attesa') nAttesa++;
     });
 
-    // Dichiarazioni da firmare (mese corrente disponibile e non ancora inviata)
+    // Dichiarazioni da firmare
     const oggi = new Date();
     const { data: dichPendenti } = await sb.from('dichiarazioni_compensi')
-      .select('id').eq('allenatore_id', currentUser.id).eq('anno', oggi.getFullYear());
+      .select('mese').eq('allenatore_id', currentUser.id).eq('anno', oggi.getFullYear());
     const meseDaFirmare = oggi.getDate() >= 25 ? oggi.getMonth() + 1 : oggi.getMonth();
     const haFirmato = (dichPendenti||[]).some(d => d.mese === meseDaFirmare);
     const nFirmare = (!haFirmato && meseDaFirmare >= 1) ? 1 : 0;
 
-    // Aggiorna UI
+    // Aggiorna KPI home screen
     const setEl = (id, val) => { const e = document.getElementById(id); if(e) e.textContent = val; };
-    setEl('home-totale-da-ricevere', '€ ' + daPagare.toFixed(2).replace('.',','));
-    setEl('home-kpi-pagato', '€ ' + pagato.toFixed(0));
+    setEl('home-totale-da-ricevere', '\u20ac ' + daPagare.toFixed(2).replace('.',','));
+    setEl('home-kpi-pagato', '\u20ac ' + pagato.toFixed(0));
     setEl('home-kpi-attesa', nAttesa);
     setEl('home-kpi-approvare', nApprovare);
     setEl('home-kpi-firmare', nFirmare);
+    setEl('stat-da-ricevere', '\u20ac' + daPagare.toFixed(0));
+    setEl('stat-pagato', '\u20ac' + pagato.toFixed(0));
 
     // Badge notifiche
     const nNotif = nAttesa + nFirmare;
     const badge = document.getElementById('home-notif-badge');
     if (badge) { badge.style.display = nNotif > 0 ? 'flex' : 'none'; badge.textContent = nNotif; }
 
-    // Aggiorna anche gli id legacy usati nella sezione rimborsi
-    setEl('stat-da-ricevere', '€' + daPagare.toFixed(0));
-    setEl('stat-pagato', '€' + pagato.toFixed(0));
-    setEl('home-stat-da-ricevere', '€' + daPagare.toFixed(0));
-    setEl('home-stat-pagato', '€' + pagato.toFixed(0));
-
-    // Feed attività recenti — ultime 4 tra richieste e compensi
-    if (!richieste || richieste.length === 0) {
-      document.getElementById('home-feed').innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Nessuna attività ancora.<br>Tocca + per iniziare!</div></div>`;
-      document.getElementById('rimborsi-attesa-section').style.display = 'none';
-      return;
-    }
-
-    const feedItems = richieste.slice(0, 4).map(r => {
-      const gara = r.gare || {};
-      const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
-      const dataR = r.creata_il ? new Date(r.creata_il) : new Date();
-      const diffDays = Math.floor((oggi - dataR) / (1000*60*60*24));
-      const quando = diffDays === 0 ? 'Oggi' : diffDays === 1 ? 'Ieri' : diffDays < 7 ? `${diffDays} giorni fa` : dataR.toLocaleDateString('it-IT',{day:'2-digit',month:'short'});
-
-      let badgeColor, badgeText, icon, iconBg;
-      if (r.pagata)               { badgeColor='var(--green)'; badgeText='Pagata';    icon='💼'; iconBg='var(--green-pale)'; }
-      else if (r.stato==='approvata') { badgeColor='var(--aqua-dark)'; badgeText='Approvata'; icon='✅'; iconBg='var(--aqua-pale)'; }
-      else if (r.stato==='rifiutata') { badgeColor='var(--red)'; badgeText='Rifiutata'; icon='❌'; iconBg='var(--red-pale)'; }
-      else                          { badgeColor='var(--amber)'; badgeText='In attesa'; icon='🚗'; iconBg='var(--amber-pale)'; }
-
-      return `<div onclick="showDettaglio('${r.id}','rimborsi')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;">
-        <div style="width:40px;height:40px;border-radius:12px;background:${iconBg};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">${icon}</div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:14px;font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${gara.nome || 'Rimborso trasferta'}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:1px;">${r.pagata ? 'Pagato' : r.stato === 'approvata' ? 'Approvato' : 'In attesa di approvazione'}</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0;">
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">${quando}</div>
-          <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:8px;background:${badgeColor}1A;color:${badgeColor};">${badgeText}</span>
-        </div>
-        <div style="font-size:16px;color:var(--muted);">›</div>
-      </div>`;
-    });
-
-    document.getElementById('home-feed').innerHTML = feedItems.join('');
-
-    // Aggiorna rimborsi-attesa-section (legacy)
-    const inAttesa = (richieste||[]).filter(r => r.stato==='in attesa').map(r => ({...r, tot: (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0)}));
-    const attesaSection = document.getElementById('rimborsi-attesa-section');
-    if (attesaSection) {
-      if (inAttesa.length > 0) {
-        attesaSection.style.display = 'block';
-        document.getElementById('rimborsi-attesa-list').innerHTML = inAttesa.map(r => {
-          const gara = r.gare || {};
-          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #FFD580;" onclick="showDettaglio('${r.id}','rimborsi')">
-            <div><div style="font-size:13px;font-weight:600;color:#5C3300;">${gara.nome||'Richiesta'}</div><div style="font-size:11px;color:#7A4000;">${gara.data?new Date(gara.data).toLocaleDateString('it-IT'):''}</div></div>
-            <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:14px;font-weight:700;color:#5C3300;">€${r.tot.toFixed(0)}</span><span style="font-size:11px;background:#FF8C00;color:white;padding:3px 8px;border-radius:6px;font-weight:600;cursor:pointer;">Modifica</span></div>
-          </div>`;
-        }).join('');
+    // Lista richieste in screen-rimborsi
+    const listaEl = document.getElementById('home-richieste');
+    if (listaEl) {
+      if (!richieste || !richieste.length) {
+        listaEl.innerHTML = '<div class="empty"><div class="empty-icon">\u{1F4CB}</div><div class="empty-text">Nessuna richiesta ancora.<br>Tocca + per iniziare!</div></div>';
       } else {
-        attesaSection.style.display = 'none';
+        listaEl.innerHTML = richieste.map(r => {
+          const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
+          const gara = r.gare || {};
+          let bc, bt;
+          if (r.pagata)                   { bc='badge-approved'; bt='\u{1F4B0} Pagato'; }
+          else if (r.stato==='approvata') { bc='badge-paying';   bt='\u2705 Approvata'; }
+          else if (r.stato==='rifiutata') { bc='badge-rejected'; bt='\u274C Rifiutata'; }
+          else                            { bc='badge-pending';  bt='\u23F3 In attesa'; }
+          return '<div class="card" onclick="showDettaglio(\'' + r.id + '\',\'rimborsi\')">' +
+            '<div class="card-header"><div>' +
+            '<div class="card-title">' + (gara.nome||'Gara') + '</div>' +
+            '<div class="card-sub">\u{1F4CD} ' + (gara.luogo||'') + ' \u00b7 ' + (gara.data ? new Date(gara.data).toLocaleDateString('it-IT') : '') + '</div>' +
+            '</div><span class="badge ' + bc + '">' + bt + '</span></div>' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">' +
+            '<span style="font-size:13px;color:var(--muted)">\u{1F697} ' + (r.km||0) + ' km</span>' +
+            '<span style="font-size:17px;font-weight:700;color:' + (r.pagata?'var(--green)':'var(--aqua-dark)') + '">\u20ac ' + tot.toFixed(2) + '</span>' +
+            '</div></div>';
+        }).join('');
       }
     }
 
-    // Riepilogo annuale (legacy per screen-rimborsi)
-    const annoCorrente = new Date().getFullYear();
-    const perAnno = {};
-    richieste.forEach(r => {
-      const anno = r.creata_il ? new Date(r.creata_il).getFullYear() : annoCorrente;
-      if (!perAnno[anno]) perAnno[anno] = { pagato:0, approvato:0, inAttesa:0, rifiutato:0, count:0 };
-      const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
-      perAnno[anno].count++;
-      if (r.pagata) perAnno[anno].pagato += tot;
-      else if (r.stato==='approvata') perAnno[anno].approvato += tot;
-      else if (r.stato==='rifiutata') perAnno[anno].rifiutato += tot;
-      else perAnno[anno].inAttesa += tot;
-    });
+    // Sezione in attesa
+    const inAttesaList = (richieste||[]).filter(r => r.stato==='in attesa')
+      .map(r => ({...r, tot:(r.spese||[]).reduce((s,sp)=>s+sp.importo,0)-(r.acconto||0)}));
+    const attesaSection = document.getElementById('rimborsi-attesa-section');
+    if (attesaSection) {
+      attesaSection.style.display = inAttesaList.length > 0 ? 'block' : 'none';
+      const al = document.getElementById('rimborsi-attesa-list');
+      if (al) al.innerHTML = inAttesaList.map(r => {
+        const g = r.gare||{};
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #FFD580;" onclick="showDettaglio(\'' + r.id + '\',\'rimborsi\')">' +
+          '<div><div style="font-size:13px;font-weight:600;color:#5C3300;">' + (g.nome||'Richiesta') + '</div>' +
+          '<div style="font-size:11px;color:#7A4000;">' + (g.data?new Date(g.data).toLocaleDateString('it-IT'):'') + '</div></div>' +
+          '<span style="font-size:14px;font-weight:700;color:#5C3300;">\u20ac' + r.tot.toFixed(0) + '</span></div>';
+      }).join('');
+    }
 
   } catch(e) {
-    const feed = document.getElementById('home-feed');
-    if (feed) feed.innerHTML = `<div class="alert alert-error">Errore: ${e.message}</div>`;
+    console.error('loadHome:', e.message);
   }
 }
 
-// ===== GARE =====
+
 async function loadGare() {
   const sel = document.getElementById('sel-gara');
   sel.innerHTML = '<option value="">Caricamento...</option>';
