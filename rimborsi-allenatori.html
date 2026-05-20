@@ -2951,13 +2951,22 @@ async function loadHome() {
       if (r.stato === 'in attesa') nAttesa++;
     });
 
-    // Dichiarazioni da firmare
+    // Dichiarazioni da firmare: tutti i mesi disponibili (dal 25) e non ancora firmati
     const oggi = new Date();
+    const annoCorrente = oggi.getFullYear();
     const { data: dichPendenti } = await sb.from('dichiarazioni_compensi')
-      .select('mese').eq('allenatore_id', currentUser.id).eq('anno', oggi.getFullYear());
-    const meseDaFirmare = oggi.getDate() >= 25 ? oggi.getMonth() + 1 : oggi.getMonth();
-    const haFirmato = (dichPendenti||[]).some(d => d.mese === meseDaFirmare);
-    const nFirmare = (!haFirmato && meseDaFirmare >= 1) ? 1 : 0;
+      .select('mese').eq('allenatore_id', currentUser.id).eq('anno', annoCorrente);
+    const mesiGiaFirmati = new Set((dichPendenti||[]).map(d => d.mese));
+
+    // Conta i mesi disponibili (già passato il 25) ma non ancora firmati
+    // La stagione parte da settembre anno precedente, ma contiamo da gennaio dell'anno corrente
+    let nFirmare = 0;
+    for (let m = 1; m <= 12; m++) {
+      const dataDisp = new Date(annoCorrente, m - 1, 25); // 25 del mese m
+      if (oggi >= dataDisp && !mesiGiaFirmati.has(m)) {
+        nFirmare++;
+      }
+    }
 
     // Aggiorna KPI home screen
     const setEl = (id, val) => { const e = document.getElementById(id); if(e) e.textContent = val; };
