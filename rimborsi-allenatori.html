@@ -601,11 +601,7 @@ input[type="file"] { display: none; }
   <!-- TOPBAR -->
   <div style="background:var(--navy);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:center;gap:10px;">
-      <div style="width:36px;height:36px;background:var(--aqua);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:white;">S</div>
-      <div>
-        <div style="font-size:13px;font-weight:800;color:white;letter-spacing:0.5px;">SUPERBA</div>
-        <div style="font-size:10px;color:rgba(255,255,255,0.6);letter-spacing:1.5px;font-weight:600;">NUOTO</div>
-      </div>
+      <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png" style="height:32px;width:auto;filter:brightness(0) invert(1);" alt="SuperbaNuoto">
     </div>
     <div style="display:flex;align-items:center;gap:12px;">
       <div style="position:relative;cursor:pointer;" onclick="showTab('riepilogo')">
@@ -1715,29 +1711,49 @@ async function loadCompensi() {
     document.getElementById('irpef-note').textContent = `Mancano €${(sogliIRPEF - totLordo).toFixed(0)} alla soglia fiscale`;
   }
 
-  // Render compensi SuperbaNuoto
+  // Render compensi SuperbaNuoto — card collassabile con totale
   const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
   const snEl = document.getElementById('compensi-sn-list');
   if (!compSN || !compSN.length) {
     snEl.innerHTML = '<div class="empty"><div class="empty-icon">💶</div><div class="empty-text">Nessun compenso registrato</div></div>';
   } else {
-    snEl.innerHTML = compSN.map(c => `
-      <div class="admin-card" style="margin-bottom:8px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div>
-            <div style="font-size:14px;font-weight:600;">${mesi[c.mese]} ${c.anno}</div>
-            <div style="font-size:12px;color:var(--muted);">Lordo €${(c.lordo||0).toFixed(2)}
-              ${c.ritenuta_inps > 0 ? ` · INPS -€${c.ritenuta_inps.toFixed(2)}` : ''}
-              ${c.ritenuta_irpef > 0 ? ` · IRPEF -€${c.ritenuta_irpef.toFixed(2)}` : ''}
-            </div>
-            ${c.data_incasso ? `<div style="font-size:11px;color:var(--muted);">Incassato il ${new Date(c.data_incasso).toLocaleDateString('it-IT')}</div>` : ''}
+    const totNetto = compSN.reduce((s,c) => s + (c.netto||0), 0);
+    const totLordoSNOnly = compSN.reduce((s,c) => s + (c.lordo||0), 0);
+    const righe = compSN.map(c => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--navy);">${mesi[c.mese]} ${c.anno}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">
+            Lordo €${(c.lordo||0).toFixed(2)}${c.ritenuta_inps > 0 ? ` · INPS -€${c.ritenuta_inps.toFixed(2)}` : ''}${c.ritenuta_irpef > 0 ? ` · IRPEF -€${c.ritenuta_irpef.toFixed(2)}` : ''}
           </div>
-          <div style="text-align:right;">
-            <div style="font-size:16px;font-weight:700;color:var(--green)">€${(c.netto||0).toFixed(2)}</div>
-            <div style="font-size:11px;color:var(--green)">netto</div>
-          </div>
+          ${c.data_incasso ? `<div style="font-size:11px;color:var(--muted);">Incassato ${new Date(c.data_incasso).toLocaleDateString('it-IT')}</div>` : ''}
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:15px;font-weight:800;color:var(--green);">€${(c.netto||0).toFixed(2)}</div>
+          <div style="font-size:10px;color:var(--muted);">netto</div>
         </div>
       </div>`).join('');
+
+    snEl.innerHTML = `
+      <div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm);">
+        <!-- Header cliccabile -->
+        <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.toggle-icon').textContent=this.nextElementSibling.style.display==='none'?'▾':'▴';"
+          style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;cursor:pointer;background:var(--bg);">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:2px;">${compSN.length} mesi · Anno ${anno}</div>
+            <div style="display:flex;align-items:baseline;gap:8px;">
+              <span style="font-size:22px;font-weight:800;color:var(--green);">€${totNetto.toFixed(2)}</span>
+              <span style="font-size:12px;color:var(--muted);">netto totale</span>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">Lordo totale: €${totLordoSNOnly.toFixed(2)}</div>
+          </div>
+          <div style="font-size:22px;color:var(--muted);transition:transform 0.2s;" class="toggle-icon">▾</div>
+        </div>
+        <!-- Righe mesi (nascoste di default) -->
+        <div style="display:none;">
+          ${righe}
+        </div>
+      </div>`;
   }
 
   // Render compensi esterni
