@@ -596,55 +596,153 @@ input[type="file"] { display: none; }
 </div>
 
 <!-- ===== HOME ALLENATORE ===== -->
-<div id="screen-home" class="screen">
-  <div class="topbar">
-    <div>
-      <div class="topbar-title">SuperbaNuoto</div>
-      <div class="topbar-sub">Benvenuto</div>
-    </div>
-  </div>
-  <div class="content">
-    <div id="admin-back-banner" style="display:none;background:var(--blue);color:white;padding:12px 16px;border-radius:var(--radius-sm);margin-bottom:16px;justify-content:space-between;align-items:center;">
-      <span style="font-size:14px;">👁️ Vista allenatore</span>
-      <button onclick="showScreen('admin');loadAdminContent('attesa')" style="background:white;color:var(--blue);border:none;border-radius:6px;padding:6px 12px;font-weight:600;font-size:13px;cursor:pointer;">← Torna Admin</button>
-    </div>
+<div id="screen-home" class="screen" style="background:#fff;">
 
-    <div class="hero-card" style="margin-bottom:20px;">
-      <div class="hero-greeting">Bentornato 👋</div>
-      <div class="hero-name" id="home-name">Allenatore</div>
-      <div class="hero-stats">
-        <div class="hero-stat">
-          <div class="hero-stat-num" id="home-stat-da-ricevere">—</div>
-          <div class="hero-stat-label">Da ricevere</div>
-        </div>
-        <div class="hero-stat">
-          <div class="hero-stat-num" id="home-stat-pagato">—</div>
-          <div class="hero-stat-label">Pagato</div>
-        </div>
+  <!-- TOPBAR -->
+  <div style="background:var(--navy);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="width:36px;height:36px;background:var(--aqua);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:white;">S</div>
+      <div>
+        <div style="font-size:13px;font-weight:800;color:white;letter-spacing:0.5px;">SUPERBA</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.6);letter-spacing:1.5px;font-weight:600;">NUOTO</div>
       </div>
     </div>
-
-    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;">Sezioni principali</div>
-
-    <div class="kpi-grid" style="margin-bottom:20px;">
-      <div class="kpi-card primary" onclick="showSezione('rimborsi')">
-        <div class="kpi-card-icon">🧾</div>
-        <div class="kpi-card-label">Rimborsi</div>
-        <div class="kpi-card-sub" id="home-badge-rimborsi">Trasferte</div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="position:relative;cursor:pointer;" onclick="showTab('riepilogo')">
+        <div style="font-size:22px;">🔔</div>
+        <div id="home-notif-badge" style="display:none;position:absolute;top:-2px;right:-2px;background:var(--red);color:white;font-size:9px;font-weight:800;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;" id="notif-count">0</div>
       </div>
-      <div class="kpi-card" onclick="showSezione('compensi')">
-        <div class="kpi-card-icon">💶</div>
-        <div class="kpi-card-label">Compensi</div>
-        <div class="kpi-card-sub" id="home-badge-compensi">Anno 2026</div>
+      <div onclick="showTab('profilo')" style="width:38px;height:38px;border-radius:50%;background:var(--aqua-pale);border:2px solid var(--aqua);overflow:hidden;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+        <div style="font-size:16px;font-weight:800;color:var(--aqua-dark);" id="home-avatar-initials">?</div>
       </div>
     </div>
   </div>
-  <div class="bottom-nav">
-    <button class="nav-item active" onclick="showTab('home')"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></button>
-    <button class="nav-item" onclick="showSezione('rimborsi');showTab('nuova')"><div class="nav-icon">➕</div><div class="nav-label">Nuova</div></button>
-    <button class="nav-item" onclick="showTab('riepilogo')"><div class="nav-icon">📊</div><div class="nav-label">Riepilogo</div></button>
-    <button class="nav-item" onclick="showTab('profilo')"><div class="nav-icon">👤</div><div class="nav-label">Profilo</div></button>
+
+  <!-- HERO con foto nuotatore -->
+  <div style="background:var(--navy);padding:20px 18px 28px;position:relative;overflow:hidden;">
+    <!-- Wave decoration -->
+    <div style="position:absolute;bottom:0;left:0;right:0;height:40px;background:#fff;border-radius:24px 24px 0 0;"></div>
+    <!-- Sfondo acqua -->
+    <div style="position:absolute;inset:0;background:linear-gradient(135deg,var(--navy) 0%,var(--navy-mid) 50%,rgba(0,174,239,0.3) 100%);pointer-events:none;"></div>
+    <div id="admin-back-banner" style="display:none;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.2);border-radius:10px;padding:10px 14px;margin-bottom:14px;justify-content:space-between;align-items:center;position:relative;z-index:1;">
+      <span style="font-size:13px;color:white;">👁️ Vista allenatore</span>
+      <button onclick="showScreen('admin');loadAdminContent('attesa')" style="background:white;color:var(--navy);border:none;border-radius:6px;padding:5px 12px;font-weight:700;font-size:12px;cursor:pointer;">← Admin</button>
+    </div>
+    <div style="position:relative;z-index:1;">
+      <div style="font-size:14px;color:rgba(255,255,255,0.7);font-weight:500;margin-bottom:4px;">Ciao,</div>
+      <div style="font-size:26px;font-weight:800;color:white;letter-spacing:-0.5px;margin-bottom:4px;" id="home-name">Allenatore</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.6);">Ecco la tua situazione aggiornata</div>
+    </div>
   </div>
+
+  <div style="background:#fff;padding:0 16px;margin-top:-4px;">
+
+    <!-- CARD TOTALE DA RICEVERE -->
+    <div onclick="showSezione('rimborsi')" style="background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;box-shadow:var(--shadow);cursor:pointer;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px;">Totale da ricevere</div>
+        <div style="font-size:30px;font-weight:800;color:var(--aqua-dark);" id="home-totale-da-ricevere">€ —</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:52px;height:52px;background:var(--aqua-pale);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;">💰</div>
+        <div style="font-size:20px;color:var(--muted);">›</div>
+      </div>
+    </div>
+
+    <!-- 4 KPI CARDS -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
+      <div onclick="showSezione('rimborsi')" style="background:#fff;border:1.5px solid var(--green-pale);border-radius:14px;padding:12px 8px;text-align:center;cursor:pointer;">
+        <div style="font-size:20px;margin-bottom:4px;">💼</div>
+        <div style="font-size:11px;color:var(--green);font-weight:700;line-height:1.2;">Rimborsi<br>pagati</div>
+        <div style="font-size:15px;font-weight:800;color:var(--green);margin-top:4px;" id="home-kpi-pagato">—</div>
+      </div>
+      <div onclick="showSezione('rimborsi')" style="background:#fff;border:1.5px solid var(--amber-pale);border-radius:14px;padding:12px 8px;text-align:center;cursor:pointer;">
+        <div style="font-size:20px;margin-bottom:4px;">⏳</div>
+        <div style="font-size:11px;color:var(--amber);font-weight:700;line-height:1.2;">In<br>attesa</div>
+        <div style="font-size:15px;font-weight:800;color:var(--amber);margin-top:4px;" id="home-kpi-attesa">—</div>
+      </div>
+      <div onclick="showSezione('rimborsi')" style="background:#fff;border:1.5px solid var(--aqua-pale);border-radius:14px;padding:12px 8px;text-align:center;cursor:pointer;">
+        <div style="font-size:20px;margin-bottom:4px;">✅</div>
+        <div style="font-size:11px;color:var(--aqua-dark);font-weight:700;line-height:1.2;">Da<br>approvare</div>
+        <div style="font-size:15px;font-weight:800;color:var(--aqua-dark);margin-top:4px;" id="home-kpi-approvare">—</div>
+      </div>
+      <div onclick="showSezione('compensi')" style="background:#fff;border:1.5px solid #EDE9FE;border-radius:14px;padding:12px 8px;text-align:center;cursor:pointer;">
+        <div style="font-size:20px;margin-bottom:4px;">📋</div>
+        <div style="font-size:11px;color:#7C3AED;font-weight:700;line-height:1.2;">Da<br>firmare</div>
+        <div style="font-size:15px;font-weight:800;color:#7C3AED;margin-top:4px;" id="home-kpi-firmare">—</div>
+      </div>
+    </div>
+
+    <!-- CTA NUOVA RICHIESTA -->
+    <div onclick="showSezione('rimborsi');showScreen('nuova');" style="background:var(--navy);border-radius:16px;padding:16px 20px;display:flex;align-items:center;gap:16px;margin-bottom:18px;cursor:pointer;box-shadow:0 8px 24px rgba(6,27,58,0.2);">
+      <div style="width:40px;height:40px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <div style="font-size:22px;color:white;line-height:1;">+</div>
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:16px;font-weight:800;color:white;">Nuova richiesta rimborso</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:2px;">Crea una nuova richiesta in pochi passaggi</div>
+      </div>
+      <div style="font-size:20px;color:rgba(255,255,255,0.5);">›</div>
+    </div>
+
+    <!-- ATTIVITÀ RECENTI -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:800;color:var(--navy);">Attività recenti</div>
+      <div onclick="showSezione('rimborsi')" style="font-size:13px;color:var(--aqua-dark);font-weight:600;cursor:pointer;">Vedi tutte</div>
+    </div>
+    <div id="home-feed" style="margin-bottom:18px;">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+
+    <!-- ACCESSO RAPIDO -->
+    <div style="font-size:16px;font-weight:800;color:var(--navy);margin-bottom:12px;">Accesso rapido</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:24px;">
+      <div onclick="showSezione('rimborsi')" style="background:var(--aqua-pale);border-radius:14px;padding:14px 8px;text-align:center;cursor:pointer;">
+        <div style="font-size:24px;margin-bottom:6px;">📋</div>
+        <div style="font-size:11px;font-weight:700;color:var(--aqua-dark);line-height:1.3;">Le mie<br>richieste</div>
+      </div>
+      <div onclick="showSezione('compensi')" style="background:var(--green-pale);border-radius:14px;padding:14px 8px;text-align:center;cursor:pointer;">
+        <div style="font-size:24px;margin-bottom:6px;">💶</div>
+        <div style="font-size:11px;font-weight:700;color:var(--green);line-height:1.3;">Compensi</div>
+      </div>
+      <div onclick="showSezione('compensi');setTimeout(()=>compensiTab('dichiarazioni'),300)" style="background:#EDE9FE;border-radius:14px;padding:14px 8px;text-align:center;cursor:pointer;">
+        <div style="font-size:24px;margin-bottom:6px;">✍️</div>
+        <div style="font-size:11px;font-weight:700;color:#7C3AED;line-height:1.3;">Firma<br>documenti</div>
+      </div>
+      <div onclick="showTab('profilo')" style="background:var(--amber-pale);border-radius:14px;padding:14px 8px;text-align:center;cursor:pointer;">
+        <div style="font-size:24px;margin-bottom:6px;">📁</div>
+        <div style="font-size:11px;font-weight:700;color:#92400E;line-height:1.3;">Il mio<br>profilo</div>
+      </div>
+    </div>
+
+  </div><!-- end bg white -->
+
+  <!-- BOTTOM NAV con FAB centrale -->
+  <div class="bottom-nav" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;padding:8px 0 20px;">
+    <button class="nav-item active" onclick="showTab('home')">
+      <div style="font-size:20px;">🏠</div>
+      <div class="nav-label">Home</div>
+    </button>
+    <button class="nav-item" onclick="showSezione('rimborsi')">
+      <div style="font-size:20px;">📋</div>
+      <div class="nav-label">Richieste</div>
+    </button>
+    <!-- FAB centrale -->
+    <button onclick="showSezione('rimborsi');showScreen('nuova');" style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;top:-16px;">
+      <div style="width:54px;height:54px;background:linear-gradient(135deg,var(--aqua),var(--aqua-dark));border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,174,239,0.45);border:3px solid #fff;">
+        <div style="font-size:26px;color:white;line-height:1;margin-top:2px;">+</div>
+      </div>
+    </button>
+    <button class="nav-item" onclick="showSezione('compensi')">
+      <div style="font-size:20px;">💶</div>
+      <div class="nav-label">Compensi</div>
+    </button>
+    <button class="nav-item" onclick="showTab('profilo')">
+      <div style="font-size:20px;">👤</div>
+      <div class="nav-label">Profilo</div>
+    </button>
+  </div>
+
 </div>
 
 <!-- ===== SEZIONE RIMBORSI ===== -->
@@ -1708,32 +1806,53 @@ async function loadCompensi() {
     const meseSucc = m === 12 ? 1 : m + 1;
     const annoSucc = m === 12 ? a + 1 : a;
 
+    // Disponibile dal 25 del mese stesso, scadenza 5 del mese successivo
+    const dataDisponibile = new Date(a, m - 1, 25); // 25 del mese corrente
+    const dataScadenza    = new Date(annoSucc, meseSucc - 1, 5); // 5 del mese dopo
+    const isDisponibile   = oggi >= dataDisponibile;
+    const isScaduta       = oggi > dataScadenza;
+
     if (dich) {
       return `<div class="card" style="border-left:4px solid var(--green);margin-bottom:8px;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
           <span style="font-size:20px;">✅</span>
-          <div>
+          <div style="flex:1;">
             <div style="font-weight:700;color:var(--green);">Dichiarazione presentata</div>
-            <div style="font-size:12px;color:var(--muted);">${mesiNomi[m]} ${a} · ${new Date(dich.data_presentazione).toLocaleDateString('it-IT')}</div>
+            <div style="font-size:12px;color:var(--muted);">${mesiNomi[m]} ${a} · inviata il ${new Date(dich.data_presentazione).toLocaleDateString('it-IT')}</div>
           </div>
         </div>
-        <div style="font-size:12px;color:var(--muted);">Lordo totale: <strong>€${dich.tot_lordo.toFixed(2)}</strong></div>
-        <div style="display:flex;gap:8px;margin-top:8px;">
+        <div style="background:var(--green-pale);border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:8px;">
+          Lordo totale dichiarato: <strong style="color:var(--green);">€${dich.tot_lordo.toFixed(2)}</strong>
+        </div>
+        <div style="display:flex;gap:8px;">
           <button class="btn btn-sm btn-secondary" onclick="stampaDichiarazione('${dich.id}')">🖨️ Ristampa PDF</button>
           <button class="btn btn-sm btn-danger" onclick="eliminaDichiarazione('${dich.id}')">🗑️ Elimina</button>
         </div>
       </div>`;
-    } else {
-      return `<div class="card" style="border-left:4px solid var(--orange);margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-          <span style="font-size:20px;">⚠️</span>
+    } else if (!isDisponibile) {
+      // Mese non ancora disponibile (prima del 25)
+      const giorni = Math.ceil((dataDisponibile - oggi) / (1000*60*60*24));
+      return `<div class="card" style="border-left:4px solid var(--border);margin-bottom:8px;opacity:0.75;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">🔒</span>
           <div>
-            <div style="font-weight:700;color:var(--orange);">Dichiarazione mancante</div>
+            <div style="font-weight:700;color:var(--muted);">Dichiarazione ${mesiNomi[m]} ${a}</div>
+            <div style="font-size:12px;color:var(--muted);">Disponibile dal 25 ${mesiNomi[m]} · ancora ${giorni} ${giorni === 1 ? 'giorno' : 'giorni'}</div>
+          </div>
+        </div>
+      </div>`;
+    } else {
+      // Disponibile ma non ancora fatta
+      return `<div class="card" style="border-left:4px solid ${isScaduta ? 'var(--red)' : 'var(--amber)'};margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span style="font-size:20px;">${isScaduta ? '🚨' : '⚠️'}</span>
+          <div>
+            <div style="font-weight:700;color:${isScaduta ? 'var(--red)' : 'var(--amber)'};">${isScaduta ? 'Dichiarazione scaduta!' : 'Dichiarazione da inviare'}</div>
             <div style="font-size:12px;color:var(--muted);">${mesiNomi[m]} ${a} · Scadenza: 5 ${mesiNomi[meseSucc]} ${annoSucc}</div>
           </div>
         </div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">
-          Inserisci tutti i compensi da altri soggetti per ${mesiNomi[m]}, poi genera la dichiarazione.
+          Inserisci i compensi da altri soggetti per ${mesiNomi[m]}, poi genera la dichiarazione.
         </div>
         <button class="btn btn-primary" onclick="openModalFirma(${m}, ${a})">
           📋 Genera dichiarazione ${mesiNomi[m]}
@@ -2807,7 +2926,15 @@ async function loadProfilo() {
 
 // ===== HOME =====
 async function loadHome() {
-  document.getElementById('home-richieste').innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
+  document.getElementById('home-feed').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  // Inizializza avatar iniziali
+  if (currentProfilo) {
+    const initials = ((currentProfilo.nome||'?')[0] + (currentProfilo.cognome||'')[0]).toUpperCase();
+    const el = document.getElementById('home-avatar-initials');
+    if (el) el.textContent = initials;
+  }
+
   try {
     const { data: richieste, error } = await sb.from('richieste')
       .select('*, gare(nome, data, luogo), spese(*)')
@@ -2815,113 +2942,117 @@ async function loadHome() {
       .order('creata_il', { ascending: false });
 
     if (error) {
-      document.getElementById('home-richieste').innerHTML = `<div class="alert alert-error">Errore: ${error.message}</div>`;
+      document.getElementById('home-feed').innerHTML = `<div class="alert alert-error">Errore: ${error.message}</div>`;
       return;
     }
 
+    // Calcola KPI
+    let daPagare = 0, pagato = 0, nAttesa = 0, nApprovare = 0;
+    richieste?.forEach(r => {
+      const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
+      if (r.pagata) pagato += tot;
+      else if (r.stato === 'approvata') { daPagare += tot; nApprovare++; }
+      if (r.stato === 'in attesa') nAttesa++;
+    });
+
+    // Dichiarazioni da firmare (mese corrente disponibile e non ancora inviata)
+    const oggi = new Date();
+    const { data: dichPendenti } = await sb.from('dichiarazioni_compensi')
+      .select('id').eq('allenatore_id', currentUser.id).eq('anno', oggi.getFullYear());
+    const meseDaFirmare = oggi.getDate() >= 25 ? oggi.getMonth() + 1 : oggi.getMonth();
+    const haFirmato = (dichPendenti||[]).some(d => d.mese === meseDaFirmare);
+    const nFirmare = (!haFirmato && meseDaFirmare >= 1) ? 1 : 0;
+
+    // Aggiorna UI
+    const setEl = (id, val) => { const e = document.getElementById(id); if(e) e.textContent = val; };
+    setEl('home-totale-da-ricevere', '€ ' + daPagare.toFixed(2).replace('.',','));
+    setEl('home-kpi-pagato', '€ ' + pagato.toFixed(0));
+    setEl('home-kpi-attesa', nAttesa);
+    setEl('home-kpi-approvare', nApprovare);
+    setEl('home-kpi-firmare', nFirmare);
+
+    // Badge notifiche
+    const nNotif = nAttesa + nFirmare;
+    const badge = document.getElementById('home-notif-badge');
+    if (badge) { badge.style.display = nNotif > 0 ? 'flex' : 'none'; badge.textContent = nNotif; }
+
+    // Aggiorna anche gli id legacy usati nella sezione rimborsi
+    setEl('stat-da-ricevere', '€' + daPagare.toFixed(0));
+    setEl('stat-pagato', '€' + pagato.toFixed(0));
+    setEl('home-stat-da-ricevere', '€' + daPagare.toFixed(0));
+    setEl('home-stat-pagato', '€' + pagato.toFixed(0));
+
+    // Feed attività recenti — ultime 4 tra richieste e compensi
     if (!richieste || richieste.length === 0) {
-      document.getElementById('home-richieste').innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Nessuna richiesta ancora.<br>Tocca + per iniziare!</div></div>`;
-      const sp = document.getElementById('stat-pagato'); if (sp) sp.textContent = '€0';
-      const sdr = document.getElementById('stat-da-ricevere'); if (sdr) sdr.textContent = '€0';
+      document.getElementById('home-feed').innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Nessuna attività ancora.<br>Tocca + per iniziare!</div></div>`;
       document.getElementById('rimborsi-attesa-section').style.display = 'none';
       return;
     }
 
-    let daPagare = 0, pagato = 0;
-    const inAttesa = [];
+    const feedItems = richieste.slice(0, 4).map(r => {
+      const gara = r.gare || {};
+      const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
+      const dataR = r.creata_il ? new Date(r.creata_il) : new Date();
+      const diffDays = Math.floor((oggi - dataR) / (1000*60*60*24));
+      const quando = diffDays === 0 ? 'Oggi' : diffDays === 1 ? 'Ieri' : diffDays < 7 ? `${diffDays} giorni fa` : dataR.toLocaleDateString('it-IT',{day:'2-digit',month:'short'});
 
-    richieste.forEach(r => {
-      const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
-      if (r.pagata) pagato += tot;
-      else if (r.stato === 'approvata') daPagare += tot;
-      if (r.stato === 'in attesa') inAttesa.push({ ...r, tot });
+      let badgeColor, badgeText, icon, iconBg;
+      if (r.pagata)               { badgeColor='var(--green)'; badgeText='Pagata';    icon='💼'; iconBg='var(--green-pale)'; }
+      else if (r.stato==='approvata') { badgeColor='var(--aqua-dark)'; badgeText='Approvata'; icon='✅'; iconBg='var(--aqua-pale)'; }
+      else if (r.stato==='rifiutata') { badgeColor='var(--red)'; badgeText='Rifiutata'; icon='❌'; iconBg='var(--red-pale)'; }
+      else                          { badgeColor='var(--amber)'; badgeText='In attesa'; icon='🚗'; iconBg='var(--amber-pale)'; }
+
+      return `<div onclick="showDettaglio('${r.id}','rimborsi')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+        <div style="width:40px;height:40px;border-radius:12px;background:${iconBg};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">${icon}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${gara.nome || 'Rimborso trasferta'}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:1px;">${r.pagata ? 'Pagato' : r.stato === 'approvata' ? 'Approvato' : 'In attesa di approvazione'}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">${quando}</div>
+          <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:8px;background:${badgeColor}1A;color:${badgeColor};">${badgeText}</span>
+        </div>
+        <div style="font-size:16px;color:var(--muted);">›</div>
+      </div>`;
     });
 
-    const sp = document.getElementById('stat-pagato'); if (sp) sp.textContent = '€' + pagato.toFixed(0);
-    const sdr = document.getElementById('stat-da-ricevere'); if (sdr) sdr.textContent = '€' + daPagare.toFixed(0);
+    document.getElementById('home-feed').innerHTML = feedItems.join('');
 
-    // Card in attesa
+    // Aggiorna rimborsi-attesa-section (legacy)
+    const inAttesa = (richieste||[]).filter(r => r.stato==='in attesa').map(r => ({...r, tot: (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0)}));
     const attesaSection = document.getElementById('rimborsi-attesa-section');
-    if (inAttesa.length > 0) {
-      attesaSection.style.display = 'block';
-      document.getElementById('rimborsi-attesa-list').innerHTML = inAttesa.map(r => {
-        const gara = r.gare || {};
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #FFD580;" onclick="showDettaglio('${r.id}','rimborsi')">
-          <div>
-            <div style="font-size:13px;font-weight:600;color:#5C3300;">${gara.nome || 'Richiesta'}</div>
-            <div style="font-size:11px;color:#7A4000;">${gara.data ? new Date(gara.data).toLocaleDateString('it-IT') : ''}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:14px;font-weight:700;color:#5C3300;">€${r.tot.toFixed(0)}</span>
-            <span onclick="event.stopPropagation();showDettaglio('${r.id}','rimborsi')" style="font-size:11px;background:#FF8C00;color:white;padding:3px 8px;border-radius:6px;font-weight:600;cursor:pointer;">Modifica</span>
-          </div>
-        </div>`;
-      }).join('');
-    } else {
-      attesaSection.style.display = 'none';
+    if (attesaSection) {
+      if (inAttesa.length > 0) {
+        attesaSection.style.display = 'block';
+        document.getElementById('rimborsi-attesa-list').innerHTML = inAttesa.map(r => {
+          const gara = r.gare || {};
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #FFD580;" onclick="showDettaglio('${r.id}','rimborsi')">
+            <div><div style="font-size:13px;font-weight:600;color:#5C3300;">${gara.nome||'Richiesta'}</div><div style="font-size:11px;color:#7A4000;">${gara.data?new Date(gara.data).toLocaleDateString('it-IT'):''}</div></div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:14px;font-weight:700;color:#5C3300;">€${r.tot.toFixed(0)}</span><span style="font-size:11px;background:#FF8C00;color:white;padding:3px 8px;border-radius:6px;font-weight:600;cursor:pointer;">Modifica</span></div>
+          </div>`;
+        }).join('');
+      } else {
+        attesaSection.style.display = 'none';
+      }
     }
 
-    // Riepilogo totali annuali
+    // Riepilogo annuale (legacy per screen-rimborsi)
     const annoCorrente = new Date().getFullYear();
     const perAnno = {};
     richieste.forEach(r => {
       const anno = r.creata_il ? new Date(r.creata_il).getFullYear() : annoCorrente;
-      if (!perAnno[anno]) perAnno[anno] = { pagato: 0, approvato: 0, inAttesa: 0, rifiutato: 0, count: 0 };
-      const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
+      if (!perAnno[anno]) perAnno[anno] = { pagato:0, approvato:0, inAttesa:0, rifiutato:0, count:0 };
+      const tot = (r.spese||[]).reduce((s,sp) => s+sp.importo, 0) - (r.acconto||0);
       perAnno[anno].count++;
       if (r.pagata) perAnno[anno].pagato += tot;
-      else if (r.stato === 'approvata') perAnno[anno].approvato += tot;
-      else if (r.stato === 'rifiutata') perAnno[anno].rifiutato += tot;
+      else if (r.stato==='approvata') perAnno[anno].approvato += tot;
+      else if (r.stato==='rifiutata') perAnno[anno].rifiutato += tot;
       else perAnno[anno].inAttesa += tot;
     });
 
-    const anniOrdinati = Object.keys(perAnno).sort((a, b) => b - a);
-    const storicoHtml = anniOrdinati.length > 0 ? `
-      <div style="margin-top:20px;">
-        <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;padding:0 4px;">📊 RIEPILOGO ANNUALE</div>
-        ${anniOrdinati.map(anno => {
-          const d = perAnno[anno];
-          const totTot = d.pagato + d.approvato + d.inAttesa;
-          return `<div style="background:var(--white);border-radius:12px;padding:14px 16px;margin-bottom:8px;border:1px solid var(--border);">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-              <span style="font-size:15px;font-weight:700;">${anno}</span>
-              <span style="font-size:16px;font-weight:700;color:var(--blue);">€ ${totTot.toFixed(2)}</span>
-            </div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              ${d.pagato > 0 ? `<span style="font-size:11px;background:#E8F8F2;color:#0F6E56;border-radius:6px;padding:3px 8px;font-weight:600;">💰 Pagato €${d.pagato.toFixed(0)}</span>` : ''}
-              ${d.approvato > 0 ? `<span style="font-size:11px;background:#EBF2FF;color:var(--blue);border-radius:6px;padding:3px 8px;font-weight:600;">✅ Approvato €${d.approvato.toFixed(0)}</span>` : ''}
-              ${d.inAttesa > 0 ? `<span style="font-size:11px;background:#FFF4E5;color:#7A4000;border-radius:6px;padding:3px 8px;font-weight:600;">⏳ In attesa €${d.inAttesa.toFixed(0)}</span>` : ''}
-              ${d.rifiutato > 0 ? `<span style="font-size:11px;background:#FFF0F0;color:var(--red);border-radius:6px;padding:3px 8px;font-weight:600;">❌ Rifiutato €${d.rifiutato.toFixed(0)}</span>` : ''}
-            </div>
-            <div style="font-size:11px;color:var(--muted);margin-top:6px;">${d.count} richieste</div>
-          </div>`;
-        }).join('')}
-      </div>` : '';
-
-    document.getElementById('home-richieste').innerHTML = richieste.map(r => {
-      const tot = (r.spese || []).reduce((s, sp) => s + sp.importo, 0) - (r.acconto || 0);
-      const gara = r.gare || {};
-      let badgeClass, badgeText;
-      if (r.pagata) { badgeClass = 'badge-approved'; badgeText = '💰 Pagato'; }
-      else if (r.stato === 'approvata') { badgeClass = 'badge-paying'; badgeText = '✅ Approvata'; }
-      else if (r.stato === 'rifiutata') { badgeClass = 'badge-rejected'; badgeText = '❌ Rifiutata'; }
-      else { badgeClass = 'badge-pending'; badgeText = '⏳ In attesa'; }
-      return `<div class="card" onclick="showDettaglio('${r.id}','rimborsi')">
-        <div class="card-header">
-          <div>
-            <div class="card-title">${gara.nome || 'Gara'}</div>
-            <div class="card-sub">📍 ${gara.luogo || ''} · ${gara.data ? new Date(gara.data).toLocaleDateString('it-IT') : ''}</div>
-          </div>
-          <span class="badge ${badgeClass}">${badgeText}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-          <span style="font-size:13px;color:var(--muted)">🚗 ${r.km} km</span>
-          <span style="font-size:17px;font-weight:700;color:${r.pagata ? 'var(--green)' : 'var(--blue)'}">€ ${tot.toFixed(2)}</span>
-        </div>
-      </div>`;
-    }).join('') + storicoHtml;
   } catch(e) {
-    document.getElementById('home-richieste').innerHTML = `<div class="alert alert-error">Errore imprevisto: ${e.message}</div>`;
+    const feed = document.getElementById('home-feed');
+    if (feed) feed.innerHTML = `<div class="alert alert-error">Errore: ${e.message}</div>`;
   }
 }
 
@@ -3906,9 +4037,14 @@ async function loadGestioneContent(tab) {
   el.innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
 
   if (tab === 'allenatori') {
-    const [{ data: allenatori }, { data: dichMap }] = await Promise.all([
+    const annoCorrente = new Date().getFullYear();
+    const oggi = new Date();
+    const mesiNomi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+
+    const [{ data: allenatori }, { data: tuttiDich }, { data: tuttiCompensi }] = await Promise.all([
       sb.from('profili').select('*').eq('ruolo','allenatore').order('cognome', { ascending: true }),
-      sb.from('dichiarazioni_compensi').select('allenatore_id').eq('anno', new Date().getFullYear())
+      sb.from('dichiarazioni_compensi').select('*').eq('anno', annoCorrente).order('mese', { ascending: true }),
+      sb.from('compensi').select('allenatore_id, mese, anno').eq('anno', annoCorrente)
     ]);
 
     if (!allenatori || !allenatori.length) {
@@ -3916,29 +4052,95 @@ async function loadGestioneContent(tab) {
       return;
     }
 
-    const dichIds = new Set((dichMap||[]).map(d => d.allenatore_id));
+    // Mappa dichiarazioni per allenatore: { allenatore_id: { mese: dich } }
+    const dichPerAl = {};
+    (tuttiDich||[]).forEach(d => {
+      if (!dichPerAl[d.allenatore_id]) dichPerAl[d.allenatore_id] = {};
+      dichPerAl[d.allenatore_id][d.mese] = d;
+    });
+
+    // Mesi con compensi per allenatore
+    const mesiConCompensiPerAl = {};
+    (tuttiCompensi||[]).forEach(c => {
+      if (!mesiConCompensiPerAl[c.allenatore_id]) mesiConCompensiPerAl[c.allenatore_id] = new Set();
+      mesiConCompensiPerAl[c.allenatore_id].add(c.mese);
+    });
+
     const totale = allenatori.length;
-    const mancanti = allenatori.filter(al => !dichIds.has(al.id)).length;
     const incompleti = allenatori.filter(al => !al.iban || !al.codice_fiscale).length;
+    // Allenatori con almeno un mese disponibile (dal 25) e dichiarazione mancante
+    const conDichMancante = allenatori.filter(al => {
+      const dichAl = dichPerAl[al.id] || {};
+      const mesiAl = mesiConCompensiPerAl[al.id] || new Set();
+      // Controlla mese precedente a oggi (se siamo dopo il 25)
+      const mesePrecedente = oggi.getDate() >= 25 ? oggi.getMonth() + 1 : oggi.getMonth();
+      const haDisponibile = mesePrecedente >= 1;
+      return haDisponibile && !dichAl[mesePrecedente];
+    }).length;
 
     el.innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
         <div class="stat-mini aqua"><div class="stat-mini-num">${totale}</div><div class="stat-mini-label">Totale</div></div>
-        <div class="stat-mini" style="background:var(--amber-pale);"><div class="stat-mini-num" style="color:#92400E;">${mancanti}</div><div class="stat-mini-label" style="color:#92400E;">Dich. mancanti</div></div>
+        <div class="stat-mini" style="background:var(--amber-pale);"><div class="stat-mini-num" style="color:#92400E;">${conDichMancante}</div><div class="stat-mini-label" style="color:#92400E;">Dich. mancanti</div></div>
         <div class="stat-mini" style="background:var(--red-pale);"><div class="stat-mini-num" style="color:var(--red);">${incompleti}</div><div class="stat-mini-label" style="color:var(--red);">Incompleti</div></div>
       </div>
       ${allenatori.map(al => {
-        const haDich = dichIds.has(al.id);
+        const dichAl = dichPerAl[al.id] || {};
+        const mesiAl = mesiConCompensiPerAl[al.id] || new Set();
         const ibanOk = !!al.iban;
         const cfOk = !!al.codice_fiscale;
+
+        // Calcola mesi "rilevanti": mesi con compensi + mese precedente se disponibile
+        const mesePrecedente = oggi.getDate() >= 25 ? oggi.getMonth() + 1 : oggi.getMonth();
+        const mesiRilevanti = new Set([...mesiAl]);
+        if (mesePrecedente >= 1) mesiRilevanti.add(mesePrecedente);
+
+        // Righe dichiarazioni per mese
+        const righeHtml = Array.from(mesiRilevanti).sort((a,b) => b-a).map(m => {
+          const dich = dichAl[m];
+          const meseSucc = m === 12 ? 1 : m + 1;
+          const annoSucc = m === 12 ? annoCorrente + 1 : annoCorrente;
+          const dataDisp = new Date(annoCorrente, m - 1, 25);
+          const dataScad = new Date(annoSucc, meseSucc - 1, 5);
+          const isDisponibile = oggi >= dataDisp;
+          const isScaduta = oggi > dataScad && !dich;
+
+          if (dich) {
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+              <div style="font-size:12px;font-weight:600;color:var(--navy);">${mesiNomi[m]}</div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:11px;color:var(--muted);">€${dich.tot_lordo.toFixed(2)}</span>
+                <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;background:var(--green-pale);color:#065F46;">✓ Inviata</span>
+              </div>
+            </div>`;
+          } else if (!isDisponibile) {
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+              <div style="font-size:12px;font-weight:600;color:var(--muted);">${mesiNomi[m]}</div>
+              <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;background:var(--bg);color:var(--muted);">🔒 Dal 25/${m}</span>
+            </div>`;
+          } else {
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+              <div style="font-size:12px;font-weight:600;color:var(--navy);">${mesiNomi[m]}</div>
+              <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;background:${isScaduta ? 'var(--red-pale)' : 'var(--amber-pale)'};color:${isScaduta ? 'var(--red)' : '#92400E'};">${isScaduta ? '🚨 Scaduta' : '⚠️ Mancante'} · scad. 5/${meseSucc}</span>
+            </div>`;
+          }
+        }).join('');
+
+        // Badge principale
+        const nDichInviate = Object.keys(dichAl).length;
+        const nMancanti = Array.from(mesiRilevanti).filter(m => {
+          const dataDisp = new Date(annoCorrente, m - 1, 25);
+          return oggi >= dataDisp && !dichAl[m];
+        }).length;
         let badgeHtml = '';
         if (!ibanOk || !cfOk) {
           badgeHtml = `<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:var(--red-pale);color:var(--red);">Incompleto</span>`;
-        } else if (!haDich) {
-          badgeHtml = `<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:var(--amber-pale);color:#92400E;">Dich. mancante</span>`;
+        } else if (nMancanti > 0) {
+          badgeHtml = `<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:var(--amber-pale);color:#92400E;">${nMancanti} dich. mancanti</span>`;
         } else {
-          badgeHtml = `<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:var(--green-pale);color:#065F46;">OK</span>`;
+          badgeHtml = `<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:var(--green-pale);color:#065F46;">✓ OK</span>`;
         }
+
         return `<div class="admin-card" style="margin-bottom:10px;">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
             ${avatarHtml(al.nome, al.cognome, al.foto_url, 42, 'var(--aqua-dark)')}
@@ -3962,12 +4164,17 @@ async function loadGestioneContent(tab) {
               <div style="margin-top:2px;">${al.telefono || '—'}</div>
             </div>
             <div>
-              <div style="color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;font-size:10px;">Dichiarazione</div>
-              <div style="color:${haDich ? 'var(--green)' : 'var(--amber)'};margin-top:2px;">${haDich ? '✓ presentata' : '⚠️ mancante'}</div>
+              <div style="color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;font-size:10px;">Dichiarazioni ${annoCorrente}</div>
+              <div style="color:var(--navy);margin-top:2px;font-weight:700;">${nDichInviate} inviate</div>
             </div>
           </div>
+          ${mesiRilevanti.size > 0 ? `
+          <div style="margin-bottom:10px;">
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Dichiarazioni mensili ${annoCorrente}</div>
+            ${righeHtml}
+          </div>` : ''}
           <div style="display:flex;gap:8px;">
-            <button class="btn btn-sm btn-secondary" onclick="openModalModificaAllenatore('${al.id}','${(al.nome||'').replace(/'/g,"\'")}','${(al.cognome||'').replace(/'/g,"\'")}','${(al.email||'').replace(/'/g,"\'")}','${(al.telefono||'').replace(/'/g,"\'")}')">✏️ Modifica</button>
+            <button class="btn btn-sm btn-secondary" onclick="openModalModificaAllenatore('${al.id}','${(al.nome||'').replace(/'/g,"\\'")}','${(al.cognome||'').replace(/'/g,"\\'")}','${(al.email||'').replace(/'/g,"\\'")}','${(al.telefono||'').replace(/'/g,"\\'")}')">✏️ Modifica</button>
             <button class="btn btn-sm" style="background:var(--amber);color:white;border:none;" onclick="impersonaAllenatore('${al.id}')">👁️ Accedi come</button>
           </div>
         </div>`;
