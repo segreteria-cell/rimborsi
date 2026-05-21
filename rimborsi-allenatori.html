@@ -1194,10 +1194,27 @@ async function loadCompensi() {
       extEl.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0;">Nessun compenso da altri soggetti inserito</div>';
     } else {
       const totNettoExt = compExt.reduce((s,c) => s+(c.netto||0), 0);
-      const righeExt = compExt.map(c => `
+
+      // Carica dichiarazioni anno corrente per sapere quali mesi sono bloccati
+      const { data: dichAnno } = await sb.from('dichiarazioni_compensi')
+        .select('mese').eq('allenatore_id', currentUser.id).eq('anno', annoCorrente);
+      const mesiBloccati = new Set((dichAnno||[]).map(d => d.mese));
+
+      const righeExt = compExt.map(c => {
+        const bloccato = mesiBloccati.has(c.mese);
+        const btnModifica = bloccato
+          ? `<button class="btn btn-sm" style="background:var(--border);color:var(--muted);cursor:not-allowed;" title="Dichiarazione inviata — bloccato">🔒</button>`
+          : `<button class="btn btn-sm btn-secondary" onclick="openModalModificaCompensoEsterno('${c.id}','${(c.soggetto||'').replace(/'/g,"\\'")}',${c.lordo||0},${c.netto||0},'${c.data_incasso||''}','${(c.note||'').replace(/'/g,"\\'")}')">✏️</button>`;
+        const btnElimina = bloccato
+          ? `<button class="btn btn-sm" style="background:var(--border);color:var(--muted);cursor:not-allowed;" title="Dichiarazione inviata — bloccato">🔒</button>`
+          : `<button class="btn btn-sm btn-danger" onclick="eliminaCompensoEsterno('${c.id}')">🗑️</button>`;
+        return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);">
           <div style="flex:1;min-width:0;">
-            <div style="font-size:13px;font-weight:700;color:var(--navy);">${c.soggetto}</div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <div style="font-size:13px;font-weight:700;color:var(--navy);">${c.soggetto}</div>
+              ${bloccato ? '<span style="font-size:10px;background:var(--green-pale);color:#065F46;padding:1px 6px;border-radius:6px;font-weight:700;">🔒 Dich. inviata</span>' : ''}
+            </div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px;">${c.data_incasso?`Incassato ${new Date(c.data_incasso).toLocaleDateString('it-IT')} · `:''}Lordo €${(c.lordo||0).toFixed(2)}${c.mese_competenza&&c.mese_competenza!==c.mese?` · comp. ${mesi[c.mese_competenza]||''}`:''}</div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
@@ -1205,10 +1222,10 @@ async function loadCompensi() {
               <div style="font-size:14px;font-weight:800;color:var(--green);">€${(c.netto||0).toFixed(2)}</div>
               <div style="font-size:10px;color:var(--muted);">netto</div>
             </div>
-            <button class="btn btn-sm btn-secondary" onclick="openModalModificaCompensoEsterno('${c.id}','${(c.soggetto||'').replace(/'/g,"\\'")}',${c.lordo||0},${c.netto||0},'${c.data_incasso||''}','${(c.note||'').replace(/'/g,"\\'")}')">✏️</button>
-            <button class="btn btn-sm btn-danger" onclick="eliminaCompensoEsterno('${c.id}')">🗑️</button>
+            ${btnModifica}${btnElimina}
           </div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
       extEl.innerHTML = `
         <div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm);">
           <div onclick="var b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none';this.querySelector('.ext-tog').textContent=b.style.display==='none'?'▾':'▴';"
@@ -1889,6 +1906,19 @@ function openModalModificaCompensoEsterno(id, soggetto, lordo, netto, data, note
 
 async function salvaModificaCompensoEsterno() {
   const id = document.getElementById('mce-id').value;
+  // Verifica lock dichiarazione
+  const { data: comp } = await sb.from('compensi_esterni').select('mese, anno').eq('id', id).single();
+  if (comp?.mese && comp?.anno) {
+    const userId = currentProfilo?.ruolo === 'admin' ? null : currentUser.id;
+    if (userId) {
+      const { data: dich } = await sb.from('dichiarazioni_compensi')
+        .select('id').eq('allenatore_id', userId).eq('mese', comp.mese).eq('anno', comp.anno).maybeSingle();
+      if (dich) {
+        showAlert('mce-alert', '⛔ Compenso bloccato: dichiarazione già inviata per questo mese. L\'admin deve cancellarla per sbloccare.', 'error');
+        return;
+      }
+    }
+  }
   const soggetto = document.getElementById('mce-soggetto').value.trim();
   const lordo = parseFloat(document.getElementById('mce-lordo').value);
   const netto = parseFloat(document.getElementById('mce-netto').value);
@@ -1906,6 +1936,18 @@ async function salvaModificaCompensoEsterno() {
 }
 
 async function eliminaCompensoEsterno(id) {
+  // Verifica se il mese è bloccato da una dichiarazione
+  const { data: comp } = await sb.from('compensi_esterni').select('mese, anno').eq('id', id).single();
+  if (comp?.mese && comp?.anno) {
+    const { data: dich } = await sb.from('dichiarazioni_compensi')
+      .select('id').eq('allenatore_id', currentUser.id).eq('mese', comp.mese).eq('anno', comp.anno).maybeSingle();
+    if (dich) {
+      alert('⛔ Non puoi eliminare questo compenso: è già stata inviata la dichiarazione di ' +
+        ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'][comp.mese] +
+        ' ' + comp.anno + '.\nL\'admin deve cancellare la dichiarazione per sbloccare i compensi.');
+      return;
+    }
+  }
   if (!confirm('Eliminare questo compenso?')) return;
   await sb.from('compensi_esterni').delete().eq('id', id);
   loadCompensi();
