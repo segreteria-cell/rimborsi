@@ -5810,7 +5810,10 @@ async function salvaModificaCompensoAdmin() {
   }).eq('id', id);
   if (error) { alert('Errore: ' + error.message); return; }
   document.getElementById('modal-modifica-compenso-admin').classList.remove('open');
-  compensiAdminTab('inserisci');
+  // Ricarica: se siamo nel tab riepilogo compensi admin, ricarica quello; altrimenti inserisci
+  const tabRiepilogo = document.querySelector('#screen-admin-compensi .tab.active');
+  const isRiepilogo = tabRiepilogo?.textContent?.includes('Riepilogo') || tabRiepilogo?.getAttribute('onclick')?.includes('riepilogo');
+  compensiAdminTab(isRiepilogo ? 'riepilogo' : 'inserisci');
 }
 
 </script>
