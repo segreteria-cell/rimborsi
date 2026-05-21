@@ -2000,14 +2000,14 @@ async function loadDichiarazioneStatus(anno, mese) {
 async function openModalFirma(mese, anno) {
   const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
   
-  // Carica compensi del mese (include anche quelli senza mese per retrocompatibilità)
+  // Carica compensi del mese - include record senza mese (retrocompatibilità) con OR
   const { data: compSN } = await sb.from('compensi')
     .select('*').eq('allenatore_id', currentUser.id).eq('mese', mese).eq('anno', anno);
-  const { data: compExtMese } = await sb.from('compensi_esterni')
-    .select('*').eq('allenatore_id', currentUser.id).eq('mese', mese).eq('anno', anno);
-  const { data: compExtSenzaMese } = await sb.from('compensi_esterni')
-    .select('*').eq('allenatore_id', currentUser.id).eq('anno', anno).is('mese', null);
-  const compExt = [...(compExtMese||[]), ...(compExtSenzaMese||[])];
+  const { data: compExt } = await sb.from('compensi_esterni')
+    .select('*')
+    .eq('allenatore_id', currentUser.id)
+    .eq('anno', anno)
+    .or(`mese.eq.${mese},mese.is.null`);
 
   const totSN = (compSN||[]).reduce((s,c) => s+c.lordo, 0);
   const totNettoSN = (compSN||[]).reduce((s,c) => s+c.netto, 0);
@@ -2397,11 +2397,26 @@ async function salvaCompensoEsterno() {
 
   if (!soggetto || !lordo || !netto) { showAlert('compenso-esterno-alert', 'Compila tutti i campi obbligatori', 'error'); return; }
   
-  const { error } = await sb.from('compensi_esterni').insert({
+  // Prova prima con mese, se fallisce per colonna mancante riprova senza
+  let { error } = await sb.from('compensi_esterni').insert({
     allenatore_id: currentUser.id, soggetto, anno, mese, lordo, netto,
     data_incasso: data || null, note: note || null
   });
-  if (error) { showAlert('compenso-esterno-alert', 'Errore: ' + error.message, 'error'); return; }
+
+  // Se la colonna mese non esiste ancora nel DB, salva senza
+  if (error && error.message && error.message.includes('mese')) {
+    const res2 = await sb.from('compensi_esterni').insert({
+      allenatore_id: currentUser.id, soggetto, anno, lordo, netto,
+      data_incasso: data || null, note: note || null
+    });
+    error = res2.error;
+  }
+
+  if (error) {
+    showAlert('compenso-esterno-alert', 'Errore: ' + error.message, 'error');
+    alert('Errore salvataggio: ' + error.message); // visibile anche se modal è chiuso
+    return;
+  }
 
   // Salva committente se richiesto e non già presente
   if (salvaCommittente && mostraSalva) {
