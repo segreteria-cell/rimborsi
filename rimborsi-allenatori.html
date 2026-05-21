@@ -2000,14 +2000,14 @@ async function loadDichiarazioneStatus(anno, mese) {
 async function openModalFirma(mese, anno) {
   const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
   
-  // Carica compensi del mese - include record senza mese (retrocompatibilità) con OR
+  // Carica compensi del mese esatto
   const { data: compSN } = await sb.from('compensi')
     .select('*').eq('allenatore_id', currentUser.id).eq('mese', mese).eq('anno', anno);
   const { data: compExt } = await sb.from('compensi_esterni')
-    .select('*')
-    .eq('allenatore_id', currentUser.id)
-    .eq('anno', anno)
-    .or(`mese.eq.${mese},mese.is.null`);
+    .select('*').eq('allenatore_id', currentUser.id).eq('mese', mese).eq('anno', anno);
+  // Compensi esterni senza mese (inseriti prima del fix) — mostrati come avviso
+  const { data: compExtOrfani } = await sb.from('compensi_esterni')
+    .select('*').eq('allenatore_id', currentUser.id).eq('anno', anno).is('mese', null);
 
   const totSN = (compSN||[]).reduce((s,c) => s+c.lordo, 0);
   const totNettoSN = (compSN||[]).reduce((s,c) => s+c.netto, 0);
@@ -2037,7 +2037,13 @@ async function openModalFirma(mese, anno) {
         <td style="padding:6px 8px;text-align:right;color:var(--blue);">€${totLordo.toFixed(2)}</td>
         <td style="padding:6px 8px;text-align:right;color:var(--green);">€${(totNettoSN+totNettoExt).toFixed(2)}</td>
       </tr>
-    </table>`;
+    </table>
+    ${(compExtOrfani||[]).length > 0 ? `
+    <div style="background:var(--amber-pale);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:12px;">
+      <div style="font-weight:700;color:#92400E;margin-bottom:4px;">⚠️ ${compExtOrfani.length} compenso/i senza mese associato</div>
+      <div style="color:#92400E;">I seguenti compensi esistenti non sono stati inclusi perché manca il mese di riferimento. Modificali dalla sezione Compensi per associarli al mese corretto:</div>
+      ${compExtOrfani.map(c => `<div style="margin-top:6px;color:#92400E;font-weight:600;">· ${c.soggetto}: €${c.lordo.toFixed(2)}</div>`).join('')}
+    </div>` : ''}`;
 
   document.getElementById('modal-firma').classList.add('open');
   initFirmaCanvas();
