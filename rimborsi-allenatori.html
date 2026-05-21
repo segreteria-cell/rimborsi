@@ -1462,8 +1462,13 @@ input[type="file"] { display: none; }
         </label>
       </div>
     </div>
-    <div class="field"><label>Anno</label><input type="number" id="ce-anno" value="2026" min="2020" max="2030"></div>
-    <div class="field"><label>Mese di riferimento</label>
+    <div class="field"><label>Anno di incasso</label><input type="number" id="ce-anno" value="2026" min="2020" max="2030"></div>
+    <div class="field">
+      <label>Data incasso <span style="color:var(--red);">*</span></label>
+      <input type="date" id="ce-data" required>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Per cassa: la dichiarazione sarà quella del mese in cui è avvenuto l'incasso</div>
+    </div>
+    <div class="field"><label>Mese competenza <span style="font-size:11px;color:var(--muted);font-weight:400;">(mese in cui hai lavorato)</span></label>
       <select id="ce-mese">
         <option value="1">Gennaio</option><option value="2">Febbraio</option>
         <option value="3">Marzo</option><option value="4">Aprile</option>
@@ -1475,7 +1480,6 @@ input[type="file"] { display: none; }
     </div>
     <div class="field"><label>Importo lordo €</label><input type="number" id="ce-lordo" placeholder="0.00" step="0.01" min="0"></div>
     <div class="field"><label>Importo netto €</label><input type="number" id="ce-netto" placeholder="0.00" step="0.01" min="0"></div>
-    <div class="field"><label>Data incasso</label><input type="date" id="ce-data"></div>
     <div class="field"><label>Note (opzionale)</label><input type="text" id="ce-note" placeholder="Es: Corso estivo"></div>
     <div style="display:flex;gap:10px;margin-top:8px;">
       <button class="btn btn-secondary" onclick="document.getElementById('modal-compenso-esterno').classList.remove('open')">Annulla</button>
@@ -2000,12 +2004,25 @@ async function loadDichiarazioneStatus(anno, mese) {
 async function openModalFirma(mese, anno) {
   const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
   
-  // Carica compensi del mese esatto
-  const { data: compSN } = await sb.from('compensi')
-    .select('*').eq('allenatore_id', currentUser.id).eq('mese', mese).eq('anno', anno);
+  // Per cassa: filtra per mese/anno dell'incasso (non competenza)
+  // compensi SN: mese = mese competenza, data_incasso determina la dichiarazione
+  // Carica tutti i compensi SN dell'anno e filtra per data_incasso nel mese
+  const { data: compSNAll } = await sb.from('compensi')
+    .select('*').eq('allenatore_id', currentUser.id).eq('anno', anno);
+  const compSN = (compSNAll||[]).filter(c => {
+    if (c.data_incasso) {
+      const d = new Date(c.data_incasso);
+      return d.getMonth() + 1 === mese && d.getFullYear() === anno;
+    }
+    // Fallback: se no data_incasso usa mese competenza
+    return c.mese === mese;
+  });
+
+  // compensi_esterni: mese = mese incasso (aggiornato col nuovo criterio cassa)
   const { data: compExt } = await sb.from('compensi_esterni')
     .select('*').eq('allenatore_id', currentUser.id).eq('mese', mese).eq('anno', anno);
-  // Compensi esterni senza mese (inseriti prima del fix) — mostrati come avviso
+
+  // Compensi esterni orfani (senza mese — vecchi record)
   const { data: compExtOrfani } = await sb.from('compensi_esterni')
     .select('*').eq('allenatore_id', currentUser.id).eq('anno', anno).is('mese', null);
 
@@ -2023,15 +2040,26 @@ async function openModalFirma(mese, anno) {
   window._dichTots = { totSN, totNettoSN, totExt, totNettoExt, totLordo };
 
   document.getElementById('firma-riepilogo').innerHTML = `
-    <div style="font-size:14px;font-weight:700;margin-bottom:12px;">Riepilogo ${mesi[mese]} ${anno}</div>
+    <div style="font-size:14px;font-weight:700;margin-bottom:4px;">Dichiarazione ${mesi[mese]} ${anno}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Criterio di cassa — compensi incassati in ${mesi[mese]}</div>
     <table style="width:100%;border-collapse:collapse;font-size:13px;">
       <tr style="background:#f5f5f5;">
         <th style="padding:6px 8px;text-align:left;">Soggetto</th>
         <th style="padding:6px 8px;text-align:right;">Lordo</th>
         <th style="padding:6px 8px;text-align:right;">Netto</th>
       </tr>
-      ${compSN?.map(c => `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;">SuperbaNuoto (${mesi[c.mese]})</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;">€${c.lordo.toFixed(2)}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;">€${c.netto.toFixed(2)}</td></tr>`).join('') || '<tr><td colspan="3" style="padding:6px 8px;color:#888;">Nessun compenso SuperbaNuoto</td></tr>'}
-      ${compExt?.map(c => `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;">${c.soggetto}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;">€${c.lordo.toFixed(2)}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;">€${c.netto.toFixed(2)}</td></tr>`).join('') || '<tr><td colspan="3" style="padding:6px 8px;color:#888;">Nessun compenso da altri soggetti</td></tr>'}
+      ${compSN.length > 0
+        ? compSN.map(c => {
+            const compLabel = c.mese && c.mese !== mese ? ` <span style="font-size:10px;color:var(--muted);">(comp. ${mesi[c.mese]})</span>` : '';
+            return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;">SuperbaNuoto${compLabel}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;">€${c.lordo.toFixed(2)}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;">€${c.netto.toFixed(2)}</td></tr>`;
+          }).join('')
+        : '<tr><td colspan="3" style="padding:6px 8px;color:#888;">Nessun compenso SuperbaNuoto</td></tr>'}
+      ${compExt.length > 0
+        ? compExt.map(c => {
+            const compLabel = c.mese_competenza && c.mese_competenza !== mese ? ` <span style="font-size:10px;color:var(--muted);">(comp. ${mesi[c.mese_competenza]})</span>` : '';
+            return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;">${c.soggetto}${compLabel}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;">€${c.lordo.toFixed(2)}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;">€${c.netto.toFixed(2)}</td></tr>`;
+          }).join('')
+        : '<tr><td colspan="3" style="padding:6px 8px;color:#888;">Nessun compenso da altri soggetti</td></tr>'}
       <tr style="background:#f5f5f5;font-weight:700;">
         <td style="padding:6px 8px;">TOTALE</td>
         <td style="padding:6px 8px;text-align:right;color:var(--blue);">€${totLordo.toFixed(2)}</td>
@@ -2041,7 +2069,7 @@ async function openModalFirma(mese, anno) {
     ${(compExtOrfani||[]).length > 0 ? `
     <div style="background:var(--amber-pale);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:12px;">
       <div style="font-weight:700;color:#92400E;margin-bottom:4px;">⚠️ ${compExtOrfani.length} compenso/i senza mese associato</div>
-      <div style="color:#92400E;">I seguenti compensi esistenti non sono stati inclusi perché manca il mese di riferimento. Modificali dalla sezione Compensi per associarli al mese corretto:</div>
+      <div style="color:#92400E;">Non inclusi — manca la data di incasso. Modificali dalla sezione Compensi:</div>
       ${compExtOrfani.map(c => `<div style="margin-top:6px;color:#92400E;font-weight:600;">· ${c.soggetto}: €${c.lordo.toFixed(2)}</div>`).join('')}
     </div>` : ''}`;
 
@@ -2331,11 +2359,14 @@ async function stampaDichiarazione(id) {
 
 async function openModalCompensoeEsterno() {
   document.getElementById('ce-soggetto').value = '';
-  document.getElementById('ce-anno').value = new Date().getFullYear();
-  document.getElementById('ce-mese').value = new Date().getMonth() + 1;
+  document.getElementById('ce-soggetto-select').value = '';
+  const oggi = new Date();
+  document.getElementById('ce-data').value = '';
+  // Preseleziona mese precedente come competenza (il più comune)
+  const mesePrecedente = oggi.getMonth() === 0 ? 12 : oggi.getMonth();
+  document.getElementById('ce-mese').value = mesePrecedente;
   document.getElementById('ce-lordo').value = '';
   document.getElementById('ce-netto').value = '';
-  document.getElementById('ce-data').value = '';
   document.getElementById('ce-note').value = '';
   document.getElementById('ce-salva-committente').style.display = 'none';
   document.getElementById('ce-salva-check').checked = true;
@@ -2392,36 +2423,47 @@ function onSoggettoInput() {
 
 async function salvaCompensoEsterno() {
   const soggetto = document.getElementById('ce-soggetto').value.trim();
-  const anno = parseInt(document.getElementById('ce-anno').value);
-  const mese = parseInt(document.getElementById('ce-mese').value);
+  const dataIncasso = document.getElementById('ce-data').value;
+  const meseComp = parseInt(document.getElementById('ce-mese').value);
   const lordo = parseFloat(document.getElementById('ce-lordo').value);
   const netto = parseFloat(document.getElementById('ce-netto').value);
-  const data = document.getElementById('ce-data').value;
   const note = document.getElementById('ce-note').value.trim();
   const salvaCommittente = document.getElementById('ce-salva-check').checked;
-  const mostraSalva = document.getElementById('ce-salva-committente').style.display !== 'none';
 
   if (!soggetto || !lordo || !netto) { showAlert('compenso-esterno-alert', 'Compila tutti i campi obbligatori', 'error'); return; }
-  
-  // Prova prima con mese, se fallisce per colonna mancante riprova senza
-  let { error } = await sb.from('compensi_esterni').insert({
-    allenatore_id: currentUser.id, soggetto, anno, mese, lordo, netto,
-    data_incasso: data || null, note: note || null
+  if (!dataIncasso) { showAlert('compenso-esterno-alert', 'La data di incasso è obbligatoria', 'error'); return; }
+
+  // Per cassa: anno e mese della dichiarazione = quelli dell'incasso
+  const dtIncasso = new Date(dataIncasso);
+  const annoIncasso = dtIncasso.getFullYear();
+  const meseIncasso = dtIncasso.getMonth() + 1;
+
+  const { error } = await sb.from('compensi_esterni').insert({
+    allenatore_id: currentUser.id,
+    soggetto,
+    anno: annoIncasso,        // anno dell'incasso (per la dichiarazione)
+    mese: meseIncasso,        // mese dell'incasso (per la dichiarazione)
+    mese_competenza: meseComp, // mese in cui ha lavorato (per la nota)
+    lordo,
+    netto,
+    data_incasso: dataIncasso,
+    note: note || null
   });
 
-  // Se la colonna mese non esiste ancora nel DB, salva senza
-  if (error && error.message && error.message.includes('mese')) {
-    const res2 = await sb.from('compensi_esterni').insert({
-      allenatore_id: currentUser.id, soggetto, anno, lordo, netto,
-      data_incasso: data || null, note: note || null
-    });
-    error = res2.error;
-  }
-
   if (error) {
-    showAlert('compenso-esterno-alert', 'Errore: ' + error.message, 'error');
-    alert('Errore salvataggio: ' + error.message); // visibile anche se modal è chiuso
-    return;
+    // Fallback senza mese_competenza se la colonna non esiste ancora
+    if (error.message && error.message.includes('mese_competenza')) {
+      const res2 = await sb.from('compensi_esterni').insert({
+        allenatore_id: currentUser.id, soggetto,
+        anno: annoIncasso, mese: meseIncasso,
+        lordo, netto, data_incasso: dataIncasso, note: note || null
+      });
+      if (res2.error) { showAlert('compenso-esterno-alert', 'Errore: ' + res2.error.message, 'error'); alert('Errore: ' + res2.error.message); return; }
+    } else {
+      showAlert('compenso-esterno-alert', 'Errore: ' + error.message, 'error');
+      alert('Errore salvataggio: ' + error.message);
+      return;
+    }
   }
 
   // Salva committente se checkbox spuntata e non già presente nella lista
