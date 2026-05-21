@@ -2424,12 +2424,16 @@ async function salvaCompensoEsterno() {
     return;
   }
 
-  // Salva committente se richiesto e non già presente
-  if (salvaCommittente && mostraSalva) {
-    await sb.from('committenti_sportivi').upsert(
-      { allenatore_id: currentUser.id, nome: soggetto },
-      { onConflict: 'allenatore_id,nome' }
-    );
+  // Salva committente se checkbox spuntata e non già presente nella lista
+  if (salvaCommittente) {
+    const sel = document.getElementById('ce-soggetto-select');
+    const esisteGia = Array.from(sel.options).some(o => o.value.toLowerCase() === soggetto.toLowerCase());
+    if (!esisteGia) {
+      await sb.from('committenti_sportivi').upsert(
+        { allenatore_id: currentUser.id, nome: soggetto },
+        { onConflict: 'allenatore_id,nome' }
+      );
+    }
   }
 
   document.getElementById('modal-compenso-esterno').classList.remove('open');
