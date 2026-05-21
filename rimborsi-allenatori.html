@@ -3538,8 +3538,17 @@ async function loadGestioneContent(tab) {
      </div>
      ${mesiRilevanti.size > 0 ? `
      <div style="margin-bottom:10px;">
-      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Dichiarazioni mensili ${annoCorrente}</div>
-      ${righeHtml}
+      <div style="background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+       <div onclick="var b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none';this.querySelector('.dt-${al.id}').textContent=b.style.display==='none'?'▾':'▴';"
+         style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;cursor:pointer;background:var(--bg);">
+         <div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Dichiarazioni ${annoCorrente}</div>
+          <div style="font-size:12px;font-weight:700;margin-top:2px;color:var(--green);">✅ ${nDichInviate} inviate</div>
+         </div>
+         <div style="font-size:18px;color:var(--muted);" class="dt-${al.id}">▾</div>
+       </div>
+       <div style="display:none;padding:0 12px;">${righeHtml}</div>
+      </div>
      </div>` : ''}
      <div style="display:flex;gap:8px;">
       <button class="btn btn-sm btn-secondary" onclick="openModalModificaAllenatore('${al.id}','${(al.nome||'').replace(/'/g,"\\'")}','${(al.cognome||'').replace(/'/g,"\\'")}','${(al.email||'').replace(/'/g,"\\'")}','${(al.telefono||'').replace(/'/g,"\\'")}')">✏️ Modifica</button>
