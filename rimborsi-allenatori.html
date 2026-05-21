@@ -1463,6 +1463,16 @@ input[type="file"] { display: none; }
       </div>
     </div>
     <div class="field"><label>Anno</label><input type="number" id="ce-anno" value="2026" min="2020" max="2030"></div>
+    <div class="field"><label>Mese di riferimento</label>
+      <select id="ce-mese">
+        <option value="1">Gennaio</option><option value="2">Febbraio</option>
+        <option value="3">Marzo</option><option value="4">Aprile</option>
+        <option value="5">Maggio</option><option value="6">Giugno</option>
+        <option value="7">Luglio</option><option value="8">Agosto</option>
+        <option value="9">Settembre</option><option value="10">Ottobre</option>
+        <option value="11">Novembre</option><option value="12">Dicembre</option>
+      </select>
+    </div>
     <div class="field"><label>Importo lordo €</label><input type="number" id="ce-lordo" placeholder="0.00" step="0.01" min="0"></div>
     <div class="field"><label>Importo netto €</label><input type="number" id="ce-netto" placeholder="0.00" step="0.01" min="0"></div>
     <div class="field"><label>Data incasso</label><input type="date" id="ce-data"></div>
@@ -1990,11 +2000,14 @@ async function loadDichiarazioneStatus(anno, mese) {
 async function openModalFirma(mese, anno) {
   const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
   
-  // Carica compensi del mese
+  // Carica compensi del mese (include anche quelli senza mese per retrocompatibilità)
   const { data: compSN } = await sb.from('compensi')
     .select('*').eq('allenatore_id', currentUser.id).eq('mese', mese).eq('anno', anno);
-  const { data: compExt } = await sb.from('compensi_esterni')
+  const { data: compExtMese } = await sb.from('compensi_esterni')
     .select('*').eq('allenatore_id', currentUser.id).eq('mese', mese).eq('anno', anno);
+  const { data: compExtSenzaMese } = await sb.from('compensi_esterni')
+    .select('*').eq('allenatore_id', currentUser.id).eq('anno', anno).is('mese', null);
+  const compExt = [...(compExtMese||[]), ...(compExtSenzaMese||[])];
 
   const totSN = (compSN||[]).reduce((s,c) => s+c.lordo, 0);
   const totNettoSN = (compSN||[]).reduce((s,c) => s+c.netto, 0);
@@ -2313,6 +2326,7 @@ async function stampaDichiarazione(id) {
 async function openModalCompensoeEsterno() {
   document.getElementById('ce-soggetto').value = '';
   document.getElementById('ce-anno').value = new Date().getFullYear();
+  document.getElementById('ce-mese').value = new Date().getMonth() + 1;
   document.getElementById('ce-lordo').value = '';
   document.getElementById('ce-netto').value = '';
   document.getElementById('ce-data').value = '';
@@ -2373,6 +2387,7 @@ function onSoggettoInput() {
 async function salvaCompensoEsterno() {
   const soggetto = document.getElementById('ce-soggetto').value.trim();
   const anno = parseInt(document.getElementById('ce-anno').value);
+  const mese = parseInt(document.getElementById('ce-mese').value);
   const lordo = parseFloat(document.getElementById('ce-lordo').value);
   const netto = parseFloat(document.getElementById('ce-netto').value);
   const data = document.getElementById('ce-data').value;
@@ -2383,7 +2398,7 @@ async function salvaCompensoEsterno() {
   if (!soggetto || !lordo || !netto) { showAlert('compenso-esterno-alert', 'Compila tutti i campi obbligatori', 'error'); return; }
   
   const { error } = await sb.from('compensi_esterni').insert({
-    allenatore_id: currentUser.id, soggetto, anno, lordo, netto,
+    allenatore_id: currentUser.id, soggetto, anno, mese, lordo, netto,
     data_incasso: data || null, note: note || null
   });
   if (error) { showAlert('compenso-esterno-alert', 'Errore: ' + error.message, 'error'); return; }
