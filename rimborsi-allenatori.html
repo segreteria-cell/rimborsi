@@ -1725,70 +1725,99 @@ async function loadCompensi() {
     document.getElementById('irpef-note').textContent = `Mancano €${(sogliIRPEF - totLordo).toFixed(0)} alla soglia fiscale`;
   }
 
-  // Render compensi SuperbaNuoto — card collassabile con totale
-  const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+  // ── Utility: card collassabile per anno ──────────────────────────────
+  function cardAnno(id, anno, headerHtml, righeHtml, aperta = false) {
+    return `<div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm);margin-bottom:10px;">
+      <div onclick="(function(el){var b=el.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none';el.querySelector('.ti-${id}').textContent=b.style.display==='none'?'▾':'▴';})(this)"
+        style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;cursor:pointer;background:var(--bg);">
+        <div>${headerHtml}</div>
+        <div style="font-size:22px;color:var(--muted);" class="ti-${id}">${aperta ? '▴' : '▾'}</div>
+      </div>
+      <div style="display:${aperta ? 'block' : 'none'};">${righeHtml}</div>
+    </div>`;
+  }
+
+  // ── 1. Compensi SuperbaNuoto raggruppati per anno ─────────────────────
   const snEl = document.getElementById('compensi-sn-list');
   if (!compSN || !compSN.length) {
     snEl.innerHTML = '<div class="empty"><div class="empty-icon">💶</div><div class="empty-text">Nessun compenso registrato</div></div>';
   } else {
-    const totNetto = compSN.reduce((s,c) => s + (c.netto||0), 0);
-    const totLordoSNOnly = compSN.reduce((s,c) => s + (c.lordo||0), 0);
-    const righe = compSN.map(c => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:var(--navy);">${mesi[c.mese]} ${c.anno}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;">
-            Lordo €${(c.lordo||0).toFixed(2)}${c.ritenuta_inps > 0 ? ` · INPS -€${c.ritenuta_inps.toFixed(2)}` : ''}${c.ritenuta_irpef > 0 ? ` · IRPEF -€${c.ritenuta_irpef.toFixed(2)}` : ''}
-          </div>
-          ${c.data_incasso ? `<div style="font-size:11px;color:var(--muted);">Incassato ${new Date(c.data_incasso).toLocaleDateString('it-IT')}</div>` : ''}
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:15px;font-weight:800;color:var(--green);">€${(c.netto||0).toFixed(2)}</div>
-          <div style="font-size:10px;color:var(--muted);">netto</div>
-        </div>
-      </div>`).join('');
-
-    snEl.innerHTML = `
-      <div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm);">
-        <!-- Header cliccabile -->
-        <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.toggle-icon').textContent=this.nextElementSibling.style.display==='none'?'▾':'▴';"
-          style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;cursor:pointer;background:var(--bg);">
+    // raggruppa per anno
+    const snPerAnno = {};
+    compSN.forEach(c => {
+      const a = c.anno || anno;
+      if (!snPerAnno[a]) snPerAnno[a] = [];
+      snPerAnno[a].push(c);
+    });
+    snEl.innerHTML = Object.keys(snPerAnno).sort((a,b) => b-a).map(a => {
+      const lista = snPerAnno[a];
+      const totNetto = lista.reduce((s,c) => s+(c.netto||0), 0);
+      const totLordoA = lista.reduce((s,c) => s+(c.lordo||0), 0);
+      const righe = lista.map(c => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);">
           <div>
-            <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:2px;">${compSN.length} mesi · Anno ${anno}</div>
-            <div style="display:flex;align-items:baseline;gap:8px;">
-              <span style="font-size:22px;font-weight:800;color:var(--green);">€${totNetto.toFixed(2)}</span>
-              <span style="font-size:12px;color:var(--muted);">netto totale</span>
+            <div style="font-size:13px;font-weight:700;color:var(--navy);">${mesi[c.mese]} ${c.anno}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">
+              Lordo €${(c.lordo||0).toFixed(2)}${c.ritenuta_inps>0?` · INPS -€${c.ritenuta_inps.toFixed(2)}`:''}${c.ritenuta_irpef>0?` · IRPEF -€${c.ritenuta_irpef.toFixed(2)}`:''}
             </div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px;">Lordo totale: €${totLordoSNOnly.toFixed(2)}</div>
+            ${c.data_incasso?`<div style="font-size:11px;color:var(--muted);">Incassato ${new Date(c.data_incasso).toLocaleDateString('it-IT')}</div>`:''}
           </div>
-          <div style="font-size:22px;color:var(--muted);transition:transform 0.2s;" class="toggle-icon">▾</div>
+          <div style="text-align:right;">
+            <div style="font-size:15px;font-weight:800;color:var(--green);">€${(c.netto||0).toFixed(2)}</div>
+            <div style="font-size:10px;color:var(--muted);">netto</div>
+          </div>
+        </div>`).join('');
+      const header = `<div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:2px;">${lista.length} mesi · Anno ${a}</div>
+        <div style="display:flex;align-items:baseline;gap:8px;">
+          <span style="font-size:22px;font-weight:800;color:var(--green);">€${totNetto.toFixed(2)}</span>
+          <span style="font-size:12px;color:var(--muted);">netto totale</span>
         </div>
-        <!-- Righe mesi (nascoste di default) -->
-        <div style="display:none;">
-          ${righe}
-        </div>
-      </div>`;
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Lordo: €${totLordoA.toFixed(2)}</div>`;
+      return cardAnno('sn'+a, a, header, righe, String(a) === String(anno));
+    }).join('');
   }
 
-  // Render compensi esterni
+  // ── 2. Compensi esterni raggruppati per anno ──────────────────────────
   const extEl = document.getElementById('compensi-esterni-list');
   if (!compExt || !compExt.length) {
     extEl.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0;">Nessun compenso da altri soggetti inserito</div>';
   } else {
-    extEl.innerHTML = compExt.map(c => `
-      <div class="admin-card" style="margin-bottom:8px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div>
-            <div style="font-size:14px;font-weight:600;">${c.soggetto}</div>
-            <div style="font-size:12px;color:var(--muted);">Lordo €${c.lordo.toFixed(2)} · Netto €${c.netto.toFixed(2)}</div>
-            ${c.data_incasso ? `<div style="font-size:11px;color:var(--muted);">${new Date(c.data_incasso).toLocaleDateString('it-IT')}</div>` : ''}
+    const extPerAnno = {};
+    compExt.forEach(c => {
+      const a = c.anno || anno;
+      if (!extPerAnno[a]) extPerAnno[a] = [];
+      extPerAnno[a].push(c);
+    });
+    extEl.innerHTML = Object.keys(extPerAnno).sort((a,b) => b-a).map(a => {
+      const lista = extPerAnno[a];
+      const totNettoE = lista.reduce((s,c) => s+(c.netto||0), 0);
+      const totLordoE = lista.reduce((s,c) => s+(c.lordo||0), 0);
+      const righe = lista.map(c => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:700;color:var(--navy);">${c.soggetto}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">
+              ${c.data_incasso?`Incassato ${new Date(c.data_incasso).toLocaleDateString('it-IT')} · `:''}
+              Lordo €${(c.lordo||0).toFixed(2)}${c.mese_competenza && c.mese_competenza!==c.mese?` · comp. ${mesi[c.mese_competenza]}`:''}
+            </div>
           </div>
-          <div style="display:flex;gap:8px;">
+          <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+            <div style="text-align:right;">
+              <div style="font-size:15px;font-weight:800;color:var(--green);">€${(c.netto||0).toFixed(2)}</div>
+              <div style="font-size:10px;color:var(--muted);">netto</div>
+            </div>
             <button class="btn btn-sm btn-secondary" onclick="openModalModificaCompensoEsterno('${c.id}','${c.soggetto.replace(/'/g,"\\'")}',${c.lordo},${c.netto},'${c.data_incasso||''}','${c.note||''}')">✏️</button>
             <button class="btn btn-sm btn-danger" onclick="eliminaCompensoEsterno('${c.id}')">🗑️</button>
           </div>
+        </div>`).join('');
+      const header = `<div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:2px;">${lista.length} voci · Anno ${a}</div>
+        <div style="display:flex;align-items:baseline;gap:8px;">
+          <span style="font-size:22px;font-weight:800;color:var(--green);">€${totNettoE.toFixed(2)}</span>
+          <span style="font-size:12px;color:var(--muted);">netto totale</span>
         </div>
-      </div>`).join('');
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Lordo: €${totLordoE.toFixed(2)}</div>`;
+      return cardAnno('ext'+a, a, header, righe, String(a) === String(anno));
+    }).join('');
   }
 
   // Carica stato dichiarazioni - mostra per ogni mese con compensi
@@ -1799,8 +1828,7 @@ async function loadCompensi() {
   const { data: mesiConCompensi } = await sb.from('compensi')
     .select('mese, anno')
     .eq('allenatore_id', currentUser.id)
-    .eq('anno', annoCorrente)
-    .order('mese', { ascending: false });
+    .order('anno', { ascending: false });
 
   const mesePrecedente = oggi.getMonth() === 0 ? 12 : oggi.getMonth();
   const annoPrecedente = oggi.getMonth() === 0 ? annoCorrente - 1 : annoCorrente;
@@ -1812,7 +1840,7 @@ async function loadCompensi() {
   const { data: dichiarazioniEsistenti } = await sb.from('dichiarazioni_compensi')
     .select('*')
     .eq('allenatore_id', currentUser.id)
-    .eq('anno', annoCorrente);
+    .order('anno', { ascending: false });
   
   const dichMap = {};
   (dichiarazioniEsistenti||[]).forEach(d => dichMap[`${d.anno}-${d.mese}`] = d);
@@ -1821,68 +1849,86 @@ async function loadCompensi() {
   const dichEl = document.getElementById('dichiarazione-status');
   if (!dichEl) return;
 
-  dichEl.innerHTML = Array.from(mesiDaDichiarare).sort().reverse().map(key => {
-    const [a, m] = key.split('-').map(Number);
-    const dich = dichMap[key];
-    const meseSucc = m === 12 ? 1 : m + 1;
-    const annoSucc = m === 12 ? a + 1 : a;
+  // Raggruppa mesi per anno
+  const chiavi = Array.from(mesiDaDichiarare).sort().reverse();
+  const chiiaviPerAnno = {};
+  chiavi.forEach(key => {
+    const [a] = key.split('-');
+    if (!chiiaviPerAnno[a]) chiiaviPerAnno[a] = [];
+    chiiaviPerAnno[a].push(key);
+  });
 
-    // Disponibile dal 25 del mese stesso, scadenza 5 del mese successivo
-    const dataDisponibile = new Date(a, m - 1, 25); // 25 del mese corrente
-    const dataScadenza    = new Date(annoSucc, meseSucc - 1, 5); // 5 del mese dopo
-    const isDisponibile   = oggi >= dataDisponibile;
-    const isScaduta       = oggi > dataScadenza;
+  dichEl.innerHTML = Object.keys(chiiaviPerAnno).sort((a,b) => b-a).map(annoGruppo => {
+    const keysAnno = chiiaviPerAnno[annoGruppo];
+    const nInviate = keysAnno.filter(k => dichMap[k]).length;
+    const nMancanti = keysAnno.filter(k => {
+      const [a,m] = k.split('-').map(Number);
+      const meseSucc = m===12?1:m+1; const annoSucc = m===12?a+1:a;
+      const dataDisp = new Date(a, m-1, 25);
+      return oggi >= dataDisp && !dichMap[k];
+    }).length;
 
-    if (dich) {
-      return `<div class="card" style="border-left:4px solid var(--green);margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-          <span style="font-size:20px;">✅</span>
-          <div style="flex:1;">
-            <div style="font-weight:700;color:var(--green);">Dichiarazione presentata</div>
-            <div style="font-size:12px;color:var(--muted);">${mesiNomi[m]} ${a} · inviata il ${new Date(dich.data_presentazione).toLocaleDateString('it-IT')}</div>
+    const righe = keysAnno.map(key => {
+      const [a, m] = key.split('-').map(Number);
+      const dich = dichMap[key];
+      const meseSucc = m === 12 ? 1 : m + 1;
+      const annoSucc = m === 12 ? a + 1 : a;
+      const dataDisponibile = new Date(a, m - 1, 25);
+      const dataScadenza = new Date(annoSucc, meseSucc - 1, 5);
+      const isDisponibile = oggi >= dataDisponibile;
+      const isScaduta = oggi > dataScadenza;
+
+      if (dich) {
+        return `<div style="padding:12px 14px;border-bottom:1px solid var(--border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span>✅</span>
+              <div>
+                <div style="font-size:13px;font-weight:700;color:var(--green);">${mesiNomi[m]} ${a}</div>
+                <div style="font-size:11px;color:var(--muted);">Inviata il ${new Date(dich.data_presentazione).toLocaleDateString('it-IT')} · Lordo €${dich.tot_lordo.toFixed(2)}</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-sm btn-secondary" onclick="stampaDichiarazione('${dich.id}')">🖨️</button>
+              <button class="btn btn-sm btn-danger" onclick="eliminaDichiarazione('${dich.id}')">🗑️</button>
+            </div>
           </div>
-        </div>
-        <div style="background:var(--green-pale);border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:8px;">
-          Lordo totale dichiarato: <strong style="color:var(--green);">€${dich.tot_lordo.toFixed(2)}</strong>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-sm btn-secondary" onclick="stampaDichiarazione('${dich.id}')">🖨️ Ristampa PDF</button>
-          <button class="btn btn-sm btn-danger" onclick="eliminaDichiarazione('${dich.id}')">🗑️ Elimina</button>
-        </div>
-      </div>`;
-    } else if (!isDisponibile) {
-      // Mese non ancora disponibile (prima del 25)
-      const giorni = Math.ceil((dataDisponibile - oggi) / (1000*60*60*24));
-      return `<div class="card" style="border-left:4px solid var(--border);margin-bottom:8px;opacity:0.75;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:20px;">🔒</span>
-          <div>
-            <div style="font-weight:700;color:var(--muted);">Dichiarazione ${mesiNomi[m]} ${a}</div>
-            <div style="font-size:12px;color:var(--muted);">Disponibile dal 25 ${mesiNomi[m]} · ancora ${giorni} ${giorni === 1 ? 'giorno' : 'giorni'}</div>
+        </div>`;
+      } else if (!isDisponibile) {
+        const giorni = Math.ceil((dataDisponibile - oggi) / (1000*60*60*24));
+        return `<div style="padding:12px 14px;border-bottom:1px solid var(--border);opacity:0.7;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span>🔒</span>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--muted);">${mesiNomi[m]} ${a}</div>
+              <div style="font-size:11px;color:var(--muted);">Disponibile dal 25 ${mesiNomi[m]} · ${giorni} ${giorni===1?'giorno':'giorni'}</div>
+            </div>
           </div>
-        </div>
-      </div>`;
-    } else {
-      // Disponibile ma non ancora fatta
-      return `<div class="card" style="border-left:4px solid ${isScaduta ? 'var(--red)' : 'var(--amber)'};margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-          <span style="font-size:20px;">${isScaduta ? '🚨' : '⚠️'}</span>
-          <div>
-            <div style="font-weight:700;color:${isScaduta ? 'var(--red)' : 'var(--amber)'};">${isScaduta ? 'Dichiarazione scaduta!' : 'Dichiarazione da inviare'}</div>
-            <div style="font-size:12px;color:var(--muted);">${mesiNomi[m]} ${a} · Scadenza: 5 ${mesiNomi[meseSucc]} ${annoSucc}</div>
+        </div>`;
+      } else {
+        return `<div style="padding:12px 14px;border-bottom:1px solid var(--border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span>${isScaduta?'🚨':'⚠️'}</span>
+              <div>
+                <div style="font-size:13px;font-weight:700;color:${isScaduta?'var(--red)':'var(--amber)'};">${mesiNomi[m]} ${a} · ${isScaduta?'Scaduta':'Da inviare'}</div>
+                <div style="font-size:11px;color:var(--muted);">Scadenza 5 ${mesiNomi[meseSucc]} ${annoSucc}</div>
+              </div>
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="openModalFirma(${m}, ${a})">📋 Genera</button>
           </div>
-        </div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">
-          Inserisci i compensi da altri soggetti per ${mesiNomi[m]}, poi genera la dichiarazione.
-        </div>
-        <button class="btn btn-primary" onclick="openModalFirma(${m}, ${a})">
-          📋 Genera dichiarazione ${mesiNomi[m]}
-        </button>
+        </div>`;
+      }
+    }).join('');
+
+    const header = `<div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:2px;">Anno ${annoGruppo}</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+        <span style="font-size:13px;font-weight:700;color:var(--green);">✅ ${nInviate} inviate</span>
+        ${nMancanti>0?`<span style="font-size:13px;font-weight:700;color:var(--amber);">⚠️ ${nMancanti} mancanti</span>`:''}
       </div>`;
-    }
+    return cardAnno('dich'+annoGruppo, annoGruppo, header, righe, String(annoGruppo) === String(annoCorrente));
   }).join('');
 }
-
 async function eliminaCompensoAdmin(id) {
   if (!confirm('Eliminare questo compenso?')) return;
   await sb.from('compensi').delete().eq('id', id);
