@@ -1994,7 +1994,7 @@ async function openModalFirma(mese, anno) {
   const { data: compSN } = await sb.from('compensi')
     .select('*').eq('allenatore_id', currentUser.id).eq('mese', mese).eq('anno', anno);
   const { data: compExt } = await sb.from('compensi_esterni')
-    .select('*').eq('allenatore_id', currentUser.id).eq('anno', anno);
+    .select('*').eq('allenatore_id', currentUser.id).eq('mese', mese).eq('anno', anno);
 
   const totSN = (compSN||[]).reduce((s,c) => s+c.lordo, 0);
   const totNettoSN = (compSN||[]).reduce((s,c) => s+c.netto, 0);
@@ -4495,6 +4495,15 @@ async function compensiAdminTab(tab) {
   }
 
   if (tab === 'inserisci') {
+    // Raggruppa compensi esistenti per allenatore
+    const compPerAllenatore = {};
+    (tutti||[]).forEach(c => {
+      if (!compPerAllenatore[c.allenatore_id]) compPerAllenatore[c.allenatore_id] = [];
+      compPerAllenatore[c.allenatore_id].push(c);
+    });
+    const allenatoriConComp = (allenatori||[]).filter(a => compPerAllenatore[a.id]?.length);
+    const allenatoriSenzaComp = (allenatori||[]).filter(a => !compPerAllenatore[a.id]?.length);
+
     el.innerHTML = `
       <div class="card" style="margin-bottom:16px;">
         <div class="card-title" style="margin-bottom:12px;">Inserisci compenso mensile</div>
@@ -4502,7 +4511,7 @@ async function compensiAdminTab(tab) {
         <div class="field"><label>Allenatore</label>
           <select id="ca-allenatore" onchange="aggiornaSoglieAdmin(this.value)">
             <option value="">Seleziona...</option>
-            ${(allenatori||[]).map(a => `<option value="${a.id}">${a.nome} ${a.cognome}</option>`).join('')}
+            ${(allenatori||[]).map(a => `<option value="${a.id}">${a.cognome} ${a.nome}</option>`).join('')}
           </select>
         </div>
         <div id="ca-soglie-info" style="margin-bottom:12px;"></div>
@@ -4527,7 +4536,31 @@ async function compensiAdminTab(tab) {
         <div class="field"><label>Data incasso</label><input type="date" id="ca-data"></div>
         <div class="field"><label>Note (opzionale)</label><input type="text" id="ca-note"></div>
         <button class="btn btn-primary" onclick="salvaCompensoAdmin()">Salva compenso</button>
-      </div>`;
+      </div>
+
+      ${allenatoriConComp.length > 0 ? `
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px;">Compensi già inseriti — ${anno}</div>
+      ${allenatoriConComp.map(a => {
+        const comps = compPerAllenatore[a.id];
+        const totNetto = comps.reduce((s,c) => s+(c.netto||0), 0);
+        return `<div class="admin-card" style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:15px;font-weight:700;color:var(--navy);">${a.cognome} ${a.nome}</div>
+            <span style="font-size:13px;font-weight:800;color:var(--green);">€${totNetto.toFixed(2)} netto</span>
+          </div>
+          ${comps.sort((a,b)=>a.mese-b.mese).map(c => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--navy);">${mesi[c.mese]}</div>
+              <div style="font-size:11px;color:var(--muted);">Lordo €${(c.lordo||0).toFixed(2)}${c.ritenuta_inps>0?` · INPS -€${c.ritenuta_inps.toFixed(2)}`:''}${c.ritenuta_irpef>0?` · IRPEF -€${c.ritenuta_irpef.toFixed(2)}`:''}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:14px;font-weight:700;color:var(--green);">€${(c.netto||0).toFixed(2)}</span>
+              <button class="btn btn-sm btn-secondary" onclick="openModalModificaCompensoAdmin('${c.id}','${a.cognome} ${a.nome}',${c.mese},${c.anno},${c.lordo||0},${c.ritenuta_inps||0},${c.ritenuta_irpef||0},${c.netto||0},'${c.data_incasso||''}','${(c.note||'').replace(/'/g,"\\'")}')">✏️</button>
+            </div>
+          </div>`).join('')}
+        </div>`;
+      }).join('')}` : ''}`;
   } else if (tab === 'dichiarazioni') {
     const meseRef = new Date().getMonth(); // mese precedente (0=gen)
     const annoRef = meseRef === 0 ? anno - 1 : anno;
@@ -5738,6 +5771,76 @@ function showAlert(id, msg, type) {
   el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
   setTimeout(() => { if(el) el.innerHTML = ''; }, 4000);
 }
+
+
+function openModalModificaCompensoAdmin(id, nomeAllenatore, mese, anno, lordo, inps, irpef, netto, data, note) {
+  const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+  document.getElementById('mca-id').value = id;
+  document.getElementById('mca-intestazione').textContent = nomeAllenatore;
+  document.getElementById('mca-mese').value = mesi[mese];
+  document.getElementById('mca-anno').value = anno;
+  document.getElementById('mca-lordo').value = lordo;
+  document.getElementById('mca-inps').value = inps;
+  document.getElementById('mca-irpef').value = irpef;
+  document.getElementById('mca-netto').value = netto;
+  document.getElementById('mca-data').value = data;
+  document.getElementById('mca-note').value = note;
+  document.getElementById('modal-modifica-compenso-admin').classList.add('open');
+}
+
+function calcolaNettoModalAdmin() {
+  const lordo = parseFloat(document.getElementById('mca-lordo').value) || 0;
+  const inps  = parseFloat(document.getElementById('mca-inps').value)  || 0;
+  const irpef = parseFloat(document.getElementById('mca-irpef').value) || 0;
+  document.getElementById('mca-netto').value = (lordo - inps - irpef).toFixed(2);
+}
+
+async function salvaModificaCompensoAdmin() {
+  const id    = document.getElementById('mca-id').value;
+  const lordo = parseFloat(document.getElementById('mca-lordo').value);
+  const inps  = parseFloat(document.getElementById('mca-inps').value)  || 0;
+  const irpef = parseFloat(document.getElementById('mca-irpef').value) || 0;
+  const netto = parseFloat(document.getElementById('mca-netto').value);
+  const data  = document.getElementById('mca-data').value;
+  const note  = document.getElementById('mca-note').value.trim();
+  if (!lordo || !netto) { alert('Inserisci lordo e netto'); return; }
+  const { error } = await sb.from('compensi').update({
+    lordo, ritenuta_inps: inps, ritenuta_irpef: irpef, netto,
+    data_incasso: data || null, note: note || null
+  }).eq('id', id);
+  if (error) { alert('Errore: ' + error.message); return; }
+  document.getElementById('modal-modifica-compenso-admin').classList.remove('open');
+  compensiAdminTab('inserisci');
+}
+
 </script>
+
+<!-- ===== MODAL MODIFICA COMPENSO ADMIN ===== -->
+<div class="modal-overlay" id="modal-modifica-compenso-admin">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">✏️ Modifica compenso</div>
+    <input type="hidden" id="mca-id">
+    <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:14px;" id="mca-intestazione"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="field"><label>Mese</label><input type="text" id="mca-mese" readonly style="background:var(--bg);"></div>
+      <div class="field"><label>Anno</label><input type="text" id="mca-anno" readonly style="background:var(--bg);"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="field"><label>Lordo €</label><input type="number" id="mca-lordo" step="0.01" min="0" oninput="calcolaNettoModalAdmin()"></div>
+      <div class="field"><label>INPS €</label><input type="number" id="mca-inps" step="0.01" min="0" value="0" oninput="calcolaNettoModalAdmin()"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="field"><label>IRPEF €</label><input type="number" id="mca-irpef" step="0.01" min="0" value="0" oninput="calcolaNettoModalAdmin()"></div>
+      <div class="field"><label>Netto €</label><input type="number" id="mca-netto" step="0.01" min="0"></div>
+    </div>
+    <div class="field"><label>Data incasso</label><input type="date" id="mca-data"></div>
+    <div class="field"><label>Note</label><input type="text" id="mca-note"></div>
+    <div style="display:flex;gap:10px;margin-top:4px;">
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-modifica-compenso-admin').classList.remove('open')">Annulla</button>
+      <button class="btn btn-primary" onclick="salvaModificaCompensoAdmin()">Salva modifiche</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
