@@ -2046,6 +2046,8 @@ async function showNuovaRichiesta() {
   renderSpese();
   aggiornaRiepilogo();
   showScreen('nuova');
+  // Aspetta che il browser abbia renderizzato la schermata prima di aggiornare il select
+  await new Promise(r => setTimeout(r, 50));
   await loadGare();
 }
 
