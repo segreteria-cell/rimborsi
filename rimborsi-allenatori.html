@@ -385,8 +385,11 @@
       <div class="field">
         <label>Seleziona gara</label>
         <select id="sel-gara" onchange="onGaraChange()">
-          <option value="">Caricamento gare...</option>
+          <option value="">Caricamento...</option>
         </select>
+        <div id="gare-retry" style="display:none;margin-top:6px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="loadGare().then(()=>{document.getElementById('gare-retry').style.display='none';});">🔄 Ricarica gare</button>
+        </div>
       </div>
     </div>
 
@@ -2540,11 +2543,23 @@ async function loadHome() {
 async function loadGare() {
   const sel = document.getElementById('sel-gara');
   sel.innerHTML = '<option value="">Caricamento...</option>';
+  sel.disabled = true;
   try {
-    const { data, error } = await sb.from('gare').select('id, nome, data, luogo, categoria, indirizzo_piscina').eq('attiva', true).order('data', { ascending: true });
-    if (error || !data || data.length === 0) {
-   sel.innerHTML = '<option value="">Nessuna gara disponibile</option>';
-   return;
+    const { data, error } = await sb.from('gare')
+      .select('id, nome, data, luogo, categoria, indirizzo_piscina, attiva')
+      .or('attiva.eq.true,attiva.is.null')
+      .order('data', { ascending: true });
+    sel.disabled = false;
+    if (error) {
+      sel.innerHTML = '<option value="">Errore caricamento gare</option>';
+      const retryDiv = document.getElementById('gare-retry');
+      if (retryDiv) retryDiv.style.display = 'block';
+      showAlert('nuova-alert', '⚠️ Impossibile caricare le gare. Riprova.', 'error');
+      return;
+    }
+    if (!data || data.length === 0) {
+      sel.innerHTML = '<option value="">Nessuna gara disponibile</option>';
+      return;
     }
     const nuoto = data.filter(g => !g.categoria || g.categoria === 'nuoto');
     const salvamento = data.filter(g => g.categoria === 'salvamento');
@@ -2559,10 +2574,12 @@ async function loadGare() {
 
     const partenzaEl = document.getElementById('inp-partenza');
     if (partenzaEl && currentProfilo?.indirizzo_casa && !partenzaEl.value) {
-   partenzaEl.value = currentProfilo.indirizzo_casa;
+      partenzaEl.value = currentProfilo.indirizzo_casa;
     }
   } catch(e) {
+    sel.disabled = false;
     sel.innerHTML = '<option value="">Errore: ' + e.message + '</option>';
+    showAlert('nuova-alert', '⚠️ Errore nel caricamento delle gare: ' + e.message, 'error');
   }
 }
 
