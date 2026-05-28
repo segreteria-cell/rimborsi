@@ -2545,7 +2545,7 @@ async function loadGare() {
   sel.innerHTML = '<option value="">Caricamento...</option>';
   sel.disabled = true;
   try {
-    const { data, error } = await sb.from('gare')
+    let { data, error } = await sb.from('gare')
       .select('id, nome, data, luogo, categoria, indirizzo_piscina, attiva')
       .or('attiva.eq.true,attiva.is.null')
       .order('data', { ascending: true });
@@ -2558,8 +2558,16 @@ async function loadGare() {
       return;
     }
     if (!data || data.length === 0) {
-      sel.innerHTML = '<option value="">Nessuna gara disponibile</option>';
-      return;
+      // Fallback: prova senza filtro attiva (potrebbe essere tutto false nel db)
+      const { data: dataAll } = await sb.from('gare')
+        .select('id, nome, data, luogo, categoria, indirizzo_piscina, attiva')
+        .order('data', { ascending: true });
+      if (!dataAll || dataAll.length === 0) {
+        sel.innerHTML = '<option value="">Nessuna gara disponibile</option>';
+        return;
+      }
+      // Usa tutte le gare come fallback
+      data = dataAll;
     }
     const nuoto = data.filter(g => !g.categoria || g.categoria === 'nuoto');
     const salvamento = data.filter(g => g.categoria === 'salvamento');
