@@ -2545,53 +2545,50 @@ async function loadGare() {
   const sel = document.getElementById('sel-gara');
   const dbg = document.getElementById('gare-debug-bar');
   const retryDiv = document.getElementById('gare-retry');
+  if (dbg) dbg.textContent = '⏳ Caricamento...';
   sel.innerHTML = '<option value="">Caricamento...</option>';
-  sel.disabled = false; // mai disabilitare, permette all'utente di vedere lo stato
-  if (dbg) dbg.textContent = '⏳ Connessione a Supabase...';
 
-  // Timeout di sicurezza: se dopo 8 secondi non arriva nulla, mostra errore
-  const timeoutId = setTimeout(() => {
-    if (sel.innerHTML.includes('Caricamento')) {
-      sel.innerHTML = '<option value="">Timeout — riprova</option>';
-      if (dbg) dbg.textContent = '❌ Timeout: Supabase non risponde. Probabile problema di RLS o connessione.';
-      if (retryDiv) retryDiv.style.display = 'block';
-    }
-  }, 8000);
+  const log = (msg) => {
+    console.log('[loadGare]', msg);
+    if (dbg) dbg.textContent = msg;
+  };
 
   try {
-    // Usa fetch diretto alle REST API di Supabase, bypassa il client JS per evitare problemi di sessione
-    const url = `${SUPABASE_URL}/rest/v1/gare?select=id,nome,data,luogo,categoria,indirizzo_piscina,attiva&order=data.asc`;
-    const resp = await fetch(url, {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    clearTimeout(timeoutId);
+    log('Chiamata a Supabase...');
 
-    if (!resp.ok) {
-      const errText = await resp.text();
-      throw new Error(`HTTP ${resp.status}: ${errText}`);
-    }
+    // Timeout visibile dopo 6 secondi
+    const tid = setTimeout(() => {
+      log('⚠️ Lento... controlla la connessione');
+    }, 6000);
 
-    const data = await resp.json();
-    console.log('[loadGare] REST fetch → gare:', data?.length);
-    if (dbg) dbg.textContent = `✅ ${data?.length ?? 0} gare trovate`;
+    const { data, error } = await sb.from('gare')
+      .select('id, nome, data, luogo, categoria, indirizzo_piscina, attiva')
+      .order('data', { ascending: true });
 
-    if (!data || data.length === 0) {
-      sel.innerHTML = '<option value="">Nessuna gara disponibile</option>';
-      if (dbg) dbg.textContent = '⚠️ Nessuna gara nel database';
+    clearTimeout(tid);
+    log(`Risposta: ${data?.length ?? 'null'} gare, errore: ${error?.message ?? 'nessuno'}`);
+
+    if (error) {
+      sel.innerHTML = '<option value="">Errore</option>';
+      if (retryDiv) retryDiv.style.display = 'block';
+      showAlert('nuova-alert', '⚠️ Errore: ' + error.message, 'error');
       return;
     }
 
-    // Filtra: mostra solo attive o senza campo attiva (null)
-    const gareVisibili = data.filter(g => g.attiva !== false);
-    const listaFinale = gareVisibili.length > 0 ? gareVisibili : data; // fallback: mostra tutte
+    if (!data || data.length === 0) {
+      sel.innerHTML = '<option value="">Nessuna gara disponibile</option>';
+      log('⚠️ Nessuna gara nel database');
+      return;
+    }
 
-    const nuoto = listaFinale.filter(g => !g.categoria || g.categoria === 'nuoto');
-    const salvamento = listaFinale.filter(g => g.categoria === 'salvamento');
-    const altro = listaFinale.filter(g => g.categoria && g.categoria !== 'nuoto' && g.categoria !== 'salvamento');
+    // Filtra: mostra attive e null, fallback a tutte se nessuna passa il filtro
+    const visibili = data.filter(g => g.attiva !== false);
+    const lista = visibili.length > 0 ? visibili : data;
+    log(`✅ ${lista.length} gare caricate (${data.length} totali nel db)`);
+
+    const nuoto = lista.filter(g => !g.categoria || g.categoria === 'nuoto');
+    const salvamento = lista.filter(g => g.categoria === 'salvamento');
+    const altro = lista.filter(g => g.categoria && g.categoria !== 'nuoto' && g.categoria !== 'salvamento');
 
     const optHtml = (g) => {
       const dataFmt = g.data ? new Date(g.data).toLocaleDateString('it-IT') : '—';
@@ -2611,12 +2608,11 @@ async function loadGare() {
       partenzaEl.value = currentProfilo.indirizzo_casa;
     }
   } catch(e) {
-    clearTimeout(timeoutId);
-    console.error('[loadGare] errore:', e);
-    sel.innerHTML = '<option value="">Errore caricamento</option>';
-    if (dbg) dbg.textContent = '❌ ' + e.message;
+    console.error('[loadGare] eccezione:', e);
+    sel.innerHTML = '<option value="">Errore</option>';
+    if (dbg) dbg.textContent = '❌ Eccezione: ' + e.message;
     if (retryDiv) retryDiv.style.display = 'block';
-    showAlert('nuova-alert', '⚠️ Errore caricamento gare: ' + e.message, 'error');
+    showAlert('nuova-alert', '⚠️ Errore: ' + e.message, 'error');
   }
 }
 
