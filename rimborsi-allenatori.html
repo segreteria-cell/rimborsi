@@ -390,6 +390,7 @@
         <div id="gare-retry" style="display:none;margin-top:6px;">
           <button type="button" class="btn btn-secondary btn-sm" onclick="loadGare().then(()=>{document.getElementById('gare-retry').style.display='none';});">🔄 Ricarica gare</button>
         </div>
+        <div id="gare-debug-bar" style="margin-top:6px;font-size:11px;color:var(--muted);"></div>
       </div>
     </div>
 
@@ -2015,7 +2016,7 @@ function switchToAllenatoreView() {
   if (banner && currentProfilo?.ruolo === 'admin') banner.style.display = 'flex';
 }
 
-function showNuovaRichiesta() {
+async function showNuovaRichiesta() {
   speseTemp = [];
   kmCalcolati = 0;
   kmExtraList = [];
@@ -2042,7 +2043,7 @@ function showNuovaRichiesta() {
   renderSpese();
   aggiornaRiepilogo();
   showScreen('nuova');
-  loadGare();
+  await loadGare();
 }
 
 function vediPercorso() {
@@ -2542,39 +2543,64 @@ async function loadHome() {
 
 async function loadGare() {
   const sel = document.getElementById('sel-gara');
+  const dbg = document.getElementById('gare-debug-bar');
+  const retryDiv = document.getElementById('gare-retry');
   sel.innerHTML = '<option value="">Caricamento...</option>';
-  sel.disabled = true;
-  try {
-    let { data, error } = await sb.from('gare')
-      .select('id, nome, data, luogo, categoria, indirizzo_piscina, attiva')
-      .or('attiva.eq.true,attiva.is.null')
-      .order('data', { ascending: true });
-    sel.disabled = false;
-    if (error) {
-      sel.innerHTML = '<option value="">Errore caricamento gare</option>';
-      const retryDiv = document.getElementById('gare-retry');
+  sel.disabled = false; // mai disabilitare, permette all'utente di vedere lo stato
+  if (dbg) dbg.textContent = '⏳ Connessione a Supabase...';
+
+  // Timeout di sicurezza: se dopo 8 secondi non arriva nulla, mostra errore
+  const timeoutId = setTimeout(() => {
+    if (sel.innerHTML.includes('Caricamento')) {
+      sel.innerHTML = '<option value="">Timeout — riprova</option>';
+      if (dbg) dbg.textContent = '❌ Timeout: Supabase non risponde. Probabile problema di RLS o connessione.';
       if (retryDiv) retryDiv.style.display = 'block';
-      showAlert('nuova-alert', '⚠️ Impossibile caricare le gare. Riprova.', 'error');
+    }
+  }, 8000);
+
+  try {
+    // Usa fetch diretto alle REST API di Supabase, bypassa il client JS per evitare problemi di sessione
+    const url = `${SUPABASE_URL}/rest/v1/gare?select=id,nome,data,luogo,categoria,indirizzo_piscina,attiva&order=data.asc`;
+    const resp = await fetch(url, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    clearTimeout(timeoutId);
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${errText}`);
+    }
+
+    const data = await resp.json();
+    console.log('[loadGare] REST fetch → gare:', data?.length);
+    if (dbg) dbg.textContent = `✅ ${data?.length ?? 0} gare trovate`;
+
+    if (!data || data.length === 0) {
+      sel.innerHTML = '<option value="">Nessuna gara disponibile</option>';
+      if (dbg) dbg.textContent = '⚠️ Nessuna gara nel database';
       return;
     }
-    if (!data || data.length === 0) {
-      // Fallback: prova senza filtro attiva (potrebbe essere tutto false nel db)
-      const { data: dataAll } = await sb.from('gare')
-        .select('id, nome, data, luogo, categoria, indirizzo_piscina, attiva')
-        .order('data', { ascending: true });
-      if (!dataAll || dataAll.length === 0) {
-        sel.innerHTML = '<option value="">Nessuna gara disponibile</option>';
-        return;
-      }
-      // Usa tutte le gare come fallback
-      data = dataAll;
-    }
-    const nuoto = data.filter(g => !g.categoria || g.categoria === 'nuoto');
-    const salvamento = data.filter(g => g.categoria === 'salvamento');
-    const altro = data.filter(g => g.categoria && g.categoria !== 'nuoto' && g.categoria !== 'salvamento');
+
+    // Filtra: mostra solo attive o senza campo attiva (null)
+    const gareVisibili = data.filter(g => g.attiva !== false);
+    const listaFinale = gareVisibili.length > 0 ? gareVisibili : data; // fallback: mostra tutte
+
+    const nuoto = listaFinale.filter(g => !g.categoria || g.categoria === 'nuoto');
+    const salvamento = listaFinale.filter(g => g.categoria === 'salvamento');
+    const altro = listaFinale.filter(g => g.categoria && g.categoria !== 'nuoto' && g.categoria !== 'salvamento');
+
+    const optHtml = (g) => {
+      const dataFmt = g.data ? new Date(g.data).toLocaleDateString('it-IT') : '—';
+      const piscina = (g.indirizzo_piscina || '').replace(/"/g, '&quot;');
+      const luogo = (g.luogo || '').replace(/"/g, '&quot;');
+      return `<option value="${g.id}" data-data="${g.data||''}" data-piscina="${piscina}" data-luogo="${luogo}">${g.nome} — ${dataFmt} · ${g.luogo||''}</option>`;
+    };
 
     let html = '<option value="">Seleziona una gara...</option>';
-    const optHtml = (g) => `<option value="${g.id}" data-data="${g.data}" data-piscina="${g.indirizzo_piscina||''}" data-luogo="${(g.luogo||'').replace(/"/g,'&quot;')}">${g.nome} — ${new Date(g.data).toLocaleDateString('it-IT')} · ${g.luogo}</option>`;
     if (nuoto.length) { html += '<optgroup label="🏊 Nuoto">'; html += nuoto.map(optHtml).join(''); html += '</optgroup>'; }
     if (salvamento.length) { html += '<optgroup label="🛟 Salvamento">'; html += salvamento.map(optHtml).join(''); html += '</optgroup>'; }
     if (altro.length) { html += '<optgroup label="📋 Altro">'; html += altro.map(optHtml).join(''); html += '</optgroup>'; }
@@ -2585,9 +2611,12 @@ async function loadGare() {
       partenzaEl.value = currentProfilo.indirizzo_casa;
     }
   } catch(e) {
-    sel.disabled = false;
-    sel.innerHTML = '<option value="">Errore: ' + e.message + '</option>';
-    showAlert('nuova-alert', '⚠️ Errore nel caricamento delle gare: ' + e.message, 'error');
+    clearTimeout(timeoutId);
+    console.error('[loadGare] errore:', e);
+    sel.innerHTML = '<option value="">Errore caricamento</option>';
+    if (dbg) dbg.textContent = '❌ ' + e.message;
+    if (retryDiv) retryDiv.style.display = 'block';
+    showAlert('nuova-alert', '⚠️ Errore caricamento gare: ' + e.message, 'error');
   }
 }
 
@@ -3233,8 +3262,7 @@ async function modificaRichiesta(id) {
     .eq('id', id).single();
   if (!r) return;
 
-  showNuovaRichiesta();
-  await loadGare();
+  await showNuovaRichiesta();
 
   setTimeout(() => {
     document.getElementById('sel-gara').value = r.gara_id || '';
