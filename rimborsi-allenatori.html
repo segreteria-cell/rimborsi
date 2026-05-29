@@ -5255,6 +5255,30 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 async function inizializzaPush() {
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.navigator.standalone === true;
+
+  // iPhone fuori PWA: mostra banner installazione
+  if (isIOS && !isStandalone) {
+    const dismissedIOS = localStorage.getItem('push-dismissed');
+    const subscribedIOS = localStorage.getItem('push-subscribed');
+    if (!dismissedIOS && !subscribedIOS) {
+      document.getElementById('push-banner').style.display = 'block';
+      document.getElementById('push-banner').innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="font-size:28px;flex-shrink:0;">📲</div>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:700;color:white;margin-bottom:2px;">Installa l'app per le notifiche</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.75);">Tocca <strong style="color:white;">Condividi</strong> → <strong style="color:white;">"Aggiungi a schermata Home"</strong> per ricevere i promemoria sul telefono</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button onclick="document.getElementById('push-banner').style.display='none';localStorage.setItem('push-dismissed','1')" style="flex:1;background:rgba(255,255,255,0.15);color:white;border:none;border-radius:10px;padding:10px;font-size:13px;cursor:pointer;">Ho capito</button>
+        </div>`;
+    }
+    return;
+  }
+
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
     await navigator.serviceWorker.register('/sw.js');
