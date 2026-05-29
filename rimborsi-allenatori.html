@@ -692,6 +692,16 @@
       </div>
     </div>
     <div class="kpi-grid" style="margin-top:0;">
+      <div class="kpi-card" onclick="showAdminNotifiche()" style="grid-column:1/-1;display:flex;align-items:center;gap:14px;text-align:left;">
+        <div style="font-size:30px;flex-shrink:0;">🔔</div>
+        <div>
+          <div class="kpi-card-label">Notifiche Push</div>
+          <div style="font-size:14px;font-weight:700;color:var(--navy);margin-top:1px;">Invia messaggi agli allenatori</div>
+          <div class="kpi-card-sub" id="admin-badge-notifiche">Dispositivi registrati: —</div>
+        </div>
+      </div>
+    </div>
+    <div class="kpi-grid" style="margin-top:0;">
       <div class="kpi-card" onclick="showAdminSezione('gestione')" style="grid-column:1/-1;display:flex;align-items:center;gap:14px;text-align:left;">
         <div style="font-size:30px;flex-shrink:0;">⚙️</div>
         <div>
@@ -700,6 +710,37 @@
           <div class="kpi-card-sub" id="admin-badge-gestione">Anagrafica e configurazione</div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<div id="screen-admin-notifiche" class="screen">
+  <div class="topbar">
+    <button class="back-btn" onclick="showScreen('admin')">←</button>
+    <div>
+      <div class="topbar-title">🔔 Notifiche Push</div>
+      <div class="topbar-sub">Messaggi agli allenatori</div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title" style="margin-bottom:6px;">Invia notifica a tutti</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">La notifica arriverà su tutti i dispositivi degli allenatori che hanno attivato i promemoria.</div>
+      <div class="field">
+        <label>Titolo</label>
+        <input type="text" id="notif-titolo" placeholder="Es: Riunione tecnica domani" maxlength="60">
+      </div>
+      <div class="field">
+        <label>Messaggio</label>
+        <textarea id="notif-corpo" placeholder="Es: Si ricorda che domani alle 18:00 è prevista una riunione..." style="height:90px;"></textarea>
+      </div>
+      <div id="notif-result" style="margin-bottom:10px;"></div>
+      <button class="btn btn-primary" onclick="inviaNotificaPushAdmin()">🔔 Invia a tutti gli allenatori</button>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:6px;">📱 Dispositivi registrati</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Allenatori che hanno attivato le notifiche push.</div>
+      <div id="notif-dispositivi-list"><div class="loading"><div class="spinner"></div>Caricamento...</div></div>
     </div>
   </div>
 </div>
@@ -719,6 +760,7 @@
       <button class="tab" id="admintab-rifiutate" onclick="adminTab('rifiutate')">Rifiutate</button>
       <button class="tab" id="admintab-pagamenti" onclick="adminTab('pagamenti')">💰 Pagamenti</button>
       <button class="tab" id="admintab-report" onclick="adminTab('report')">📊 Report</button>
+      <button class="tab" id="admintab-notifiche" onclick="adminTab('notifiche')">🔔 Notifiche</button>
     </div>
     <div id="admin-content">
       <div class="loading"><div class="spinner"></div>Caricamento...</div>
@@ -3493,6 +3535,15 @@ function resetFiltriAdmin() {
   applicaFiltriAdmin();
 }
 
+async function showAdminNotifiche() {
+  showScreen('admin-notifiche');
+  caricaDispositiviPush();
+  // Aggiorna badge conteggio dispositivi
+  const { data } = await sb.from('push_subscriptions').select('id', { count: 'exact', head: true });
+  const badge = document.getElementById('admin-badge-notifiche');
+  if (badge) badge.textContent = `Dispositivi registrati: ${data?.length ?? 0}`;
+}
+
 function showAdminSezione(sezione) {
   if (sezione === 'rimborsi') {
     showScreen('admin-rimborsi');
@@ -4364,6 +4415,33 @@ async function loadAdminContent(tab) {
     return;
   }
 
+  if (tab === 'notifiche') {
+    el.innerHTML = `
+   <div class="card" style="margin-bottom:16px;">
+    <div class="card-title" style="margin-bottom:6px;">🔔 Invia notifica push agli allenatori</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">La notifica arriverà su tutti i dispositivi degli allenatori che hanno attivato i promemoria.</div>
+    <div class="field">
+     <label>Titolo</label>
+     <input type="text" id="notif-titolo" placeholder="Es: Riunione tecnica domani" maxlength="60">
+    </div>
+    <div class="field">
+     <label>Messaggio</label>
+     <textarea id="notif-corpo" placeholder="Es: Si ricorda che domani alle 18:00 è prevista una riunione..." style="height:90px;"></textarea>
+    </div>
+    <div id="notif-result" style="margin-bottom:10px;"></div>
+    <button class="btn btn-primary" onclick="inviaNotificaPushAdmin()">🔔 Invia a tutti gli allenatori</button>
+   </div>
+
+   <div class="card">
+    <div class="card-title" style="margin-bottom:6px;">📱 Dispositivi registrati</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Allenatori che hanno attivato le notifiche push</div>
+    <div id="notif-dispositivi-list"><div class="loading"><div class="spinner"></div>Caricamento...</div></div>
+   </div>
+    `;
+    caricaDispositiviPush();
+    return;
+  }
+
   if (tab === 'report') {
     el.innerHTML = `
 
@@ -4786,6 +4864,68 @@ async function reportPagamentiAllenatore() {
   </div>
   </body></html>`);
   w.document.close();
+}
+
+async function caricaDispositiviPush() {
+  const el = document.getElementById('notif-dispositivi-list');
+  const { data, error } = await sb.from('push_subscriptions').select('*, profili(nome, cognome)');
+  if (error || !data || data.length === 0) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">Nessun dispositivo registrato</div>';
+    return;
+  }
+  el.innerHTML = data.map(d => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-size:14px;font-weight:600;color:var(--navy);">📱 ${d.profili?.nome || ''} ${d.profili?.cognome || ''}</div>
+        <div style="font-size:11px;color:var(--muted);">Registrato il ${new Date(d.created_at).toLocaleDateString('it-IT')}</div>
+      </div>
+      <button onclick="eliminaSubscription('${d.id}')" style="background:var(--red-pale);color:var(--red);border:none;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;">🗑️</button>
+    </div>
+  `).join('');
+}
+
+async function eliminaSubscription(id) {
+  if (!confirm('Rimuovere questo dispositivo?')) return;
+  await sb.from('push_subscriptions').delete().eq('id', id);
+  caricaDispositiviPush();
+}
+
+async function inviaNotificaPushAdmin() {
+  const titolo = document.getElementById('notif-titolo').value.trim();
+  const corpo = document.getElementById('notif-corpo').value.trim();
+  const result = document.getElementById('notif-result');
+  if (!titolo || !corpo) {
+    result.innerHTML = '<div class="alert alert-error">Inserisci titolo e messaggio</div>';
+    return;
+  }
+  result.innerHTML = '<div class="alert alert-info">⏳ Invio in corso...</div>';
+  try {
+    const resp = await fetch(EDGE_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ action: 'invia_notifica_push', titolo, corpo })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    result.innerHTML = `<div class="alert alert-success">✅ Notifica inviata a ${data.inviate || 0} dispositivi</div>`;
+    document.getElementById('notif-titolo').value = '';
+    document.getElementById('notif-corpo').value = '';
+  } catch(e) {
+    // Fallback: chiama direttamente la edge function notifica-dichiarazioni con tipo custom
+    try {
+      const resp2 = await fetch('https://qfnczjhbgcpczrweyzzt.supabase.co/functions/v1/notifica-dichiarazioni', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}` },
+        body: JSON.stringify({ tipo: 'custom', titolo, corpo })
+      });
+      const data2 = await resp2.json();
+      result.innerHTML = `<div class="alert alert-success">✅ Notifica inviata a ${data2.inviate || 0} dispositivi</div>`;
+      document.getElementById('notif-titolo').value = '';
+      document.getElementById('notif-corpo').value = '';
+    } catch(e2) {
+      result.innerHTML = `<div class="alert alert-error">❌ Errore: ${e2.message}</div>`;
+    }
+  }
 }
 
 async function generaReport() {
