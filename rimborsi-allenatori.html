@@ -4875,16 +4875,24 @@ async function caricaDispositiviPush() {
     return;
   }
   // Carica profili separatamente
-  const ids = subs.map(s => s.allenatore_id).filter(Boolean);
+  const ids = [...new Set(subs.map(s => s.allenatore_id).filter(Boolean))];
   const { data: profiliList } = ids.length
-    ? await sb.from('profili').select('id, nome, cognome').in('id', ids)
+    ? await sb.from('anagrafica_allenatori').select('id, nome, cognome').in('id', ids)
     : { data: [] };
-  const profiliMap = {};
-  (profiliList || []).forEach(p => profiliMap[p.id] = p);
+  // Fallback su tabella profili se anagrafica non ha risultati
+  let profiliMap = {};
+  if (profiliList && profiliList.length > 0) {
+    profiliList.forEach(p => profiliMap[p.id] = p);
+  } else {
+    const { data: profiliList2 } = ids.length
+      ? await sb.from('profili').select('id, nome, cognome').in('id', ids)
+      : { data: [] };
+    (profiliList2 || []).forEach(p => profiliMap[p.id] = p);
+  }
 
   el.innerHTML = subs.map(d => {
     const p = profiliMap[d.allenatore_id] || {};
-    const nome = [p.nome, p.cognome].filter(Boolean).join(' ') || 'Allenatore';
+    const nome = [p.nome, p.cognome].filter(Boolean).join(' ') || `ID: ${d.allenatore_id?.substring(0,8)}...`;
     const dataReg = d.created_at ? new Date(d.created_at).toLocaleDateString('it-IT') : '—';
     return `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
@@ -4892,13 +4900,13 @@ async function caricaDispositiviPush() {
         <div style="font-size:14px;font-weight:600;color:var(--navy);">📱 ${nome}</div>
         <div style="font-size:11px;color:var(--muted);">Registrato il ${dataReg}</div>
       </div>
-      <button onclick="eliminaSubscription('${d.id}')" style="background:var(--red-pale);color:var(--red);border:none;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;">🗑️</button>
+      <button onclick="eliminaSubscription('${d.id}', this)" style="background:var(--red-pale);color:var(--red);border:none;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;">🗑️</button>
     </div>`;
   }).join('');
 }
 
-async function eliminaSubscription(id) {
-  if (!confirm('Rimuovere questo dispositivo?')) return;
+async function eliminaSubscription(id, btn) {
+  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
   await sb.from('push_subscriptions').delete().eq('id', id);
   caricaDispositiviPush();
 }
