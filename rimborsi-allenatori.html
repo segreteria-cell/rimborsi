@@ -4913,7 +4913,7 @@ async function inviaNotificaPushAdmin() {
   }
   result.innerHTML = '<div class="alert alert-info">⏳ Invio in corso...</div>';
   try {
-    const resp = await fetch('https://qfnczjhbgcpczrweyzzt.supabase.co/functions/v1/notifica-dichiarazioni', {
+    const resp = await fetch('https://qfnczjhbgcpczrweyzzt.supabase.co/functions/v1/smart-processor', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
