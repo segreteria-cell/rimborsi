@@ -4868,20 +4868,33 @@ async function reportPagamentiAllenatore() {
 
 async function caricaDispositiviPush() {
   const el = document.getElementById('notif-dispositivi-list');
-  const { data, error } = await sb.from('push_subscriptions').select('*, profili(nome, cognome)');
-  if (error || !data || data.length === 0) {
+  // Query subs
+  const { data: subs, error } = await sb.from('push_subscriptions').select('*');
+  if (error || !subs || subs.length === 0) {
     el.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">Nessun dispositivo registrato</div>';
     return;
   }
-  el.innerHTML = data.map(d => `
+  // Carica profili separatamente
+  const ids = subs.map(s => s.allenatore_id).filter(Boolean);
+  const { data: profiliList } = ids.length
+    ? await sb.from('profili').select('id, nome, cognome').in('id', ids)
+    : { data: [] };
+  const profiliMap = {};
+  (profiliList || []).forEach(p => profiliMap[p.id] = p);
+
+  el.innerHTML = subs.map(d => {
+    const p = profiliMap[d.allenatore_id] || {};
+    const nome = [p.nome, p.cognome].filter(Boolean).join(' ') || 'Allenatore';
+    const dataReg = d.created_at ? new Date(d.created_at).toLocaleDateString('it-IT') : '—';
+    return `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
       <div>
-        <div style="font-size:14px;font-weight:600;color:var(--navy);">📱 ${d.profili?.nome || ''} ${d.profili?.cognome || ''}</div>
-        <div style="font-size:11px;color:var(--muted);">Registrato il ${new Date(d.created_at).toLocaleDateString('it-IT')}</div>
+        <div style="font-size:14px;font-weight:600;color:var(--navy);">📱 ${nome}</div>
+        <div style="font-size:11px;color:var(--muted);">Registrato il ${dataReg}</div>
       </div>
       <button onclick="eliminaSubscription('${d.id}')" style="background:var(--red-pale);color:var(--red);border:none;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;">🗑️</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 async function eliminaSubscription(id) {
@@ -4900,31 +4913,22 @@ async function inviaNotificaPushAdmin() {
   }
   result.innerHTML = '<div class="alert alert-info">⏳ Invio in corso...</div>';
   try {
-    const resp = await fetch(EDGE_FUNCTION_URL, {
+    const resp = await fetch('https://qfnczjhbgcpczrweyzzt.supabase.co/functions/v1/notifica-dichiarazioni', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ action: 'invia_notifica_push', titolo, corpo })
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({ tipo: 'custom', titolo, corpo })
     });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     result.innerHTML = `<div class="alert alert-success">✅ Notifica inviata a ${data.inviate || 0} dispositivi</div>`;
     document.getElementById('notif-titolo').value = '';
     document.getElementById('notif-corpo').value = '';
   } catch(e) {
-    // Fallback: chiama direttamente la edge function notifica-dichiarazioni con tipo custom
-    try {
-      const resp2 = await fetch('https://qfnczjhbgcpczrweyzzt.supabase.co/functions/v1/notifica-dichiarazioni', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}` },
-        body: JSON.stringify({ tipo: 'custom', titolo, corpo })
-      });
-      const data2 = await resp2.json();
-      result.innerHTML = `<div class="alert alert-success">✅ Notifica inviata a ${data2.inviate || 0} dispositivi</div>`;
-      document.getElementById('notif-titolo').value = '';
-      document.getElementById('notif-corpo').value = '';
-    } catch(e2) {
-      result.innerHTML = `<div class="alert alert-error">❌ Errore: ${e2.message}</div>`;
-    }
+    result.innerHTML = `<div class="alert alert-error">❌ Errore: ${e.message}</div>`;
   }
 }
 
