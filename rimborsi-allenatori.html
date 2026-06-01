@@ -1696,9 +1696,6 @@ function stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl) {
   const totSN = tots.totSN || 0;
   const totExt = tots.totExt || 0;
 
-  // Data fine periodo cumulativo: ultimo giorno del mese dichiarato
-  const giorniFine = new Date(anno, mese, 0).getDate();
-  const dataFinePeriodo = String(giorniFine).padStart(2,'0') + '/' + String(mese).padStart(2,'0') + '/' + anno;
   const w = window.open('', '_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Dichiarazione Compensi ${mesi[mese]} ${anno} — ${nome}</title>
@@ -1755,7 +1752,7 @@ function stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl) {
   <div class="section" style="font-size:11px;line-height:1.6;">
     in qualità di <strong class="underline">ALLENATORE DI NUOTO</strong>, a fronte del contratto di lavoro sportivo nella forma
     di collaborazione coordinata e continuativa (articolo 25, D.Lgs. 36/2021) svolta nell'ambito di attività sportiva
-    dilettantistica per il periodo <strong class="underline">DA GENNAIO A ${mesi[mese].toUpperCase()} ${anno}</strong>,
+    dilettantistica per il periodo <strong class="underline">MESE DI ${mesi[mese].toUpperCase()} ${anno}</strong>,
     consapevole delle sanzioni penali, nel caso di dichiarazioni non veritiere, di formazione o uso di atti falsi,
     richiamate dall'art. 76 del D.P.R. 28/12/200 n. 445 e della decadenza dai benefici eventualmente conseguiti
     con provvedimenti emanati in base a dichiarazione non veritiere, ai sensi dell'art. 75 del D.P.R. 28/12/200 n. 445
@@ -1768,7 +1765,7 @@ function stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl) {
    <td style="width:75%;font-size:11px;font-style:italic;">
     Compensi sportivi post-riforma <strong>PERCEPITI DA SUPERBA NUOTO</strong><br>
     di aver percepito compensi di natura sportiva di cui agli artt. 25-42 D.LGS.36/2001
-    per il periodo compreso 01/01/${anno} – ${dataFinePeriodo} rientranti nel nuovo regime
+    per il periodo compreso 01/01/${anno} – 31/12/${anno} rientranti nel nuovo regime
     dei compensi di lavoro sportivo, per complessivi euro
    </td>
    <td style="width:25%;text-align:center;font-size:20px;font-weight:bold;vertical-align:middle;">
@@ -1779,7 +1776,7 @@ function stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl) {
    <td style="font-size:11px;font-style:italic;">
     Compensi sportivi post-riforma <strong>PERCEPITI DA ALTRI SOGGETTI DELLO SPORT</strong><br>
     di aver percepito compensi di natura sportiva di cui agli artt. 25-42 D.LGS.36/2001
-    per il periodo compreso 01/01/${anno} – ${dataFinePeriodo} rientranti nel nuovo regime dei
+    per il periodo compreso 01/01/${anno} AD OGGI rientranti nel nuovo regime dei
     compensi di lavoro sportivo, per complessivi euro <em>(indicare l'importo al lordo di eventuali ritenute)</em>
    </td>
    <td style="text-align:center;font-size:20px;font-weight:bold;vertical-align:middle;">
