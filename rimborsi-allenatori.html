@@ -1522,18 +1522,21 @@ async function loadDichiarazioneStatus(anno, mese) {
 async function openModalFirma(mese, anno) {
   const mesi = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 
+  // Carica TUTTI i compensi SN dell'anno e filtra quelli incassati da gennaio fino al mese selezionato (cumulativo)
   const { data: compSNAll } = await sb.from('compensi')
     .select('*').eq('allenatore_id', currentUser.id).eq('anno', anno);
   const compSN = (compSNAll||[]).filter(c => {
     if (c.data_incasso) {
-   const d = new Date(c.data_incasso);
-   return d.getMonth() + 1 === mese && d.getFullYear() === anno;
+      const d = new Date(c.data_incasso);
+      return d.getFullYear() === anno && (d.getMonth() + 1) <= mese;
     }
-    return c.mese === mese;
+    return c.mese <= mese;
   });
 
-  const { data: compExt } = await sb.from('compensi_esterni')
-    .select('*').eq('allenatore_id', currentUser.id).eq('mese', mese).eq('anno', anno);
+  // Compensi esterni: tutti quelli da gennaio fino al mese selezionato (cumulativo)
+  const { data: compExtAll } = await sb.from('compensi_esterni')
+    .select('*').eq('allenatore_id', currentUser.id).eq('anno', anno);
+  const compExt = (compExtAll||[]).filter(c => c.mese != null && c.mese <= mese);
 
   const { data: compExtOrfani } = await sb.from('compensi_esterni')
     .select('*').eq('allenatore_id', currentUser.id).eq('anno', anno).is('mese', null);
@@ -1552,7 +1555,7 @@ async function openModalFirma(mese, anno) {
 
   document.getElementById('firma-riepilogo').innerHTML = `
     <div style="font-size:14px;font-weight:700;margin-bottom:4px;">Dichiarazione ${mesi[mese]} ${anno}</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Criterio di cassa — compensi incassati in ${mesi[mese]}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Criterio di cassa — compensi incassati da Gennaio a ${mesi[mese]} ${anno} (cumulativo)</div>
     <table style="width:100%;border-collapse:collapse;font-size:13px;">
    <tr style="background:#f5f5f5;">
     <th style="padding:6px 8px;text-align:left;">Soggetto</th>
@@ -1693,6 +1696,9 @@ function stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl) {
   const totSN = tots.totSN || 0;
   const totExt = tots.totExt || 0;
 
+  // Data fine periodo cumulativo: ultimo giorno del mese dichiarato
+  const giorniFine = new Date(anno, mese, 0).getDate();
+  const dataFinePeriodo = String(giorniFine).padStart(2,'0') + '/' + String(mese).padStart(2,'0') + '/' + anno;
   const w = window.open('', '_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Dichiarazione Compensi ${mesi[mese]} ${anno} — ${nome}</title>
@@ -1749,7 +1755,7 @@ function stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl) {
   <div class="section" style="font-size:11px;line-height:1.6;">
     in qualità di <strong class="underline">ALLENATORE DI NUOTO</strong>, a fronte del contratto di lavoro sportivo nella forma
     di collaborazione coordinata e continuativa (articolo 25, D.Lgs. 36/2021) svolta nell'ambito di attività sportiva
-    dilettantistica per il periodo <strong class="underline">MESE DI ${mesi[mese].toUpperCase()} ${anno}</strong>,
+    dilettantistica per il periodo <strong class="underline">DA GENNAIO A ${mesi[mese].toUpperCase()} ${anno}</strong>,
     consapevole delle sanzioni penali, nel caso di dichiarazioni non veritiere, di formazione o uso di atti falsi,
     richiamate dall'art. 76 del D.P.R. 28/12/200 n. 445 e della decadenza dai benefici eventualmente conseguiti
     con provvedimenti emanati in base a dichiarazione non veritiere, ai sensi dell'art. 75 del D.P.R. 28/12/200 n. 445
@@ -1762,7 +1768,7 @@ function stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl) {
    <td style="width:75%;font-size:11px;font-style:italic;">
     Compensi sportivi post-riforma <strong>PERCEPITI DA SUPERBA NUOTO</strong><br>
     di aver percepito compensi di natura sportiva di cui agli artt. 25-42 D.LGS.36/2001
-    per il periodo compreso 01/01/${anno} – 31/12/${anno} rientranti nel nuovo regime
+    per il periodo compreso 01/01/${anno} – ${dataFinePeriodo} rientranti nel nuovo regime
     dei compensi di lavoro sportivo, per complessivi euro
    </td>
    <td style="width:25%;text-align:center;font-size:20px;font-weight:bold;vertical-align:middle;">
@@ -1773,7 +1779,7 @@ function stampaDichiarazionePDF(dich, compSN, compExt, tots, firmaUrl) {
    <td style="font-size:11px;font-style:italic;">
     Compensi sportivi post-riforma <strong>PERCEPITI DA ALTRI SOGGETTI DELLO SPORT</strong><br>
     di aver percepito compensi di natura sportiva di cui agli artt. 25-42 D.LGS.36/2001
-    per il periodo compreso 01/01/${anno} AD OGGI rientranti nel nuovo regime dei
+    per il periodo compreso 01/01/${anno} – ${dataFinePeriodo} rientranti nel nuovo regime dei
     compensi di lavoro sportivo, per complessivi euro <em>(indicare l'importo al lordo di eventuali ritenute)</em>
    </td>
    <td style="text-align:center;font-size:20px;font-weight:bold;vertical-align:middle;">
