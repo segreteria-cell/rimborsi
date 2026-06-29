@@ -1329,6 +1329,9 @@ async function loadCompensi() {
     const mesiDaDichiarare = new Set();
     (mesiConCompensi||[]).forEach(m => mesiDaDichiarare.add(`${m.anno}-${m.mese}`));
     mesiDaDichiarare.add(`${annoPrecedente}-${mesePrecedente}`);
+    if (oggi.getDate() >= 25) {
+      mesiDaDichiarare.add(`${annoCorrente}-${oggi.getMonth()+1}`);
+    }
 
     const { data: dichiarazioniEsistenti } = await sb.from('dichiarazioni_compensi')
       .select('*').eq('allenatore_id', currentUser.id).eq('anno', annoCorrente);
