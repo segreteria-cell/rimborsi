@@ -4452,6 +4452,42 @@ async function loadAdminContent(tab) {
     el.innerHTML = `
 
    <div class="card" style="margin-bottom:16px;">
+    <div class="card-title" style="margin-bottom:12px;">📈 Dashboard rimborsi</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Vista a schermo con grafico e tabella, aggiornata in base al periodo e al raggruppamento scelto</div>
+    <div style="display:flex;gap:8px;">
+     <div class="field" style="flex:1;">
+      <label>Dal</label>
+      <input type="date" id="dash-dal" value="${new Date(new Date().getFullYear()-1, 9, 1).toISOString().split('T')[0]}" onchange="caricaDashboardReport()">
+     </div>
+     <div class="field" style="flex:1;">
+      <label>Al</label>
+      <input type="date" id="dash-al" value="${new Date().toISOString().split('T')[0]}" onchange="caricaDashboardReport()">
+     </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;">
+     <button class="tab active" id="dash-tab-allenatore" onclick="impostaDashboardView('allenatore')">👤 Per allenatore</button>
+     <button class="tab" id="dash-tab-periodo" onclick="impostaDashboardView('periodo')">🗓️ Per periodo</button>
+    </div>
+    <div id="dashboard-report-output">
+     <div class="loading"><div class="spinner"></div>Caricamento...</div>
+    </div>
+   </div>
+
+   <div class="card" style="margin-bottom:16px;">
+    <div class="card-title" style="margin-bottom:4px;">🏊 Report rimborso spese per gara</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Per ogni gara: totale rimborsato ed elenco allenatori con relativi importi</div>
+    <div class="field">
+     <label>Dal</label>
+     <input type="date" id="report-gara-dal" value="${new Date(new Date().getFullYear()-1, 9, 1).toISOString().split('T')[0]}">
+    </div>
+    <div class="field">
+     <label>Al</label>
+     <input type="date" id="report-gara-al" value="${new Date().toISOString().split('T')[0]}">
+    </div>
+    <button class="btn btn-primary" onclick="generaReportPerGara()">🖨️ Stampa PDF report per gara</button>
+   </div>
+
+   <div class="card" style="margin-bottom:16px;">
     <div class="card-title" style="margin-bottom:12px;">📊 Report rimborsi per periodo</div>
     <div class="field">
      <label>Dal</label>
@@ -4499,6 +4535,8 @@ async function loadAdminContent(tab) {
    </div>
 
    <div id="report-output"></div>`;
+
+    caricaDashboardReport();
 
     const { data: datePag } = await sb.from('richieste')
    .select('pagata_il')
@@ -4944,6 +4982,208 @@ async function inviaNotificaPushAdmin() {
   } catch(e) {
     result.innerHTML = `<div class="alert alert-error">❌ Errore: ${e.message}</div>`;
   }
+}
+
+let dashboardView = 'allenatore';
+
+function importoRichiesta(r) {
+  return (r.spese||[]).reduce((s,sp)=>s+sp.importo,0) - (r.acconto||0);
+}
+
+function impostaDashboardView(view) {
+  dashboardView = view;
+  const btnAl = document.getElementById('dash-tab-allenatore');
+  const btnPe = document.getElementById('dash-tab-periodo');
+  if (btnAl) btnAl.classList.toggle('active', view === 'allenatore');
+  if (btnPe) btnPe.classList.toggle('active', view === 'periodo');
+  caricaDashboardReport();
+}
+
+async function caricaDashboardReport() {
+  const out = document.getElementById('dashboard-report-output');
+  if (!out) return;
+  const dalEl = document.getElementById('dash-dal');
+  const alEl = document.getElementById('dash-al');
+  if (!dalEl || !alEl) return;
+  const dal = dalEl.value;
+  const al = alEl.value;
+  if (!dal || !al) return;
+
+  out.innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
+
+  const { data, error } = await sb.from('richieste')
+    .select('*, gare(nome, data), profili(nome, cognome), spese(*)')
+    .eq('stato', 'approvata')
+    .gte('creata_il', dal)
+    .lte('creata_il', al + 'T23:59:59');
+
+  if (error) {
+    out.innerHTML = '<div class="empty"><div class="empty-text">Errore nel caricamento dei dati.</div></div>';
+    return;
+  }
+  if (!data || data.length === 0) {
+    out.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Nessuna richiesta approvata nel periodo selezionato</div></div>';
+    return;
+  }
+
+  if (dashboardView === 'allenatore') renderDashboardPerAllenatore(data, out);
+  else renderDashboardPerPeriodo(data, out);
+}
+
+function renderDashboardPerAllenatore(data, out) {
+  const map = {};
+  data.forEach(r => {
+    const key = r.allenatore_nome || (r.profili ? `${r.profili.cognome} ${r.profili.nome}` : '—');
+    if (!map[key]) map[key] = { nome: key, tot: 0, n: 0 };
+    map[key].tot += importoRichiesta(r);
+    map[key].n += 1;
+  });
+  const righe = Object.values(map).sort((a,b) => b.tot - a.tot);
+  const totale = righe.reduce((s,r)=>s+r.tot,0);
+
+  out.innerHTML = `
+   <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead><tr style="border-bottom:1.5px solid var(--border);">
+     <th style="padding:6px 4px;text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;">Allenatore</th>
+     <th style="padding:6px 4px;text-align:right;color:var(--muted);font-size:11px;text-transform:uppercase;">N. richieste</th>
+     <th style="padding:6px 4px;text-align:right;color:var(--muted);font-size:11px;text-transform:uppercase;">Totale</th>
+    </tr></thead>
+    <tbody>
+     ${righe.map(r => `<tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:7px 4px;font-weight:600;color:var(--navy);">${r.nome}</td>
+      <td style="padding:7px 4px;text-align:right;">${r.n}</td>
+      <td style="padding:7px 4px;text-align:right;font-weight:700;color:var(--aqua-dark);">€${r.tot.toFixed(2)}</td>
+     </tr>`).join('')}
+    </tbody>
+    <tfoot><tr>
+     <td style="padding:9px 4px;font-weight:800;color:var(--navy);">Totale</td>
+     <td></td>
+     <td style="padding:9px 4px;text-align:right;font-weight:800;color:var(--navy);">€${totale.toFixed(2)}</td>
+    </tr></tfoot>
+   </table>`;
+}
+
+function renderDashboardPerPeriodo(data, out) {
+  const mesiIt = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+  const map = {};
+  data.forEach(r => {
+    const dataRif = r.gare?.data || r.creata_il;
+    const d = dataRif ? new Date(dataRif) : null;
+    const key = d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}` : 'n.d.';
+    if (!map[key]) map[key] = { periodo: key, tot: 0, n: 0 };
+    map[key].tot += importoRichiesta(r);
+    map[key].n += 1;
+  });
+  const righe = Object.values(map).sort((a,b) => a.periodo.localeCompare(b.periodo));
+  const totale = righe.reduce((s,r)=>s+r.tot,0);
+  const etichetta = (p) => {
+    if (p === 'n.d.') return 'N.D.';
+    const [y,m] = p.split('-');
+    return `${mesiIt[parseInt(m,10)-1]} ${y}`;
+  };
+
+  out.innerHTML = `
+   <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead><tr style="border-bottom:1.5px solid var(--border);">
+     <th style="padding:6px 4px;text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;">Periodo</th>
+     <th style="padding:6px 4px;text-align:right;color:var(--muted);font-size:11px;text-transform:uppercase;">N. richieste</th>
+     <th style="padding:6px 4px;text-align:right;color:var(--muted);font-size:11px;text-transform:uppercase;">Totale</th>
+    </tr></thead>
+    <tbody>
+     ${righe.map(r => `<tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:7px 4px;font-weight:600;color:var(--navy);">${etichetta(r.periodo)}</td>
+      <td style="padding:7px 4px;text-align:right;">${r.n}</td>
+      <td style="padding:7px 4px;text-align:right;font-weight:700;color:var(--aqua-dark);">€${r.tot.toFixed(2)}</td>
+     </tr>`).join('')}
+    </tbody>
+    <tfoot><tr>
+     <td style="padding:9px 4px;font-weight:800;color:var(--navy);">Totale</td>
+     <td></td>
+     <td style="padding:9px 4px;text-align:right;font-weight:800;color:var(--navy);">€${totale.toFixed(2)}</td>
+    </tr></tfoot>
+   </table>`;
+}
+
+async function generaReportPerGara() {
+  const dal = document.getElementById('report-gara-dal').value;
+  const al = document.getElementById('report-gara-al').value;
+  if (!dal || !al) { alert('Inserisci le date'); return; }
+
+  const { data } = await sb.from('richieste')
+    .select('*, gare(nome, data), profili(nome, cognome, foto_url), spese(*)')
+    .eq('stato', 'approvata')
+    .gte('creata_il', dal)
+    .lte('creata_il', al + 'T23:59:59')
+    .order('creata_il', { ascending: true });
+
+  if (!data || data.length === 0) { alert('Nessuna richiesta nel periodo selezionato'); return; }
+
+  const dalStr = new Date(dal).toLocaleDateString('it-IT');
+  const alStr = new Date(al).toLocaleDateString('it-IT');
+
+  const map = {};
+  data.forEach(r => {
+    const key = r.gare?.nome ? `${r.gare.nome}__${r.gare.data||''}` : '—senza gara—';
+    if (!map[key]) map[key] = { nome: r.gare?.nome || 'Senza gara', data: r.gare?.data, righe: [] };
+    map[key].righe.push(r);
+  });
+  const gruppi = Object.values(map).sort((a,b) => (a.data||'').localeCompare(b.data||''));
+  const totaleComplessivo = data.reduce((s,r) => s + importoRichiesta(r), 0);
+
+  const renderRigheAllenatori = (righe) => righe
+    .slice()
+    .sort((a,b) => (a.allenatore_nome||'').localeCompare(b.allenatore_nome||'', 'it'))
+    .map(r => {
+      const nome = r.allenatore_nome || (r.profili ? `${r.profili.cognome} ${r.profili.nome}` : '—');
+      const tot = importoRichiesta(r);
+      return `<tr>
+   <td>${nome}</td>
+   <td style="text-align:right">${r.km||0} km</td>
+   <td style="text-align:right">${r.pagata ? '✅ Pagato' : '⏳ Da pagare'}</td>
+   <td style="text-align:right;font-weight:600">€${tot.toFixed(2)}</td>
+    </tr>`;
+    }).join('');
+
+  const renderGruppi = gruppi.map(g => {
+    const totGara = g.righe.reduce((s,r)=>s+importoRichiesta(r),0);
+    const dataStr = g.data ? new Date(g.data).toLocaleDateString('it-IT') : '—';
+    return `<div style="margin-bottom:12px;border:1px solid #e2e6f0;border-radius:8px;overflow:hidden;">
+   <div style="background:#EBF2FF;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
+    <div><strong>${g.nome}</strong><div style="font-size:11px;color:#888;">${dataStr} · ${g.righe.length} allenatori</div></div>
+    <strong style="color:#0055CC;">€${totGara.toFixed(2)}</strong>
+   </div>
+   <table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <thead><tr style="background:#f9f9f9;">
+     <th style="padding:5px 10px;text-align:left;">Allenatore</th>
+     <th style="padding:5px 10px;text-align:right;">Km</th>
+     <th style="padding:5px 10px;text-align:right;">Stato</th>
+     <th style="padding:5px 10px;text-align:right;">Importo</th>
+    </tr></thead>
+    <tbody>${renderRigheAllenatori(g.righe)}</tbody>
+   </table>
+    </div>`;
+  }).join('');
+
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Report per gara ${dalStr} — ${alStr}</title>
+  <style> body{font-family:Arial,sans-serif;padding:30px;color:#1a1a2e;max-width:800px;margin:0 auto;font-size:13px}h1{color:#0055CC;font-size:20px;margin-bottom:4px}.sub{color:#888;font-size:12px;margin-bottom:20px}table{width:100%;border-collapse:collapse}td{padding:6px 10px;border-top:1px solid #f0f0f0}.totbox{border-radius:8px;padding:12px 16px;display:flex;justify-content:space-between;font-weight:700;font-size:15px;margin-bottom:20px}@media print{button{display:none!important}}</style></head><body>
+  <img src="https://qfnczjhbgcpczrweyzzt.supabase.co/storage/v1/object/public/allegati/Logo_Superba_Nuoto_orizz_a_colori_jpg-removebg-preview.png" style="height:35px;margin-bottom:10px;">
+  <h1>Report Rimborso Spese per Gara</h1>
+  <div class="sub">Periodo: ${dalStr} — ${alStr} · Generato il ${new Date().toLocaleDateString('it-IT')}</div>
+
+  <div class="totbox" style="background:#EBF2FF;color:#0055CC;">
+    <span>📊 Totale complessivo (${gruppi.length} gare)</span><span>€${totaleComplessivo.toFixed(2)}</span>
+  </div>
+
+  ${renderGruppi}
+
+  <div style="margin-top:24px;">
+    <button onclick="window.print()" style="padding:10px 24px;background:#0055CC;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;">🖨️ Stampa / Salva PDF</button>
+    <button onclick="window.close()" style="padding:10px 24px;background:#eee;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-left:8px;">Chiudi</button>
+  </div>
+  </body></html>`);
+  w.document.close();
 }
 
 async function generaReport() {
