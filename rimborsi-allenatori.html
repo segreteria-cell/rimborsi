@@ -762,6 +762,7 @@
       <button class="tab" id="admintab-report" onclick="adminTab('report')">📊 Report</button>
       <button class="tab" id="admintab-notifiche" onclick="adminTab('notifiche')">🔔 Notifiche</button>
     </div>
+    <div id="admin-stagione-bar"></div>
     <div id="admin-content">
       <div class="loading"><div class="spinner"></div>Caricamento...</div>
     </div>
@@ -905,6 +906,7 @@
     <div class="field"><label>Data inizio</label><input type="date" id="tariffa-inizio"></div>
     <div class="field"><label>Data fine</label><input type="date" id="tariffa-fine"></div>
     <div class="field"><label>Tariffa €/km</label><input type="number" id="tariffa-valore" placeholder="0.25" step="0.01" min="0"></div>
+    <div class="field"><label>Richieste accettate fino al (facoltativo)</label><input type="date" id="tariffa-chiusura"></div>
     <div style="display:flex;gap:10px;margin-top:8px;">
       <button class="btn btn-secondary" onclick="closeModalTariffa()">Annulla</button>
       <button class="btn btn-primary" onclick="addTariffa()">Salva</button>
@@ -921,6 +923,7 @@
     <div class="field"><label>Data inizio</label><input type="date" id="modifica-tariffa-inizio"></div>
     <div class="field"><label>Data fine</label><input type="date" id="modifica-tariffa-fine"></div>
     <div class="field"><label>Tariffa €/km</label><input type="number" id="modifica-tariffa-valore" step="0.01" min="0"></div>
+    <div class="field"><label>Richieste accettate fino al (facoltativo)</label><input type="date" id="modifica-tariffa-chiusura"></div>
     <div class="field">
       <label>Stato</label>
       <select id="modifica-tariffa-attiva">
@@ -2615,6 +2618,175 @@ async function loadHome() {
   }
 }
 
+// ===== STAGIONI =====
+// Le stagioni sono definite dalla tabella tariffe_km (stagione, data_inizio, data_fine, chiusura_richieste).
+// Una richiesta appartiene alla stagione in cui cade la data della gara (fallback: data di creazione).
+let _stagioniCache = null;
+let stagioneAdminSel = null;
+let stagioneAllenatoreSel = null;
+
+async function getStagioni(force) {
+  if (_stagioniCache && !force) return _stagioniCache;
+  try {
+    const { data, error } = await sb.from('tariffe_km').select('*').order('data_inizio', { ascending: false });
+    if (error) { console.warn('[stagioni]', error.message); return _stagioniCache || []; }
+    const map = {};
+    (data || []).forEach(function(t) {
+      if (!t.stagione || !t.data_inizio || !t.data_fine) return;
+      const s = map[t.stagione];
+      if (!s) {
+        map[t.stagione] = { stagione: t.stagione, data_inizio: t.data_inizio, data_fine: t.data_fine, chiusura_richieste: t.chiusura_richieste || null };
+      } else {
+        if (t.data_inizio < s.data_inizio) s.data_inizio = t.data_inizio;
+        if (t.data_fine > s.data_fine) s.data_fine = t.data_fine;
+        if (t.chiusura_richieste && (!s.chiusura_richieste || t.chiusura_richieste > s.chiusura_richieste)) s.chiusura_richieste = t.chiusura_richieste;
+      }
+    });
+    _stagioniCache = Object.values(map).sort(function(a, b) { return b.data_inizio.localeCompare(a.data_inizio); });
+    return _stagioniCache;
+  } catch (e) {
+    console.warn('[stagioni] eccezione', e);
+    return _stagioniCache || [];
+  }
+}
+
+function oggiISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function stagioneDiData(dataStr, stagioni) {
+  if (!dataStr) return null;
+  const d = String(dataStr).slice(0, 10);
+  const s = (stagioni || []).find(function(x) { return d >= x.data_inizio && d <= x.data_fine; });
+  return s ? s.stagione : null;
+}
+
+function stagioneCorrente(stagioni) {
+  const oggi = oggiISO();
+  const s = (stagioni || []).find(function(x) { return oggi >= x.data_inizio && oggi <= x.data_fine; });
+  if (s) return s.stagione;
+  return (stagioni && stagioni[0]) ? stagioni[0].stagione : null;
+}
+
+function dataRiferimentoRichiesta(r) {
+  if (r && r.gare && r.gare.data) return String(r.gare.data).slice(0, 10);
+  return (r && r.creata_il) ? String(r.creata_il).slice(0, 10) : null;
+}
+
+function stagioneDiRichiesta(r, stagioni) {
+  return stagioneDiData(dataRiferimentoRichiesta(r), stagioni);
+}
+
+function richiestaAperta(r) {
+  return r.stato === 'in attesa' || (r.stato === 'approvata' && !r.pagata);
+}
+
+// Filtra le richieste per stagione. Con mantieniAperte=true le pratiche non chiuse
+// (in attesa, approvate non pagate) restano visibili qualunque sia la stagione.
+function filtraRichiestePerStagione(lista, stagione, stagioni, mantieniAperte) {
+  if (!stagione || stagione === '__tutte__') return lista || [];
+  const corrente = stagioneCorrente(stagioni);
+  return (lista || []).filter(function(r) {
+    const s = stagioneDiRichiesta(r, stagioni);
+    if (s === stagione) return true;
+    if (s === null && stagione === corrente) return true;
+    return !!mantieniAperte && richiestaAperta(r);
+  });
+}
+
+function garaInStagione(g, stagione, stagioni) {
+  if (!stagione || stagione === '__tutte__') return true;
+  const s = stagioneDiData(g.data, stagioni);
+  if (s === stagione) return true;
+  return s === null && stagione === stagioneCorrente(stagioni);
+}
+
+// Gara selezionabile dall'allenatore: stagione in corso o futura,
+// oppure stagione conclusa ma entro la data limite per l'invio delle richieste.
+function infoStagioneGara(g, stagioni, oggi) {
+  if (!g.data) return { visibile: true, tardiva: null };
+  const d = String(g.data).slice(0, 10);
+  const st = (stagioni || []).find(function(x) { return d >= x.data_inizio && d <= x.data_fine; });
+  if (!st) return { visibile: true, tardiva: null };
+  if (st.data_fine >= oggi) return { visibile: true, tardiva: null };
+  if (st.chiusura_richieste && st.chiusura_richieste >= oggi) return { visibile: true, tardiva: st };
+  return { visibile: false, tardiva: null };
+}
+
+function barraStagioneHtml(stagioni, selezionata, onchange, nota) {
+  if (!stagioni || !stagioni.length) return '';
+  const corrente = stagioneCorrente(stagioni);
+  let opts = '';
+  stagioni.forEach(function(x) {
+    opts += '<option value="' + x.stagione + '"' + (x.stagione === selezionata ? ' selected' : '') + '>Stagione ' + x.stagione + (x.stagione === corrente ? ' (in corso)' : '') + '</option>';
+  });
+  opts += '<option value="__tutte__"' + (selezionata === '__tutte__' ? ' selected' : '') + '>Tutte le stagioni</option>';
+  return '<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:14px;">' +
+    '<div style="display:flex;align-items:center;gap:10px;">' +
+      '<span style="font-size:13px;font-weight:700;color:var(--navy);white-space:nowrap;">📅 Stagione</span>' +
+      '<select onchange="' + onchange + '" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-weight:600;background:var(--bg);">' + opts + '</select>' +
+    '</div>' +
+    (nota ? '<div style="font-size:11px;color:var(--muted);margin-top:6px;">' + nota + '</div>' : '') +
+  '</div>';
+}
+
+function badgeStagioneHtml(r) {
+  const stagioni = _stagioniCache || [];
+  const s = stagioneDiRichiesta(r, stagioni);
+  if (!s || s === stagioneCorrente(stagioni)) return '';
+  return '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--amber-pale);color:#92400E;margin-left:6px;">' + s + '</span>';
+}
+
+function cambiaStagioneAdmin(v) {
+  stagioneAdminSel = v;
+  const gest = document.getElementById('screen-admin-gestione');
+  if (gest && gest.classList.contains('active') && gestioneCurrentTab === 'gare') {
+    loadGestioneContent('gare');
+  } else {
+    loadAdminContent(adminCurrentTab || 'approvate');
+  }
+}
+
+function cambiaStagioneAllenatore(v) {
+  stagioneAllenatoreSel = v;
+  loadRiepilogo();
+}
+
+function renderBarraStagioneAdmin(tab, stagioni) {
+  const bar = document.getElementById('admin-stagione-bar');
+  if (!bar) return;
+  const note = {
+    approvate: 'Le richieste approvate e non ancora pagate restano visibili anche se di altre stagioni.',
+    pagamenti: 'Le richieste da pagare restano visibili anche se di altre stagioni.',
+    rifiutate: '',
+    report: 'Seleziona la stagione per impostare automaticamente le date dei report (riferite alla data della gara).'
+  };
+  if (!(tab in note)) { bar.innerHTML = ''; return; }
+  bar.innerHTML = barraStagioneHtml(stagioni, stagioneAdminSel, 'cambiaStagioneAdmin(this.value)', note[tab]);
+}
+
+function applicaStagioneAiReport() {
+  if (!stagioneAdminSel || stagioneAdminSel === '__tutte__') return;
+  const st = (_stagioniCache || []).find(function(x) { return x.stagione === stagioneAdminSel; });
+  if (!st) return;
+  [['dash-dal','dash-al'], ['report-gara-dal','report-gara-al'], ['report-dal','report-al']].forEach(function(coppia) {
+    const a = document.getElementById(coppia[0]);
+    const b = document.getElementById(coppia[1]);
+    if (a) a.value = st.data_inizio;
+    if (b) b.value = st.data_fine;
+  });
+}
+
+// Filtro dei report sulla data della gara (fallback: data di creazione)
+function filtraPerDataGara(lista, dal, al) {
+  return (lista || []).filter(function(r) {
+    const d = dataRiferimentoRichiesta(r);
+    if (!d) return false;
+    return d >= dal && d <= al;
+  });
+}
+
 async function loadGare() {
   const sel = document.getElementById('sel-gara');
   const dbg = document.getElementById('gare-debug-bar');
@@ -2660,9 +2832,22 @@ async function loadGare() {
     const lista = visibili.length > 0 ? visibili : data;
     log(`✅ ${lista.length} gare caricate (${data.length} totali nel db)`);
 
-    const nuoto = lista.filter(g => !g.categoria || g.categoria === 'nuoto');
-    const salvamento = lista.filter(g => g.categoria === 'salvamento');
-    const altro = lista.filter(g => g.categoria && g.categoria !== 'nuoto' && g.categoria !== 'salvamento');
+    // Filtro stagione: solo gare della stagione in corso/futura + stagione chiusa entro la data limite
+    const stagioniG = await getStagioni(true);
+    const oggiG = oggiISO();
+    const inCorso = [];
+    const tardive = [];
+    let stagioneTardiva = null;
+    lista.forEach(g => {
+      const info = infoStagioneGara(g, stagioniG, oggiG);
+      if (!info.visibile) return;
+      if (info.tardiva) { tardive.push(g); stagioneTardiva = info.tardiva; }
+      else inCorso.push(g);
+    });
+
+    const nuoto = inCorso.filter(g => !g.categoria || g.categoria === 'nuoto');
+    const salvamento = inCorso.filter(g => g.categoria === 'salvamento');
+    const altro = inCorso.filter(g => g.categoria && g.categoria !== 'nuoto' && g.categoria !== 'salvamento');
 
     const optHtml = (g) => {
       const dataFmt = g.data ? new Date(g.data).toLocaleDateString('it-IT') : '—';
@@ -2675,6 +2860,15 @@ async function loadGare() {
     if (nuoto.length) { html += '<optgroup label="🏊 Nuoto">'; html += nuoto.map(optHtml).join(''); html += '</optgroup>'; }
     if (salvamento.length) { html += '<optgroup label="🛟 Salvamento">'; html += salvamento.map(optHtml).join(''); html += '</optgroup>'; }
     if (altro.length) { html += '<optgroup label="📋 Altro">'; html += altro.map(optHtml).join(''); html += '</optgroup>'; }
+    if (tardive.length && stagioneTardiva) {
+      const scad = new Date(stagioneTardiva.chiusura_richieste).toLocaleDateString('it-IT');
+      html += '<optgroup label="📦 Stagione ' + stagioneTardiva.stagione + ' · invio entro il ' + scad + '">';
+      html += tardive.map(optHtml).join('');
+      html += '</optgroup>';
+    }
+    if (!inCorso.length && !tardive.length) {
+      html = '<option value="">Nessuna gara disponibile per la stagione in corso</option>';
+    }
     sel.innerHTML = html;
 
     const partenzaEl = document.getElementById('inp-partenza');
@@ -2692,13 +2886,14 @@ async function loadGare() {
 
 async function getTariffaPerData(dataGara) {
   try {
+    // Cerca la tariffa della stagione della gara (anche se archiviata), preferendo quella attiva
     const { data } = await sb.from('tariffe_km')
    .select('*')
-   .eq('attiva', true)
    .lte('data_inizio', dataGara)
    .gte('data_fine', dataGara)
-   .single();
-    return data ? data.tariffa_km : 0.25; // fallback 0.25
+   .order('attiva', { ascending: false })
+   .limit(1);
+    return (data && data[0]) ? data[0].tariffa_km : 0.25; // fallback 0.25
   } catch(e) {
     return 0.25;
   }
@@ -3225,12 +3420,20 @@ async function stampaPDF(id) {
 async function loadRiepilogo() {
   const el = document.getElementById('riepilogo-content');
   el.innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
-  const { data: richieste } = await sb.from('richieste')
+  const { data: tutteRichieste } = await sb.from('richieste')
     .select('*, gare(nome, data, luogo), spese(*)')
     .eq('allenatore_id', currentUser.id)
     .order('creata_il', { ascending: false });
-  if (!richieste || richieste.length === 0) {
+  if (!tutteRichieste || tutteRichieste.length === 0) {
     el.innerHTML = '<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Nessuna richiesta ancora.</div></div>';
+    return;
+  }
+  const stagioniR = await getStagioni();
+  if (!stagioneAllenatoreSel) stagioneAllenatoreSel = stagioneCorrente(stagioniR);
+  const barraStagione = barraStagioneHtml(stagioniR, stagioneAllenatoreSel, 'cambiaStagioneAllenatore(this.value)', 'Le richieste ancora da pagare restano visibili anche se di altre stagioni.');
+  const richieste = filtraRichiestePerStagione(tutteRichieste, stagioneAllenatoreSel, stagioniR, true);
+  if (richieste.length === 0) {
+    el.innerHTML = barraStagione + '<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Nessuna richiesta in questa stagione.</div></div>';
     return;
   }
   let totApprovato = 0, totAttesa = 0, totTutte = 0, totPagato = 0, totDaPagare = 0;
@@ -3242,7 +3445,7 @@ async function loadRiepilogo() {
     if (r.pagata) totPagato += tot;
     if (r.stato === 'approvata' && !r.pagata) totDaPagare += tot;
   });
-  el.innerHTML = `
+  el.innerHTML = barraStagione + `
     <div style="display:flex;gap:10px;margin-bottom:12px;">
    <div style="background:var(--blue-light);border-radius:var(--radius-sm);padding:14px;flex:1;text-align:center;">
     <div style="font-size:20px;font-weight:700;color:var(--blue)">€${totApprovato.toFixed(0)}</div>
@@ -3515,7 +3718,7 @@ function applicaFiltriAdmin() {
    <div class="admin-card-top">
     <div>
      <div class="card-title">${nomeAl}</div>
-     <div class="card-sub">${r.gare?.nome} · ${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''}</div>
+     <div class="card-sub">${r.gare?.nome} · ${r.gare?.data ? new Date(r.gare.data).toLocaleDateString('it-IT') : ''}${badgeStagioneHtml(r)}</div>
     </div>
     <div style="font-size:18px;font-weight:700;color:var(--blue)">€ ${tot.toFixed(2)}</div>
    </div>
@@ -3740,7 +3943,11 @@ async function loadGestioneContent(tab) {
   }
 
   if (tab === 'gare') {
-    const { data } = await sb.from('gare').select('*').order('data', { ascending: true });
+    const { data: _tutteGare } = await sb.from('gare').select('*').order('data', { ascending: true });
+    const stagioniGest = await getStagioni();
+    if (!stagioneAdminSel) stagioneAdminSel = stagioneCorrente(stagioniGest);
+    const data = (_tutteGare || []).filter(g => garaInStagione(g, stagioneAdminSel, stagioniGest));
+    const barraGare = barraStagioneHtml(stagioniGest, stagioneAdminSel, 'cambiaStagioneAdmin(this.value)', 'Gli allenatori vedono solo le gare della stagione in corso (più quelle della stagione precedente fino alla data limite impostata nelle Tariffe km).');
     const nuoto = (data||[]).filter(g => !g.categoria || g.categoria === 'nuoto');
     const salvamento = (data||[]).filter(g => g.categoria === 'salvamento');
     const altro = (data||[]).filter(g => g.categoria && g.categoria !== 'nuoto' && g.categoria !== 'salvamento');
@@ -3786,7 +3993,7 @@ async function loadGestioneContent(tab) {
     }).join('');
     };
 
-    el.innerHTML = `
+    el.innerHTML = barraGare + `
    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
     <div class="stat-mini aqua"><div class="stat-mini-num">${totGare}</div><div class="stat-mini-label">Totale</div></div>
     <div class="stat-mini green"><div class="stat-mini-num">${prossime}</div><div class="stat-mini-label">Prossime 30gg</div></div>
@@ -3796,7 +4003,7 @@ async function loadGestioneContent(tab) {
    ${renderGareNew(nuoto, 'Nuoto', '🏊', 'var(--aqua-pale); color:var(--aqua-dark)')}
    ${renderGareNew(salvamento, 'Salvamento', '🛟', 'var(--green-pale); color:#065F46')}
    ${renderGareNew(altro, 'Altro', '📋', 'var(--bg); color:var(--muted)')}
-   ${!data || !data.length ? '<div class="empty"><div class="empty-icon">🏆</div><div class="empty-text">Nessuna gara</div></div>' : ''}`;
+   ${!data || !data.length ? '<div class="empty"><div class="empty-icon">🏆</div><div class="empty-text">Nessuna gara in questa stagione</div></div>' : ''}`;
     return;
   }
 
@@ -3805,7 +4012,7 @@ async function loadGestioneContent(tab) {
 
     el.innerHTML = `
    <div style="background:var(--aqua-pale);border:1px solid rgba(0,174,239,0.2);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--aqua-dark);">
-    ℹ️ Il sistema seleziona automaticamente la tariffa attiva in base alla data della gara quando si calcola un rimborso km.
+    ℹ️ Ogni riga definisce una stagione: le gare e i rimborsi vengono attribuiti alla stagione in base alla data della gara, e la tariffa km è quella della stagione della gara. Con "Richieste accettate fino al" gli allenatori possono ancora inviare rimborsi per le gare di una stagione conclusa fino a quella data.
    </div>
    <button class="btn btn-primary" onclick="openModalTariffa()" style="margin-bottom:16px;">+ Nuova stagione</button>
    ${(tariffe||[]).map(t => {
@@ -3817,8 +4024,9 @@ async function loadGestioneContent(tab) {
      </div>
      <div style="font-size:26px;font-weight:800;color:${isAttiva ? 'var(--aqua-dark)' :'var(--muted)'};">€ ${parseFloat(t.tariffa_km).toFixed(3)} <span style="font-size:14px;font-weight:500;">/ km</span></div>
      <div style="font-size:12px;color:var(--muted);margin-top:4px;">📅 ${new Date(t.data_inizio).toLocaleDateString('it-IT')} → ${new Date(t.data_fine).toLocaleDateString('it-IT')}</div>
+     ${t.chiusura_richieste ? `<div style="font-size:12px;color:#92400E;margin-top:2px;">📮 Richieste accettate fino al ${new Date(t.chiusura_richieste).toLocaleDateString('it-IT')}</div>` : ''}
      <div style="display:flex;gap:8px;margin-top:10px;">
-      <button class="btn btn-sm btn-secondary" onclick="openModalModificaTariffa('${t.id}','${t.stagione}','${t.data_inizio}','${t.data_fine}',${t.tariffa_km},${t.attiva})">✏️ Modifica</button>
+      <button class="btn btn-sm btn-secondary" onclick="openModalModificaTariffa('${t.id}','${t.stagione}','${t.data_inizio}','${t.data_fine}',${t.tariffa_km},${t.attiva},'${t.chiusura_richieste||''}')">✏️ Modifica</button>
       <button class="btn btn-sm btn-danger" onclick="eliminaTariffa('${t.id}','${t.stagione}')">🗑️ Elimina</button>
      </div>
     </div>`;
@@ -4283,12 +4491,16 @@ async function compensiAdminTab(tab) {
 async function loadAdminContent(tab) {
   const el = document.getElementById('admin-content');
   el.innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
+  const stagioniA = await getStagioni();
+  if (!stagioneAdminSel) stagioneAdminSel = stagioneCorrente(stagioniA);
+  renderBarraStagioneAdmin(tab, stagioniA);
 
   if (tab === 'pagamenti') {
-    const { data } = await sb.from('richieste')
+    const { data: _dataPag } = await sb.from('richieste')
    .select('*, gare(nome, data), profili(nome, cognome, email, telefono), spese(*)')
    .eq('stato', 'approvata')
    .order('creata_il', { ascending: false });
+    const data = filtraRichiestePerStagione(_dataPag, stagioneAdminSel, stagioniA, true);
 
     if (!data || data.length === 0) {
    el.innerHTML = '<div class="empty"><div class="empty-icon">💰</div><div class="empty-text">Nessuna richiesta approvata</div></div>';
@@ -4536,6 +4748,7 @@ async function loadAdminContent(tab) {
 
    <div id="report-output"></div>`;
 
+    applicaStagioneAiReport();
     caricaDashboardReport();
 
     const { data: datePag } = await sb.from('richieste')
@@ -4580,7 +4793,7 @@ async function loadAdminContent(tab) {
      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
       <span class="badge ${t.attiva ? 'badge-approved' : 'badge-rejected'}">${t.attiva ? '✅ Attiva' : 'Non attiva'}</span>
       <div style="display:flex;gap:8px;">
-       <button class="btn btn-sm btn-secondary" onclick="openModalModificaTariffa('${t.id}','${t.stagione}','${t.data_inizio}','${t.data_fine}',${t.tariffa_km},${t.attiva})">
+       <button class="btn btn-sm btn-secondary" onclick="openModalModificaTariffa('${t.id}','${t.stagione}','${t.data_inizio}','${t.data_fine}',${t.tariffa_km},${t.attiva},'${t.chiusura_richieste||''}')">
         ✏️ Modifica
        </button>
        <button class="btn btn-sm btn-danger" onclick="eliminaTariffa('${t.id}','${t.stagione}')">
@@ -4632,10 +4845,13 @@ async function loadAdminContent(tab) {
   }
 
   const statoMap = { attesa: 'in attesa', approvate: 'approvata', rifiutate: 'rifiutata' };
-  const { data } = await sb.from('richieste')
+  const { data: _dataRich } = await sb.from('richieste')
     .select('*, gare(nome,data,luogo), profili(nome,cognome), spese(*)')
     .eq('stato', statoMap[tab])
     .order('creata_il', { ascending: false });
+  const data = tab === 'attesa'
+    ? (_dataRich || [])
+    : filtraRichiestePerStagione(_dataRich, stagioneAdminSel, stagioniA, tab === 'approvate');
 
   const nomiAllenatori = [...new Set((data||[]).map(r =>
     r.allenatore_nome || (r.profili ? `${r.profili.cognome} ${r.profili.nome}` : null)).filter(Boolean))].sort();
@@ -5011,11 +5227,10 @@ async function caricaDashboardReport() {
 
   out.innerHTML = '<div class="loading"><div class="spinner"></div>Caricamento...</div>';
 
-  const { data, error } = await sb.from('richieste')
+  const { data: _rawReport, error } = await sb.from('richieste')
     .select('*, gare(nome, data), profili(nome, cognome), spese(*)')
-    .eq('stato', 'approvata')
-    .gte('creata_il', dal)
-    .lte('creata_il', al + 'T23:59:59');
+    .eq('stato', 'approvata');
+  const data = filtraPerDataGara(_rawReport, dal, al);
 
   if (error) {
     out.innerHTML = '<div class="empty"><div class="empty-text">Errore nel caricamento dei dati.</div></div>';
@@ -5109,12 +5324,11 @@ async function generaReportPerGara() {
   const al = document.getElementById('report-gara-al').value;
   if (!dal || !al) { alert('Inserisci le date'); return; }
 
-  const { data } = await sb.from('richieste')
+  const { data: _rawReport } = await sb.from('richieste')
     .select('*, gare(nome, data), profili(nome, cognome, foto_url), spese(*)')
     .eq('stato', 'approvata')
-    .gte('creata_il', dal)
-    .lte('creata_il', al + 'T23:59:59')
     .order('creata_il', { ascending: true });
+  const data = filtraPerDataGara(_rawReport, dal, al);
 
   if (!data || data.length === 0) { alert('Nessuna richiesta nel periodo selezionato'); return; }
 
@@ -5191,12 +5405,11 @@ async function generaReport() {
   const al = document.getElementById('report-al').value;
   if (!dal || !al) { alert('Inserisci le date'); return; }
 
-  const { data } = await sb.from('richieste')
+  const { data: _rawReport } = await sb.from('richieste')
     .select('*, gare(nome, data), profili(nome, cognome, foto_url), spese(*)')
     .eq('stato', 'approvata')
-    .gte('creata_il', dal)
-    .lte('creata_il', al + 'T23:59:59')
     .order('allenatore_nome', { ascending: true });
+  const data = filtraPerDataGara(_rawReport, dal, al);
 
   if (!data || data.length === 0) { alert('Nessuna richiesta nel periodo selezionato'); return; }
 
@@ -5282,12 +5495,11 @@ async function generaReport() {
 }
 
 async function stampaPDFReport(dal, al) {
-  const { data } = await sb.from('richieste')
+  const { data: _rawReport } = await sb.from('richieste')
     .select('*, gare(nome, data), profili(nome, cognome), spese(*)')
     .eq('stato', 'approvata')
-    .gte('creata_il', dal)
-    .lte('creata_il', al + 'T23:59:59')
     .order('pagata_il', { ascending: true });
+  const data = filtraPerDataGara(_rawReport, dal, al);
 
   if (!data) return;
 
@@ -5468,6 +5680,7 @@ async function eliminaGara(id, nome) {
 async function eliminaTariffa(id, stagione) {
   if (!confirm(`Eliminare definitivamente la stagione "${stagione}"?`)) return;
   await sb.from('tariffe_km').delete().eq('id', id);
+  _stagioniCache = null;
   if(document.getElementById('screen-admin-gestione').classList.contains('active')){loadGestioneContent('tariffe');}else{loadAdminContent('tariffe');}
 }
 
@@ -5517,7 +5730,8 @@ async function salvaModificaGara() {
   if(document.getElementById('screen-admin-gestione')?.classList.contains('active')){loadGestioneContent('gare');}else{loadAdminContent('gare');}
 }
 
-function openModalModificaTariffa(id, stagione, inizio, fine, valore, attiva) {
+function openModalModificaTariffa(id, stagione, inizio, fine, valore, attiva, chiusura) {
+  document.getElementById('modifica-tariffa-chiusura').value = chiusura || '';
   document.getElementById('modifica-tariffa-id').value = id;
   document.getElementById('modifica-tariffa-stagione').value = stagione;
   document.getElementById('modifica-tariffa-inizio').value = inizio;
@@ -5534,8 +5748,12 @@ async function salvaModificaTariffa() {
   const fine = document.getElementById('modifica-tariffa-fine').value;
   const valore = parseFloat(document.getElementById('modifica-tariffa-valore').value);
   const attiva = document.getElementById('modifica-tariffa-attiva').value === 'true';
+  const chiusura_richieste = document.getElementById('modifica-tariffa-chiusura').value || null;
   if (!stagione || !inizio || !fine || !valore) { alert('Compila tutti i campi'); return; }
-  await sb.from('tariffe_km').update({ stagione, data_inizio: inizio, data_fine: fine, tariffa_km: valore, attiva }).eq('id', id);
+  if (chiusura_richieste && chiusura_richieste < fine) { alert('La data limite delle richieste deve essere uguale o successiva alla data fine stagione'); return; }
+  const { error: errTar } = await sb.from('tariffe_km').update({ stagione, data_inizio: inizio, data_fine: fine, tariffa_km: valore, attiva, chiusura_richieste }).eq('id', id);
+  if (errTar) { alert('Errore: ' + errTar.message); return; }
+  _stagioniCache = null;
   document.getElementById('modal-modifica-tariffa').classList.remove('open');
   if(document.getElementById('screen-admin-gestione').classList.contains('active')){loadGestioneContent('tariffe');}else{loadAdminContent('tariffe');}
 }
@@ -5545,6 +5763,7 @@ function openModalTariffa() {
   document.getElementById('tariffa-inizio').value = '';
   document.getElementById('tariffa-fine').value = '';
   document.getElementById('tariffa-valore').value = '';
+  document.getElementById('tariffa-chiusura').value = '';
   document.getElementById('modal-tariffa').classList.add('open');
 }
 function closeModalTariffa() { document.getElementById('modal-tariffa').classList.remove('open'); }
@@ -5554,8 +5773,12 @@ async function addTariffa() {
   const inizio = document.getElementById('tariffa-inizio').value;
   const fine = document.getElementById('tariffa-fine').value;
   const valore = parseFloat(document.getElementById('tariffa-valore').value);
+  const chiusura_richieste = document.getElementById('tariffa-chiusura').value || null;
   if (!stagione || !inizio || !fine || !valore) { alert('Compila tutti i campi'); return; }
-  await sb.from('tariffe_km').insert({ stagione, data_inizio: inizio, data_fine: fine, tariffa_km: valore, attiva: true });
+  if (chiusura_richieste && chiusura_richieste < fine) { alert('La data limite delle richieste deve essere uguale o successiva alla data fine stagione'); return; }
+  const { error: errTar } = await sb.from('tariffe_km').insert({ stagione, data_inizio: inizio, data_fine: fine, tariffa_km: valore, attiva: true, chiusura_richieste });
+  if (errTar) { alert('Errore: ' + errTar.message); return; }
+  _stagioniCache = null;
   closeModalTariffa();
   if(document.getElementById('screen-admin-gestione').classList.contains('active')){loadGestioneContent('tariffe');}else{loadAdminContent('tariffe');}
 }
