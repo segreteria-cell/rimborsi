@@ -1190,6 +1190,14 @@ async function loadCompensi() {
       .or(`allenatore_id.eq.${currentUser.id},allenatore_nome.ilike.${currentProfilo?.cognome} ${currentProfilo?.nome}`)
       .order('mese', { ascending: false });
 
+    // Collega i compensi esterni importati dall'admin prima della registrazione
+    if (currentProfilo?.cognome && currentProfilo?.nome) {
+      await sb.from('compensi_esterni')
+        .update({ allenatore_id: currentUser.id })
+        .ilike('allenatore_nome', currentProfilo.cognome + ' ' + currentProfilo.nome)
+        .is('allenatore_id', null);
+    }
+
     const { data: compExt } = await sb.from('compensi_esterni')
       .select('*')
       .eq('allenatore_id', currentUser.id)
@@ -2411,6 +2419,10 @@ async function doRegister() {
     .ilike('allenatore_nome', nomeCompleto)
     .is('allenatore_id', null);
   await sb.from('compensi')
+    .update({ allenatore_id: userId })
+    .ilike('allenatore_nome', nomeCompleto)
+    .is('allenatore_id', null);
+  await sb.from('compensi_esterni')
     .update({ allenatore_id: userId })
     .ilike('allenatore_nome', nomeCompleto)
     .is('allenatore_id', null);
@@ -4219,6 +4231,299 @@ async function importaCompensiBulk(sovrascrivi) {
     '</div></div>';
 }
 
+// ===== IMPORT COMPENSI DA ALTRI SOGGETTI (compensi_esterni) =====
+let importaTipo = 'superba'; // 'superba' | 'esterni'
+let excelEsterniData = [];
+
+function importaToggleHtml() {
+  const btn = (tipo, label) =>
+    '<button class="tab' + (importaTipo === tipo ? ' active' : '') + '" style="flex:1;" onclick="setImportaTipo(\'' + tipo + '\')">' + label + '</button>';
+  return '<div class="tabs" style="margin-bottom:12px;">' +
+    btn('superba', '🏊 Compensi SUPERBA') +
+    btn('esterni', '🏢 Compensi altri soggetti') +
+    '</div>';
+}
+
+function setImportaTipo(tipo) {
+  importaTipo = tipo;
+  excelImportData = [];
+  excelEsterniData = [];
+  compensiAdminTab('importa');
+}
+
+function escHtml(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function parseImporto(v) {
+  if (v == null || v === '') return 0;
+  if (typeof v === 'number') return v;
+  let t = String(v).replace(/[€\s]/g, '');
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  return parseFloat(t) || 0;
+}
+
+function parseDataExcel(v) {
+  if (v == null || v === '') return null;
+  let d = null;
+  if (v instanceof Date) d = v;
+  else if (typeof v === 'number') d = new Date(Math.round((v - 25569) * 86400000));
+  else {
+    const t = String(v).trim();
+    const m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+    if (m) {
+      let y = parseInt(m[3]); if (y < 100) y += 2000;
+      d = new Date(Date.UTC(y, parseInt(m[2]) - 1, parseInt(m[1])));
+    } else d = new Date(t);
+  }
+  if (!d || isNaN(d)) return null;
+  // usa le componenti locali per evitare lo slittamento di un giorno da fuso orario
+  const loc = new Date(d.getTime() + 12 * 3600000);
+  const y = loc.getUTCFullYear(), mo = loc.getUTCMonth() + 1, da = loc.getUTCDate();
+  return y + '-' + String(mo).padStart(2, '0') + '-' + String(da).padStart(2, '0');
+}
+
+function parseMeseExcel(v) {
+  if (v == null || v === '') return null;
+  const mesiMap = {gennaio:1,febbraio:2,marzo:3,aprile:4,maggio:5,giugno:6,luglio:7,agosto:8,settembre:9,ottobre:10,novembre:11,dicembre:12};
+  if (v instanceof Date) return v.getMonth() + 1;
+  const n = parseInt(v);
+  if (!isNaN(n) && n >= 1 && n <= 12) return n;
+  return mesiMap[String(v).trim().toLowerCase()] || null;
+}
+
+function renderImportEsterni(el) {
+  el.innerHTML = importaToggleHtml() +
+    '<div class="card" style="margin-bottom:16px;">' +
+    '<div class="card-title" style="margin-bottom:6px;">🏢 Importa compensi da altri soggetti</div>' +
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Compensi sportivi percepiti dagli allenatori da committenti diversi da SUPERBA NUOTO (contano per le soglie INPS/IRPEF e nelle dichiarazioni).<br>' +
+    'Colonne obbligatorie: <b>ALLENATORE</b> (Cognome Nome), <b>SOGGETTO</b> (committente), <b>DATA INCASSO</b>, <b>LORDO</b>, <b>NETTO</b>.<br>' +
+    'Facoltative: <b>MESE COMPETENZA</b> (es. "Settembre" o 9), <b>NOTE</b>.<br>' +
+    'Anno e mese della dichiarazione vengono presi dalla data di incasso.</div>' +
+    '<div id="importa-est-alert"></div>' +
+    '<div class="field">' +
+    '<label>Seleziona file Excel (.xlsx)</label>' +
+    '<div onclick="document.getElementById(\'inp-excel-est\').click()" style="padding:20px;background:var(--bg);border:2px dashed var(--border);border-radius:10px;cursor:pointer;text-align:center;">' +
+    '<div style="font-size:32px;margin-bottom:6px;">📂</div>' +
+    '<div style="font-size:14px;font-weight:600;color:var(--blue);">Tocca per selezionare il file</div>' +
+    '<div style="font-size:12px;color:var(--muted);margin-top:4px;" id="excel-est-filename">Nessun file selezionato</div>' +
+    '</div>' +
+    '<input type="file" id="inp-excel-est" accept=".xlsx,.xls" style="display:none;">' +
+    '</div>' +
+    '<button class="btn btn-secondary" style="width:100%;margin-top:4px;" onclick="scaricaModelloEsterni()">⬇️ Scarica modello Excel</button>' +
+    '</div>' +
+    '<div id="importa-est-anteprima"></div>';
+
+  setTimeout(() => {
+    const inp = document.getElementById('inp-excel-est');
+    if (inp) {
+      inp.addEventListener('change', function() {
+        const f = document.getElementById('excel-est-filename');
+        if (f) f.textContent = this.files[0]?.name || '';
+        anteprimaExcelEsterni(this);
+      });
+    }
+  }, 50);
+}
+
+function scaricaModelloEsterni() {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['ALLENATORE', 'SOGGETTO', 'DATA INCASSO', 'MESE COMPETENZA', 'LORDO', 'NETTO', 'NOTE'],
+    ['Rossi Mario', 'ASD Esempio Nuoto', '15/10/2026', 'Settembre', 300, 300, '']
+  ]);
+  ws['!cols'] = [{wch:22},{wch:28},{wch:14},{wch:17},{wch:10},{wch:10},{wch:30}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Compensi esterni');
+  XLSX.writeFile(wb, 'modello_compensi_altri_soggetti.xlsx');
+}
+
+async function anteprimaExcelEsterni(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const anteprimaEl = document.getElementById('importa-est-anteprima');
+  document.getElementById('importa-est-alert').innerHTML = '';
+  anteprimaEl.innerHTML = '<div class="loading"><div class="spinner"></div>Lettura file...</div>';
+
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+
+    const headerIdx = rows.findIndex(r => r && r.some(c => String(c||'').trim().toUpperCase() === 'ALLENATORE'));
+    if (headerIdx === -1) { anteprimaEl.innerHTML = ''; showAlert('importa-est-alert','❌ Colonna ALLENATORE non trovata nel file','error'); return; }
+
+    const headers = rows[headerIdx].map(h => String(h||'').trim().toUpperCase());
+    const iAl = headers.indexOf('ALLENATORE');
+    const iSo = headers.findIndex(h => h === 'SOGGETTO' || h === 'COMMITTENTE' || h.startsWith('SOGGETTO') || h.startsWith('COMMITTENTE'));
+    const iDa = headers.findIndex(h => h.includes('DATA'));
+    const iMc = headers.findIndex(h => h.includes('COMPETENZA') || h === 'MESE');
+    const iLo = headers.indexOf('LORDO');
+    const iNe = headers.indexOf('NETTO');
+    const iNo = headers.findIndex(h => h.startsWith('NOTE'));
+
+    const mancanti = [];
+    if (iSo < 0) mancanti.push('SOGGETTO');
+    if (iDa < 0) mancanti.push('DATA INCASSO');
+    if (iLo < 0) mancanti.push('LORDO');
+    if (iNe < 0) mancanti.push('NETTO');
+    if (mancanti.length) { anteprimaEl.innerHTML=''; showAlert('importa-est-alert','❌ Colonne mancanti: ' + mancanti.join(', '),'error'); return; }
+
+    const { data: allenatori } = await sb.from('profili').select('id,nome,cognome').eq('ruolo','allenatore');
+
+    const righe = rows.slice(headerIdx + 1).filter(r => r && r[iAl] && String(r[iAl]).trim());
+    excelEsterniData = righe.map((r, idx) => {
+      const nomeExcel = String(r[iAl]).trim().replace(/\s+/g, ' ');
+      const soggetto = String(r[iSo] || '').trim();
+      const lordo = parseImporto(r[iLo]);
+      const netto = parseImporto(r[iNe]);
+      const dataIncasso = parseDataExcel(r[iDa]);
+      const meseComp = iMc >= 0 ? parseMeseExcel(r[iMc]) : null;
+      const note = iNo >= 0 && r[iNo] != null ? String(r[iNo]).trim() : '';
+      const anno = dataIncasso ? parseInt(dataIncasso.slice(0, 4)) : null;
+      const mese = dataIncasso ? parseInt(dataIncasso.slice(5, 7)) : null;
+      const profilo = allenatori?.find(a => ((a.cognome||'') + ' ' + (a.nome||'')).toUpperCase().trim() === nomeExcel.toUpperCase()) || null;
+      const errori = [];
+      if (!soggetto) errori.push('soggetto mancante');
+      if (!dataIncasso) errori.push('data incasso non valida');
+      if (!(lordo > 0)) errori.push('lordo mancante');
+      if (!(netto > 0)) errori.push('netto mancante');
+      if (lordo > 0 && netto > lordo) errori.push('netto > lordo');
+      return { riga: headerIdx + 2 + idx, nomeExcel, soggetto, lordo, netto, dataIncasso, meseComp, note, anno, mese, profilo, errori, dup: false };
+    });
+
+    if (!excelEsterniData.length) { anteprimaEl.innerHTML=''; showAlert('importa-est-alert','⚠️ Nessuna riga trovata','error'); return; }
+
+    // Controllo duplicati: stesso allenatore + soggetto + data incasso + lordo
+    const anni = [...new Set(excelEsterniData.map(r => r.anno).filter(Boolean))];
+    if (anni.length) {
+      const { data: esistenti, error: errEs } = await sb.from('compensi_esterni').select('*').in('anno', anni);
+      if (errEs) console.warn('Controllo duplicati non riuscito', errEs);
+      (esistenti || []).forEach(e => {
+        excelEsterniData.forEach(r => {
+          if (r.errori.length) return;
+          const stessoAll = r.profilo ? e.allenatore_id === r.profilo.id
+            : (!e.allenatore_id && String(e.allenatore_nome||'').toUpperCase() === r.nomeExcel.toUpperCase());
+          if (stessoAll && String(e.soggetto||'').toUpperCase().trim() === r.soggetto.toUpperCase()
+              && e.data_incasso === r.dataIncasso && Math.abs((e.lordo||0) - r.lordo) < 0.005) r.dup = true;
+        });
+      });
+    }
+
+    const mesiNomi = ['','Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+    const valide = excelEsterniData.filter(r => !r.errori.length);
+    const conErrori = excelEsterniData.filter(r => r.errori.length);
+    const dup = valide.filter(r => r.dup);
+    const nuove = valide.filter(r => !r.dup);
+    const nonAbbinati = [...new Set(valide.filter(r => !r.profilo).map(r => r.nomeExcel))];
+    const fmtData = d => d ? d.slice(8,10) + '/' + d.slice(5,7) + '/' + d.slice(0,4) : '—';
+
+    const righeHtml = excelEsterniData.map((r, i) => {
+      let stato, bg = i % 2 ? 'var(--bg)' : 'white';
+      if (r.errori.length) { stato = '<span style="color:#cc0000;font-weight:600;">❌ ' + escHtml(r.errori.join(', ')) + '</span>'; bg = '#fff5f5'; }
+      else if (r.dup) { stato = '<span style="color:#cc0000;font-weight:600;">● già presente</span>'; bg = '#fff8f0'; }
+      else if (r.profilo) stato = '<span style="color:var(--green);font-weight:600;">✅ Trovato</span>';
+      else stato = '<span style="color:var(--orange);font-weight:600;">⚠️ Non registrato</span>';
+      return '<tr style="background:' + bg + ';border-bottom:1px solid var(--border);">' +
+        '<td style="padding:8px;color:var(--muted);">' + r.riga + '</td>' +
+        '<td style="padding:8px;font-weight:500;">' + escHtml(r.nomeExcel) + '</td>' +
+        '<td style="padding:8px;">' + escHtml(r.soggetto || '—') + '</td>' +
+        '<td style="padding:8px;text-align:center;">' + fmtData(r.dataIncasso) + '</td>' +
+        '<td style="padding:8px;text-align:center;">' + (r.meseComp ? mesiNomi[r.meseComp] : '—') + '</td>' +
+        '<td style="padding:8px;text-align:right;">€' + r.lordo.toFixed(2) + '</td>' +
+        '<td style="padding:8px;text-align:right;">€' + r.netto.toFixed(2) + '</td>' +
+        '<td style="padding:8px;text-align:center;">' + stato + '</td>' +
+        '</tr>';
+    }).join('');
+
+    const nonAbbinatiHtml = nonAbbinati.length
+      ? '<div style="background:#FFF4E5;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;">' +
+        '<b style="color:var(--orange);">⚠️ ' + nonAbbinati.length + ' allenatori non ancora registrati</b> (importati senza ID, collegati automaticamente alla registrazione o al primo accesso):<br>' +
+        nonAbbinati.map(n => '<span style="display:inline-block;background:#FFE0A0;border-radius:4px;padding:2px 6px;margin:2px;">' + escHtml(n) + '</span>').join('') +
+        '</div>' : '';
+
+    const erroriHtml = conErrori.length
+      ? '<div style="background:#FFF0F0;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;"><b style="color:#cc0000;">❌ ' + conErrori.length + ' righe con errori</b> — non verranno importate. Correggi il file e ricaricalo se vuoi includerle.</div>' : '';
+
+    let azioniHtml;
+    if (!valide.length) {
+      azioniHtml = '<div style="margin-top:12px;font-size:13px;color:#cc0000;font-weight:600;">Nessuna riga importabile.</div>';
+    } else if (dup.length) {
+      azioniHtml = '<div style="background:#FFF0F0;border:1.5px solid #ffcccc;border-radius:8px;padding:12px;margin-top:12px;font-size:13px;">' +
+        '<b style="color:#cc0000;">⚠️ ' + dup.length + ' compensi risultano già presenti</b> (stesso allenatore, soggetto, data e lordo).' +
+        '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">' +
+        (nuove.length ? '<button class="btn btn-primary" style="flex:1;" onclick="importaEsterniBulk(false)">➕ Importa solo i ' + nuove.length + ' nuovi</button>' : '') +
+        '<button class="btn" style="flex:1;background:#cc0000;color:white;border:none;border-radius:var(--radius);padding:10px;font-weight:600;cursor:pointer;" onclick="importaEsterniBulk(true)">Importa tutti i ' + valide.length + ' (anche doppi)</button>' +
+        '</div></div>';
+    } else {
+      azioniHtml = '<button class="btn btn-primary" style="margin-top:12px;width:100%;" onclick="importaEsterniBulk(false)">💾 Importa ' + valide.length + ' compensi</button>';
+    }
+
+    anteprimaEl.innerHTML =
+      '<div class="card" style="margin-bottom:12px;">' +
+      '<div class="card-title" style="margin-bottom:12px;">📋 Anteprima — ' + excelEsterniData.length + ' righe</div>' +
+      nonAbbinatiHtml + erroriHtml +
+      '<div style="overflow-x:auto;">' +
+      '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+      '<thead><tr style="background:var(--blue);color:white;">' +
+      '<th style="padding:8px;text-align:left;">Riga</th>' +
+      '<th style="padding:8px;text-align:left;">Allenatore</th>' +
+      '<th style="padding:8px;text-align:left;">Soggetto</th>' +
+      '<th style="padding:8px;text-align:center;">Incasso</th>' +
+      '<th style="padding:8px;text-align:center;">Compet.</th>' +
+      '<th style="padding:8px;text-align:right;">Lordo</th>' +
+      '<th style="padding:8px;text-align:right;">Netto</th>' +
+      '<th style="padding:8px;text-align:center;">Stato</th>' +
+      '</tr></thead><tbody>' + righeHtml + '</tbody></table></div>' +
+      '<div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:13px;"><b>' + valide.length + '</b> importabili · <b>' +
+      valide.filter(r => r.profilo).length + '</b> con profilo · <b>' + valide.filter(r => !r.profilo).length + '</b> senza profilo' +
+      (conErrori.length ? ' · <b>' + conErrori.length + '</b> scartate' : '') + '</div>' +
+      azioniHtml +
+      '</div>';
+  } catch (e) {
+    console.error(e);
+    anteprimaEl.innerHTML = '';
+    showAlert('importa-est-alert', '❌ Errore nella lettura del file: ' + e.message, 'error');
+  }
+}
+
+async function importaEsterniBulk(includiDuplicati) {
+  const righe = excelEsterniData.filter(r => !r.errori.length && (includiDuplicati || !r.dup));
+  if (!righe.length) return;
+  document.querySelectorAll('#importa-est-anteprima button').forEach(b => { b.disabled = true; });
+
+  let ok = 0, err = 0, primoErrore = '';
+  for (const r of righe) {
+    const record = {
+      allenatore_id: r.profilo ? r.profilo.id : null,
+      allenatore_nome: r.nomeExcel,
+      soggetto: r.soggetto,
+      anno: r.anno,
+      mese: r.mese,
+      mese_competenza: r.meseComp,
+      lordo: r.lordo,
+      netto: r.netto,
+      data_incasso: r.dataIncasso,
+      note: r.note || null
+    };
+    const { error } = await sb.from('compensi_esterni').insert(record);
+    if (error) { console.error('Riga ' + r.riga, r.nomeExcel, error); err++; if (!primoErrore) primoErrore = error.message; }
+    else ok++;
+  }
+
+  excelEsterniData = [];
+  const errHtml = err
+    ? '<div style="color:var(--orange);font-size:14px;margin-top:6px;">' + err + ' errori — primo errore: ' + escHtml(primoErrore) + '</div>' : '';
+  document.getElementById('importa-est-anteprima').innerHTML =
+    '<div class="card"><div style="text-align:center;padding:20px;">' +
+    '<div style="font-size:48px;margin-bottom:12px;">' + (err === 0 ? '✅' : '⚠️') + '</div>' +
+    '<div style="font-size:18px;font-weight:700;margin-bottom:6px;">' + ok + ' compensi da altri soggetti importati</div>' +
+    errHtml +
+    '<div style="font-size:13px;color:var(--muted);margin-top:8px;">Gli allenatori non registrati verranno collegati automaticamente alla registrazione o al primo accesso.</div>' +
+    '<button class="btn btn-secondary" style="margin-top:16px;" onclick="compensiAdminTab(\'riepilogo\')">📊 Vai al riepilogo</button>' +
+    '</div></div>';
+}
+
 async function compensiAdminTab(tab) {
   document.querySelectorAll('#screen-admin-compensi .tab').forEach((t, i) => {
     t.classList.toggle('active', ['inserisci','importa','riepilogo','dichiarazioni'][i] === tab);
@@ -4232,9 +4537,10 @@ async function compensiAdminTab(tab) {
   const { data: esterni } = await sb.from('compensi_esterni').select('*').eq('anno', anno);
 
   if (tab === 'importa') {
-    el.innerHTML =
+    if (importaTipo === 'esterni') { renderImportEsterni(el); return; }
+    el.innerHTML = importaToggleHtml() +
    '<div class="card" style="margin-bottom:16px;">' +
-   '<div class="card-title" style="margin-bottom:6px;">📤 Importa compensi da Excel</div>' +
+   '<div class="card-title" style="margin-bottom:6px;">📤 Importa compensi SUPERBA NUOTO da Excel</div>' +
    '<div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Il file Excel deve avere le colonne: <b>ALLENATORE</b> (Cognome Nome), <b>LORDO</b>, <b>INPS</b>, <b>IRPEF</b>, <b>NETTO</b>, <b>MESE</b>, <b>DATA PAGAMENTO</b>. Le colonne INPS e IRPEF sono opzionali.</div>' +
    '<div id="importa-alert"></div>' +
    '<div class="field">' +
